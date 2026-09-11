@@ -3,7 +3,7 @@ import {execFile} from "node:child_process";
 import {promisify} from "node:util";
 const exec=promisify(execFile),ADB="/opt/homebrew/bin/adb",PORT=3131;
 let screen=null,eventId=0,previous={connected:false,sandboxForeground:false,route:""};
-const events=[];
+const events=[]; 
 let state={connected:false,sandboxForeground:false,updatedAt:new Date().toISOString(),events,test:{status:"idle",name:"Workout smoke test"}};
 let test={status:"idle",name:"Workout smoke test"};
 const adb=async(...args)=>(await exec(ADB,args,{encoding:"utf8",maxBuffer:8_000_000})).stdout.trim();
