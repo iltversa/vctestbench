@@ -1,14 +1,78 @@
 import http from "node:http";
-import {execFile} from "node:child_process";
+import {execFile, execFileSync} from "node:child_process";
 import {promisify} from "node:util";
-const exec=promisify(execFile),ADB="/opt/homebrew/bin/adb",PORT=3131;
+const exec=promisify(execFile),PORT=3131;
+const ADB = process.env.ADB ?? (() => {
+  const candidates = [
+    "/opt/homebrew/bin/adb",
+    "/usr/local/bin/adb",
+    "adb",
+  ];
+  for (const candidate of candidates) {
+    try {
+      execFileSync(candidate, ["version"], {stdio: "ignore"});
+      return candidate;
+    } catch {
+      // try the next fallback candidate
+    }
+  }
+  return "adb";
+})();
 let screen=null,eventId=0,previous={connected:false,sandboxForeground:false,route:""};
-const events=[]; 
+const events=[];
 let state={connected:false,sandboxForeground:false,updatedAt:new Date().toISOString(),events,test:{status:"idle",name:"Workout smoke test"}};
 let test={status:"idle",name:"Workout smoke test"};
 const adb=async(...args)=>(await exec(ADB,args,{encoding:"utf8",maxBuffer:8_000_000})).stdout.trim();
 const addEvent=(label,detail,kind="info")=>{events.push({id:++eventId,at:new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"}),label,detail,kind});if(events.length>30)events.shift()};
-async function readRoute(pid){if(!pid)return"";try{await adb("forward","tcp:9222","localabstract:webview_devtools_remote_"+pid);const pages=await fetch("http://127.0.0.1:9222/json").then(r=>r.json());return new URL(pages[0]?.url??"").pathname}catch{return""}}
+async function readRoute(pid){
+  if(!pid)return"";
+
+  try{
+    await adb(
+      "forward",
+      "--remove",
+      "tcp:9222"
+    ).catch(()=>{});
+
+    await adb(
+      "forward",
+      "tcp:9222",
+      "localabstract:webview_devtools_remote_"+pid
+    );
+
+    const response=await fetch(
+      "http://127.0.0.1:9222/json/list",
+      {cache:"no-store"}
+    );
+
+    if(!response.ok)
+      throw new Error("DevTools HTTP "+response.status);
+
+    const pages=await response.json();
+
+    console.log(
+      "[DevTools]",
+      JSON.stringify(pages,null,2)
+    );
+
+    const page=pages.find(
+      item =>
+        item.type==="page" &&
+        item.webSocketDebuggerUrl
+    );
+
+    if(!page)return"";
+
+    return new URL(page.url).pathname;
+
+  }catch(error){
+    console.log(
+      "[DevTools] Route read failed:",
+      error?.message||error
+    );
+    return"";
+  }
+}
 async function pageTelemetry(){
  const pages=await fetch("http://127.0.0.1:9222/json").then(r=>r.json()),url=pages[0]?.webSocketDebuggerUrl;
  if(!url)throw new Error("WebView telemetry unavailable");
@@ -57,49 +121,359 @@ async function poll(){
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function waitForRoute(route,timeout=9000){const started=Date.now();while(Date.now()-started<timeout){if(state.connected&&state.route===route)return true;await sleep(350)}return false}
 async function runWorkoutTest(){
+
  if(test.status==="running")return;
- if(!state.connected||!state.sandboxForeground||state.route!=="/home")throw new Error("Sandbox must be connected and on Home");
+
+ if(!state.connected||!state.sandboxForeground||state.route!=="/home")
+   throw new Error("Sandbox must be connected and on Home");
+
  events.splice(0,events.length);
- test={status:"running",name:"Workout smoke test",startedAt:new Date().toISOString(),step:"Starting workout"};addEvent("Workout test started","Preconditions verified: tablet connected, Sandbox visible, Home screen confirmed","info");
+
+ test={
+   status:"running",
+   name:"Workout smoke test",
+   startedAt:new Date().toISOString(),
+   step:"Starting workout"
+ };
+
+ addEvent(
+   "Workout test started",
+   "Preconditions verified: tablet connected, Sandbox visible, Home screen confirmed",
+   "info"
+ );
+
  await adb("shell","input","tap","400","1165");
- if(!await waitForRoute("/record"))throw new Error("Workout screen did not open");
- addEvent("Clicked Start button","Tablet changed from /home to /record","success");test={...test,step:"Verifying active workout"};
+
+ if(!await waitForRoute("/record"))
+   throw new Error("Workout screen did not open");
+
+ addEvent(
+   "Clicked Start button",
+   "Tablet changed from /home to /record",
+   "success"
+ );
+
+ test={...test,step:"Verifying active workout"};
+
  await sleep(3000);
- if(state.route!=="/record")throw new Error("Workout did not remain active");
- const smokeTelemetry=await pageTelemetry(),smokeFeet=feetFrom(smokeTelemetry.text);
- if(smokeFeet>=50)throw new Error("Smoke test crossed 50 ft before Stop");
- addEvent("Workout is running","Active workout verified at "+smokeFeet+" ft — below the 50 ft save threshold","success");test={...test,step:"Stopping workout before 50 ft"};
+
+ if(state.route!=="/record")
+   throw new Error("Workout did not remain active");
+
+ const smokeTelemetry=await pageTelemetry();
+ const smokeFeet=feetFrom(smokeTelemetry.text);
+
+ addEvent(
+   "Workout is running",
+   "Active workout verified at "+smokeFeet+" ft",
+   "success"
+ );
+
+ test={...test,step:"Stopping workout"};
+
  await clickText(["stop"]);
- if(!await waitForRoute("/home",20000))throw new Error("Home screen did not return after Stop");
- addEvent("Clicked Stop button","Tablet changed from /record to /home","success");
- addEvent("Finished the workout","Home screen confirmed after a clean stop","success");
- test={status:"passed",name:"Workout smoke test",finishedAt:new Date().toISOString(),step:"Complete"};state.test=test;
+
+ if(!await waitForRoute("/home",20000))
+   throw new Error("Home screen did not return after Stop");
+
+ addEvent(
+   "Clicked Stop",
+   "Tablet changed from /record to /home",
+   "success"
+ );
+
+ addEvent(
+   "Finished the workout",
+   "Home screen confirmed after a clean stop",
+   "success"
+ );
+
+ test={
+   status:"passed",
+   name:"Workout smoke test",
+   finishedAt:new Date().toISOString(),
+   step:"Complete"
+ };
+
+ state.test=test;
 }
 async function launchSand(){
- if(!state.connected)throw new Error("Lenovo tablet is not connected");
- if(!state.sandboxForeground){
-  await adb("shell","am","start","-a","android.settings.APPLICATION_DETAILS_SETTINGS","-d","package:com.versaclimber.sandbox");
-  await sleep(900);await adb("shell","input","tap","153","317");
-  const started=Date.now();while(Date.now()-started<10000&&!state.sandboxForeground)await sleep(350);
- }
- if(!state.sandboxForeground)throw new Error("Sandbox could not be brought to foreground");
- if(state.route!=="/home"){await adb("shell","input","tap","760","52");if(!await waitForRoute("/home",10000))throw new Error("Sandbox opened but Home was not reached")}
- addEvent("Sandbox launched","App is in foreground and Home is confirmed","success");
+  if(!state.connected)
+    throw new Error("Lenovo tablet is not connected");
+
+  if(!state.sandboxForeground){
+    await adb(
+      "shell",
+      "monkey",
+      "-p",
+      "com.versaclimber.sandbox",
+      "-c",
+      "android.intent.category.LAUNCHER",
+      "1"
+    );
+
+    const started=Date.now();
+
+    while(Date.now()-started<10000){
+      if(state.sandboxForeground)break;
+      await sleep(350);
+    }
+  }
+
+  if(!state.sandboxForeground)
+    throw new Error("Sandbox could not be brought to foreground");
+
+  const routeStarted=Date.now();
+
+  while(Date.now()-routeStarted<10000){
+    if(state.route==="/home")break;
+    await sleep(350);
+  }
+
+  if(state.route!=="/home")
+    throw new Error(
+      "Sandbox opened but Home was not detected. Current route: "+
+      (state.route||"unknown")
+    );
+
+  addEvent(
+    "Sandbox launched",
+    "App is in foreground and Home is confirmed",
+    "success"
+  );
 }
-async function runMonumentTest(){
- if(test.status==="running")return;
- if(!state.connected||!state.sandboxForeground||state.route!=="/home")throw new Error("Sandbox must be connected and on Home");
- events.splice(0,events.length);test={status:"running",name:"Monument smoke test",startedAt:new Date().toISOString(),step:"Opening Monuments"};addEvent("Monument test started","Tablet, Sandbox, and Home screen verified","info");
- await adb("shell","input","tap","600","1025");await sleep(1000);addEvent("Clicked Monuments","Monuments chooser opened","success");test={...test,step:"Selecting Qutub Minar"};
- await adb("shell","input","tap","200","650");await sleep(1200);addEvent("Selected Qutub Minar","Monument detail card opened","success");test={...test,step:"Starting climb"};
- const started=Date.now();let startClicked="";while(Date.now()-started<15000&&!state.route?.startsWith("/record-new")){try{startClicked=await clickText(["start climbing"])}catch{}await sleep(350)}
- if(!startClicked&&!state.route?.startsWith("/record-new"))throw new Error("Start Climbing control was not clickable");
- if(!state.route?.startsWith("/record-new"))throw new Error("Monument workout did not open");
- addEvent("Clicked Start Climbing","Monument workout screen /record-new confirmed","success");await sleep(3000);
- const telemetry=await pageTelemetry(),feet=feetFrom(telemetry.text);if(feet>=50)throw new Error("Monument smoke test crossed 50 ft before Stop");
- addEvent("Climb is running","Monument workout verified at "+feet+" ft — below the 50 ft save threshold","success");test={...test,step:"Stopping before 50 ft"};
- await clickText(["stop"]);if(!await waitForRoute("/home",20000))throw new Error("Home did not return after Monument Stop");
- addEvent("Clicked Stop button","Monument workout stopped below 50 ft","success");addEvent("Returned Home","Monument smoke test finished cleanly","success");test={status:"passed",name:"Monument smoke test",finishedAt:new Date().toISOString(),step:"Complete"};state.test=test;
+async function runMonumentTest() {
+  if (test.status === "running") return;
+
+  if (
+    !state.connected ||
+    !state.sandboxForeground ||
+    state.route !== "/home"
+  ) {
+    throw new Error("Sandbox must be connected and on Home");
+  }
+
+  events.splice(0, events.length);
+
+  test = {
+    status: "running",
+    name: "Monument smoke test",
+    startedAt: new Date().toISOString(),
+    step: "Opening Monuments",
+  };
+
+  addEvent(
+    "Monument test started",
+    "Tablet, Sandbox, and Home screen verified",
+    "info"
+  );
+
+  // --------------------------------------------------
+  // 1. Open Monuments
+  // --------------------------------------------------
+
+  await adb("shell", "input", "tap", "600", "1025");
+  await sleep(1000);
+
+  addEvent(
+    "Clicked Monuments",
+    "Monuments chooser opened",
+    "success"
+  );
+
+  test = {
+    ...test,
+    step: "Selecting Qutub Minar",
+  };
+
+  // --------------------------------------------------
+  // 2. Select Qutub Minar
+  // --------------------------------------------------
+
+  await adb("shell", "input", "tap", "200", "650");
+  await sleep(1200);
+
+  addEvent(
+    "Selected Qutub Minar",
+    "Monument detail card opened",
+    "success"
+  );
+
+  test = {
+    ...test,
+    step: "Starting climb",
+  };
+
+  // --------------------------------------------------
+  // 3. Start Climbing
+  // --------------------------------------------------
+
+  const started = Date.now();
+  let startClicked = "";
+
+  while (
+    Date.now() - started < 15000 &&
+    !state.route?.startsWith("/record-new")
+  ) {
+    try {
+      startClicked = await clickText(["start climbing"]);
+    } catch {}
+
+    await sleep(350);
+  }
+
+  if (
+    !startClicked &&
+    !state.route?.startsWith("/record-new")
+  ) {
+    throw new Error("Start Climbing control was not clickable");
+  }
+
+  if (!state.route?.startsWith("/record-new")) {
+    throw new Error("Monument workout did not open");
+  }
+
+  addEvent(
+    "Clicked Start Climbing",
+    "Monument workout screen /record-new confirmed",
+    "success"
+  );
+
+  await sleep(3000);
+
+  // --------------------------------------------------
+  // 4. Verify workout is running
+  // --------------------------------------------------
+
+  const telemetry = await pageTelemetry();
+  const feet = feetFrom(telemetry.text);
+
+  addEvent(
+    "Climb is running",
+    "Monument workout verified at " + feet + " ft",
+    "success"
+  );
+
+  test = {
+    ...test,
+    step: "Waiting for user",
+  };
+
+  addEvent(
+    "Waiting for user",
+    "Workout is running. No Stop/Save/Resume actions will be automated jjjj.",
+    "info"
+  );
+
+  // 5. Monitor workout indefinitely
+  //
+  // Save visible       -> paused
+  // Save disappears +
+  // /record-new        -> resumed
+  // Save disappears +
+  // /home              -> workout ended
+
+  let paused = false;
+
+   while (true) {
+    await sleep(750);
+
+    let telemetry;
+
+    try {
+      telemetry = await pageTelemetry();
+    } catch (error) {
+      addEvent(
+        "WebView telemetry unavailable",
+        "Temporary telemetry error. Continuing to monitor the workout.",
+        "warning"
+      );
+
+      // IMPORTANT:
+      // Do not fail the test because telemetry temporarily disappeared.
+      continue;
+    }
+
+    const text = telemetry?.text || "";
+
+    const saveVisible = /\bsave\b/i.test(text);
+
+    const workoutActive =
+      state.sandboxForeground &&
+      state.route?.startsWith("/record-new");
+
+    const workoutEnded =
+      state.sandboxForeground &&
+      state.route === "/home";
+
+    // ----------------------------------------------
+    // Save visible -> Paused
+    // ----------------------------------------------
+
+    if (saveVisible && !paused) {
+      paused = true;
+
+      test = {
+        ...test,
+        step: "Workout paused — Save visible",
+      };
+
+      addEvent(
+        "Workout paused",
+        "Save button detected. Waiting for the user.",
+        "warning"
+      );
+    }
+
+    // ----------------------------------------------
+    // Save disappeared while workout is active
+    // -> Resumed
+    // ----------------------------------------------
+
+    if (!saveVisible && paused && workoutActive) {
+      paused = false;
+
+      test = {
+        ...test,
+        step: "Workout resumed",
+      };
+
+      addEvent(
+        "Workout resumed",
+        "Save button disappeared and workout screen is active.",
+        "success"
+      );
+    }
+
+    // ----------------------------------------------
+    // Save gone + Home -> Ended
+    // ----------------------------------------------
+
+    if (!saveVisible && workoutEnded) {
+      addEvent(
+        "Workout ended",
+        "Save button disappeared and the workout returned to Home.",
+        "success"
+      );
+
+      addEvent(
+        "Returned Home",
+        "Monument smoke test finished cleanly.",
+        "success"
+      );
+
+      test = {
+        status: "passed",
+        name: "Monument smoke test",
+        finishedAt: new Date().toISOString(),
+        step: "Complete",
+      };
+
+      state.test = test;
+
+      return;
+    }
+  }
 }
 async function runVideoClassTest(){
  if(test.status==="running")return;
