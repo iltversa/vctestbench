@@ -242,6 +242,193 @@ async function launchSand(){
     "success"
   );
 }
+async function findMonumentsButton() {
+  return await pageAction(`(() => {
+    const clickables = [...document.querySelectorAll(
+      'button, a, [role="button"], [onclick]'
+    )].filter(el => {
+      const rect = el.getBoundingClientRect();
+
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        getComputedStyle(el).visibility !== "hidden" &&
+        getComputedStyle(el).display !== "none"
+      );
+    });
+
+    if (clickables.length < 2) {
+      return {
+        success: false,
+        reason: "Less than 2 clickable elements found",
+        count: clickables.length
+      };
+    }
+
+    const element = clickables[clickables.length - 2];
+
+    const info = {
+      success: true,
+      index: clickables.length - 2,
+      total: clickables.length,
+      tag: element.tagName,
+      id: element.id,
+      text: (element.innerText || "").trim(),
+      aria: element.getAttribute("aria-label"),
+      className: String(element.className || "")
+    };
+
+    element.click();
+
+    return info;
+  })()`);
+}
+async function clickRandomMonument() {
+  return await pageAction(`(() => {
+    const monumentNames = [
+      "Twin Towers Tribute Climb",
+      "Vertical 100",
+      "Qutub Minar",
+      "Vertical 225",
+      "Cologne Cathedral",
+      "Mist of Niagara Falls",
+      "Empire State Building",
+      "Eiffel Tower",
+      "Arc de Triomphe"
+    ];
+
+    const cards = [...document.querySelectorAll(
+      "li.monument-item.defaultbg"
+    )].filter(card => {
+      const text = (card.innerText || "").trim();
+
+      return monumentNames.some(name => text.includes(name));
+    });
+
+    if (!cards.length) {
+      return {
+        success: false,
+        reason: "No monument cards found"
+      };
+    }
+
+    const card = cards[
+      Math.floor(Math.random() * cards.length)
+    ];
+
+    const text = (card.innerText || "").trim();
+
+    const selectedMonument = monumentNames.find(name =>
+      text.includes(name)
+    );
+
+    // Scroll the actual monument card into view
+    card.scrollIntoView({
+      behavior: "instant",
+      block: "center"
+    });
+
+    const rect = card.getBoundingClientRect();
+
+    // Click the card itself
+    card.click();
+
+    return {
+      success: true,
+      selectedMonument,
+      cardText: text,
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+      totalMonuments: cards.length
+    };
+  })()`);
+}
+async function inspectMonumentList() {
+  return await pageAction(`(() => {
+    const lists = [...document.querySelectorAll("ul")];
+
+    return lists.map((ul, index) => {
+      const text = (ul.innerText || "").trim();
+
+      if (
+        !text.includes("FEATURED") ||
+        !text.includes("Qutub Minar")
+      ) {
+        return null;
+      }
+
+      return {
+        index,
+        ulText: text,
+        children: [...ul.children].map((child, childIndex) => ({
+          childIndex,
+          tag: child.tagName,
+          className: String(child.className || ""),
+          id: child.id,
+          text: (child.innerText || "").trim().slice(0, 200),
+          rect: (() => {
+            const r = child.getBoundingClientRect();
+            return {
+              x: Math.round(r.x),
+              y: Math.round(r.y),
+              width: Math.round(r.width),
+              height: Math.round(r.height)
+            };
+          })()
+        }))
+      };
+    }).filter(Boolean);
+  })()`);
+}
+async function clickStartClimbing() {
+  return await pageAction(`(() => {
+    const clickables = [...document.querySelectorAll(
+      'button, a, [role="button"], [onclick]'
+    )].filter(el => {
+      const rect = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    });
+
+    const startButton = clickables.find(el => {
+      const text = (el.innerText || "").trim().toLowerCase();
+
+      return text.includes("start climbing");
+    });
+
+    if (!startButton) {
+      return {
+        success: false,
+        reason: "Start Climbing button not found",
+        clickables: clickables.map(el => ({
+          tag: el.tagName,
+          text: (el.innerText || "").trim(),
+          aria: el.getAttribute("aria-label")
+        }))
+      };
+    }
+
+    const result = {
+      success: true,
+      text: (startButton.innerText || "").trim(),
+      tag: startButton.tagName,
+      id: startButton.id,
+      className: String(startButton.className || "")
+    };
+
+    startButton.click();
+
+    return result;
+  })()`);
+}
 async function runMonumentTest() {
   if (test.status === "running") return;
 
@@ -259,221 +446,263 @@ async function runMonumentTest() {
     status: "running",
     name: "Monument smoke test",
     startedAt: new Date().toISOString(),
-    step: "Opening Monuments",
+    step: "Opening monuments",
   };
+
+  state.test = test;
 
   addEvent(
     "Monument test started",
-    "Tablet, Sandbox, and Home screen verified",
+    "Opening Monuments",
     "info"
   );
 
+  
   // --------------------------------------------------
-  // 1. Open Monuments
+  // Open Monuments
   // --------------------------------------------------
 
-  await adb("shell", "input", "tap", "600", "1025");
+  const openResult = await findMonumentsButton();
+
+  if (!openResult?.success) {
+    addEvent(
+      "Monuments open failed",
+      openResult?.reason || "Could not open the Monuments modal",
+      "error"
+    );
+
+    throw new Error(
+      openResult?.reason || "Could not open the Monuments modal"
+    );
+  }
+
+  addEvent(
+    "Monuments opened",
+    `Clicked ${openResult.text || openResult.id || openResult.tag}`,
+    "success"
+  );
+
+  test = {
+    ...test,
+    step: "Inspecting Monuments modal",
+  };
+
+  state.test = test;
+
+  // --------------------------------------------------
+  // Wait for modal to render
+  // --------------------------------------------------
+
   await sleep(1000);
 
-  addEvent(
-    "Clicked Monuments",
-    "Monuments chooser opened",
-    "success"
-  );
+   const inspection = await inspectMonumentList();
 
-  test = {
-    ...test,
-    step: "Selecting Qutub Minar",
-  };
+addEvent(
+  "Monument list hierarchy",
+  JSON.stringify(inspection, null, 2),
+  "info"
+);
 
   // --------------------------------------------------
-  // 2. Select Qutub Minar
+  // Select random monument
   // --------------------------------------------------
 
-  await adb("shell", "input", "tap", "200", "650");
-  await sleep(1200);
+  // test = {
+  //   ...test,
+  //   step: "Selecting random monument",
+  // };
 
-  addEvent(
-    "Selected Qutub Minar",
-    "Monument detail card opened",
-    "success"
-  );
+  // state.test = test;
 
-  test = {
-    ...test,
-    step: "Starting climb",
-  };
+  const monument = await clickRandomMonument();
 
-  // --------------------------------------------------
-  // 3. Start Climbing
-  // --------------------------------------------------
-
-  const started = Date.now();
-  let startClicked = "";
-
-  while (
-    Date.now() - started < 15000 &&
-    !state.route?.startsWith("/record-new")
-  ) {
-    try {
-      startClicked = await clickText(["start climbing"]);
-    } catch {}
-
-    await sleep(350);
-  }
-
-  if (
-    !startClicked &&
-    !state.route?.startsWith("/record-new")
-  ) {
-    throw new Error("Start Climbing control was not clickable");
-  }
-
-  if (!state.route?.startsWith("/record-new")) {
-    throw new Error("Monument workout did not open");
-  }
-
-  addEvent(
-    "Clicked Start Climbing",
-    "Monument workout screen /record-new confirmed",
-    "success"
-  );
-
-  await sleep(3000);
-
-  // --------------------------------------------------
-  // 4. Verify workout is running
-  // --------------------------------------------------
-
-  const telemetry = await pageTelemetry();
-  const feet = feetFrom(telemetry.text);
-
-  addEvent(
-    "Climb is running",
-    "Monument workout verified at " + feet + " ft",
-    "success"
-  );
-
-  test = {
-    ...test,
-    step: "Waiting for user",
-  };
-
-  addEvent(
-    "Waiting for user",
-    "Workout is running. No Stop/Save/Resume actions will be automated jjjj.",
+    addEvent(
+    "Random monument selected",
+    JSON.stringify(monument, null, 2),
     "info"
   );
 
-  // 5. Monitor workout indefinitely
-  //
-  // Save visible       -> paused
-  // Save disappears +
-  // /record-new        -> resumed
-  // Save disappears +
-  // /home              -> workout ended
-
-  let paused = false;
-
-   while (true) {
-    await sleep(750);
-
-    let telemetry;
-
-    try {
-      telemetry = await pageTelemetry();
-    } catch (error) {
-      addEvent(
-        "WebView telemetry unavailable",
-        "Temporary telemetry error. Continuing to monitor the workout.",
-        "warning"
-      );
-
-      // IMPORTANT:
-      // Do not fail the test because telemetry temporarily disappeared.
-      continue;
-    }
-
-    const text = telemetry?.text || "";
-
-    const saveVisible = /\bsave\b/i.test(text);
-
-    const workoutActive =
-      state.sandboxForeground &&
-      state.route?.startsWith("/record-new");
-
-    const workoutEnded =
-      state.sandboxForeground &&
-      state.route === "/home";
-
-    // ----------------------------------------------
-    // Save visible -> Paused
-    // ----------------------------------------------
-
-    if (saveVisible && !paused) {
-      paused = true;
-
-      test = {
-        ...test,
-        step: "Workout paused — Save visible",
-      };
-
-      addEvent(
-        "Workout paused",
-        "Save button detected. Waiting for the user.",
-        "warning"
-      );
-    }
-
-    // ----------------------------------------------
-    // Save disappeared while workout is active
-    // -> Resumed
-    // ----------------------------------------------
-
-    if (!saveVisible && paused && workoutActive) {
-      paused = false;
-
-      test = {
-        ...test,
-        step: "Workout resumed",
-      };
-
-      addEvent(
-        "Workout resumed",
-        "Save button disappeared and workout screen is active.",
-        "success"
-      );
-    }
-
-    // ----------------------------------------------
-    // Save gone + Home -> Ended
-    // ----------------------------------------------
-
-    if (!saveVisible && workoutEnded) {
-      addEvent(
-        "Workout ended",
-        "Save button disappeared and the workout returned to Home.",
-        "success"
-      );
-
-      addEvent(
-        "Returned Home",
-        "Monument smoke test finished cleanly.",
-        "success"
-      );
-
-      test = {
-        status: "passed",
-        name: "Monument smoke test",
-        finishedAt: new Date().toISOString(),
-        step: "Complete",
-      };
-
-      state.test = test;
-
-      return;
-    }
+  if (!monument?.success) {
+    addEvent(
+      "Monument selection failed",
+      monument?.reason || "Unknown error",
+      "error"
+    );
+    return;
   }
+  addEvent(
+    "Random monument selected",
+    `Clicked ${monument.text || monument.id || monument.tag}`,
+    "success"
+  );
+
+  test = {
+    ...test,
+    monument:
+      monument.text ||
+      monument.id ||
+      monument.tag ||
+      "Unknown",
+    step: "Monument selected",
+  };
+
+  state.test = test;
+  await sleep(1000);
+
+test = {
+  ...test,
+  step: "Starting monument climb",
+};
+
+state.test = test;
+
+const startResult = await clickStartClimbing();
+await sleep(1500);
+
+// --------------------------------------------------
+// 4. Verify monument workout is running
+// --------------------------------------------------
+
+if (state.route !== "/record-new") {
+  throw new Error(
+    `Expected /record-new after Start Climbing, got ${state.route}`
+  );
+}
+
+addEvent(
+  "Monument workout opened",
+  "Route confirmed: /record-new",
+  "success"
+);
+
+const telemetry = await pageTelemetry();
+const feet = feetFrom(telemetry.text);
+
+addEvent(
+  "Climb is running",
+  "Monument workout verified at " + feet + " ft",
+  "success"
+);
+
+test = {
+  ...test,
+  step: "Waiting for user",
+};
+
+state.test = test;
+
+addEvent(
+  "Waiting for user",
+  "Workout is running. No Stop/Save/Resume actions will be automated.",
+  "info"
+);
+
+// --------------------------------------------------
+// 5. Monitor workout indefinitely
+// --------------------------------------------------
+
+let paused = false;
+
+while (true) {
+  await sleep(750);
+
+  let telemetry;
+
+  try {
+    telemetry = await pageTelemetry();
+  } catch (error) {
+    addEvent(
+      "WebView telemetry unavailable",
+      "Temporary telemetry error. Continuing to monitor the workout.",
+      "warning"
+    );
+
+    continue;
+  }
+
+  const text = telemetry?.text || "";
+
+  const saveVisible = /\bsave\b/i.test(text);
+
+  const workoutActive =
+    state.sandboxForeground &&
+    state.route?.startsWith("/record-new");
+
+  const workoutEnded =
+    state.sandboxForeground &&
+    state.route === "/home";
+
+  // ----------------------------------------------
+  // Save visible -> Paused
+  // ----------------------------------------------
+
+  if (saveVisible && !paused) {
+    paused = true;
+
+    test = {
+      ...test,
+      step: "Workout paused — Save visible",
+    };
+
+    state.test = test;
+
+    addEvent(
+      "Workout paused",
+      "Save button detected. Waiting for the user.",
+      "warning"
+    );
+  }
+
+  // ----------------------------------------------
+  // Save disappeared -> Resumed
+  // ----------------------------------------------
+
+  if (!saveVisible && paused && workoutActive) {
+    paused = false;
+
+    test = {
+      ...test,
+      step: "Workout resumed",
+    };
+
+    state.test = test;
+
+    addEvent(
+      "Workout resumed",
+      "Save button disappeared and workout screen is active.",
+      "success"
+    );
+  }
+
+  // ----------------------------------------------
+  // Home -> Workout ended
+  // ----------------------------------------------
+
+  if (!saveVisible && workoutEnded) {
+    addEvent(
+      "Workout ended",
+      "Workout returned to Home.",
+      "success"
+    );
+
+    addEvent(
+      "Returned Home",
+      "Monument smoke test finished cleanly.",
+      "success"
+    );
+
+    test = {
+      status: "passed",
+      name: "Monument smoke test",
+      finishedAt: new Date().toISOString(),
+      step: "Complete",
+    };
+
+    state.test = test;
+
+    break;
+  }
+}
 }
 async function runVideoClassTest(){
  if(test.status==="running")return;
@@ -540,7 +769,7 @@ const server=http.createServer((req,res)=>{
  if(req.url==="/state"){res.writeHead(200,{"Content-Type":"application/json"});return res.end(JSON.stringify({...state,test}))}
  if(req.url==="/run-workout"&&req.method==="POST"){res.writeHead(202,{"Content-Type":"application/json"});res.end(JSON.stringify({accepted:true}));runWorkoutTest().catch(error=>{addEvent("Workout test failed",error.message,"warning");test={status:"failed",name:"Workout smoke test",error:error.message,finishedAt:new Date().toISOString()};state.test=test});return}
  if(req.url==="/launch-sand"&&req.method==="POST"){res.writeHead(202,{"Content-Type":"application/json"});res.end(JSON.stringify({accepted:true}));launchSand().catch(error=>addEvent("Sandbox launch failed",error.message,"warning"));return}
- if(req.url==="/run-monument"&&req.method==="POST"){res.writeHead(202,{"Content-Type":"application/json"});res.end(JSON.stringify({accepted:true}));runMonumentTest().catch(error=>{addEvent("Monument test failed",error.message,"warning");test={status:"failed",name:"Monument smoke test",error:error.message,finishedAt:new Date().toISOString()};state.test=test;try{if(state.route?.startsWith("/record-new"))adb("shell","input","tap","660","1275")}catch{}});return}
+ if(req.url==="/run-monument"&&req.method==="POST"){res.writeHead(202,{"Content-Type":"application/json"});res.end(JSON.stringify({accepted:true}));runMonumentTest().catch(error=>{addEvent("Monument test f",error.message,"warning");test={status:"failed",name:"Monument smoke test",error:error.message,finishedAt:new Date().toISOString()};state.test=test;try{if(state.route?.startsWith("/record-new"))adb("shell","input","tap","660","1275")}catch{}});return}
  if(req.url==="/tap-stop"&&req.method==="POST"){res.writeHead(200,{"Content-Type":"application/json"});clickText(["stop"]).then(value=>res.end(JSON.stringify({clicked:value||false}))).catch(error=>{res.writeHead(500);res.end(JSON.stringify({error:error.message}))});return}
  if(req.url==="/run-video-class"&&req.method==="POST"){res.writeHead(202,{"Content-Type":"application/json"});res.end(JSON.stringify({accepted:true}));runVideoClassTest().catch(async error=>{addEvent("Video class test failed",error.message,"warning");test={status:"failed",name:"Video class test",error:error.message,finishedAt:new Date().toISOString()};state.test=test;try{if(state.route?.startsWith("/live-stream-ts/"))await adb("shell","input","tap","660","690")}catch{}});return}
  res.writeHead(404);res.end();
