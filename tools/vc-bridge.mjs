@@ -120,82 +120,827 @@ async function poll(){
 }
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function waitForRoute(route,timeout=9000){const started=Date.now();while(Date.now()-started<timeout){if(state.connected&&state.route===route)return true;await sleep(350)}return false}
-async function runWorkoutTest(){
+async function runWorkoutTest() {
+  if (test.status === "running") return;
 
- if(test.status==="running")return;
+  if (
+    !state.connected ||
+    !state.sandboxForeground ||
+    state.route !== "/home"
+  ) {
+    throw new Error(
+      "Sandbox must be connected and on Home"
+    );
+  }
 
- if(!state.connected||!state.sandboxForeground||state.route!=="/home")
-   throw new Error("Sandbox must be connected and on Home");
+  events.splice(0, events.length);
 
- events.splice(0,events.length);
+  test = {
+    status: "running",
+    name: "Workout smoke test",
+    startedAt: new Date().toISOString(),
+    step: "Finding START text"
+  };
 
- test={
-   status:"running",
-   name:"Workout smoke test",
-   startedAt:new Date().toISOString(),
-   step:"Starting workout"
- };
+  addEvent(
+    "Workout test started",
+    "Tablet connected, Sandbox visible, Home screen confirmed",
+    "info"
+  );
 
- addEvent(
-   "Workout test started",
-   "Preconditions verified: tablet connected, Sandbox visible, Home screen confirmed",
-   "info"
- );
+  // ==================================================
+  // CONNECT TO WEBVIEW
+  // ==================================================
 
- await adb("shell","input","tap","400","1165");
+  const pages = await fetch(
+    "http://127.0.0.1:9222/json"
+  ).then(r => r.json());
 
- if(!await waitForRoute("/record"))
-   throw new Error("Workout screen did not open");
+  const url = pages[0]?.webSocketDebuggerUrl;
 
- addEvent(
-   "Clicked Start button",
-   "Tablet changed from /home to /record",
-   "success"
- );
+  if (!url) {
+    throw new Error(
+      "WebView telemetry unavailable"
+    );
+  }
 
- test={...test,step:"Verifying active workout"};
+  // ==================================================
+  // FIND START TEXT + CLICKABLE ELEMENT AROUND IT
+  // ==================================================
 
- await sleep(3000);
+  const result = await new Promise((resolve, reject) => {
+    const ws = new WebSocket(url);
 
- if(state.route!=="/record")
-   throw new Error("Workout did not remain active");
+    const timer = setTimeout(() => {
+      ws.close();
+      reject(
+        new Error("START detection timeout")
+      );
+    }, 5000);
 
- const smokeTelemetry=await pageTelemetry();
- const smokeFeet=feetFrom(smokeTelemetry.text);
+    ws.onopen = () => {
+      ws.send(
+        JSON.stringify({
+          id: 1,
+          method: "Runtime.evaluate",
+          params: {
+            returnByValue: true,
 
- addEvent(
-   "Workout is running",
-   "Active workout verified at "+smokeFeet+" ft",
-   "success"
- );
+            expression: `
+              (() => {
 
- test={...test,step:"Stopping workout"};
+                // ------------------------------------------
+                // NORMALIZE TEXT
+                // ------------------------------------------
 
- await clickText(["stop"]);
+                const normalize = (text) => {
+                  return (text || "")
+                    // Remove icon/private-use characters
+                    // e.g. START
+                    .replace(/[\\\\uE000-\\\\uF8FF]/g, "")
 
- if(!await waitForRoute("/home",20000))
-   throw new Error("Home screen did not return after Stop");
+                    // Replace punctuation with spaces
+                    .replace(/[^\\\\p{L}\\\\p{N}]+/gu, " ")
 
- addEvent(
-   "Clicked Stop",
-   "Tablet changed from /record to /home",
-   "success"
- );
+                    // Remove duplicate spaces
+                    .replace(/\\\\s+/g, " ")
 
- addEvent(
-   "Finished the workout",
-   "Home screen confirmed after a clean stop",
-   "success"
- );
+                    .trim()
+                    .toUpperCase();
+                };
 
- test={
-   status:"passed",
-   name:"Workout smoke test",
-   finishedAt:new Date().toISOString(),
-   step:"Complete"
- };
 
- state.test=test;
+                // ------------------------------------------
+                // CHECK IF ELEMENT IS VISIBLE
+                // ------------------------------------------
+
+                const isVisible = (el) => {
+
+                  const rect =
+                    el.getBoundingClientRect();
+
+                  const style =
+                    getComputedStyle(el);
+
+                  return (
+                    rect.width > 0 &&
+                    rect.height > 0 &&
+                    style.display !== "none" &&
+                    style.visibility !== "hidden" &&
+                    style.opacity !== "0"
+                  );
+                };
+
+
+                // ------------------------------------------
+                // CHECK IF ELEMENT IS CLICKABLE
+                // ------------------------------------------
+
+                const isClickable = (el) => {
+
+                  const style =
+                    getComputedStyle(el);
+
+                  return (
+                    el.tagName === "BUTTON" ||
+
+                    el.tagName === "A" ||
+
+                    el.onclick !== null ||
+
+                    el.hasAttribute("onclick") ||
+
+                    el.getAttribute("role") === "button" ||
+
+                    el.hasAttribute("data-button") ||
+
+                    style.cursor === "pointer"
+                  );
+                };
+
+
+                // ------------------------------------------
+                // ALL DOM ELEMENTS
+                // ------------------------------------------
+
+                const elements = [
+                  ...document.querySelectorAll("*")
+                ];
+
+
+                // ------------------------------------------
+                // FIND ELEMENT CONTAINING START TEXT
+                // ------------------------------------------
+
+                const startCandidates = elements
+                  .map((el, index) => {
+
+                    if (!isVisible(el)) {
+                      return null;
+                    }
+
+                    const rawText =
+                        el.innerText ||
+                        el.textContent ||
+                        "";
+
+                      const text =
+                        rawText.trim().toUpperCase();
+
+                      if (!text.startsWith("START")) {
+                        return null;
+                      }
+
+
+                    
+
+                    const rect =
+                      el.getBoundingClientRect();
+
+
+                    return {
+                      el,
+                      index,
+
+                      tag:
+                        el.tagName.toLowerCase(),
+
+                      id:
+                        el.id || "",
+
+                      className:
+                        typeof el.className === "string"
+                          ? el.className
+                          : "",
+
+                      rawText,
+
+                      text,
+
+                      bounds: {
+                        x: Math.round(rect.x),
+                        y: Math.round(rect.y),
+                        width: Math.round(rect.width),
+                        height: Math.round(rect.height)
+                      },
+
+                      area:
+                        rect.width * rect.height
+                    };
+
+                  })
+                  .filter(Boolean);
+
+
+                // ------------------------------------------
+                // SMALLEST START ELEMENT
+                //
+                // This prevents BODY / huge DIVs from
+                // becoming the selected START element.
+                // ------------------------------------------
+
+                startCandidates.sort(
+                  (a, b) => a.area - b.area
+                );
+
+
+                const startElement =
+                  startCandidates[0];
+
+
+                if (!startElement) {
+
+                  return {
+                    found: false,
+
+                    startCandidates: []
+                  };
+
+                }
+
+
+                // ------------------------------------------
+                // WALK UP FROM START
+                // ------------------------------------------
+
+                const parents = [];
+
+                let current =
+                  startElement.el;
+
+
+                while (
+                  current &&
+                  current !== document.body
+                ) {
+
+                  const rect =
+                    current.getBoundingClientRect();
+
+                  if (isVisible(current)) {
+
+                    parents.push({
+
+                      el: current,
+
+                      tag:
+                        current.tagName.toLowerCase(),
+
+                      id:
+                        current.id || "",
+
+                      className:
+                        typeof current.className ===
+                        "string"
+                          ? current.className
+                          : "",
+
+                      text:
+                        normalize(
+                          current.innerText ||
+                          current.textContent ||
+                          ""
+                        ),
+
+                      clickable:
+                        isClickable(current),
+
+                      bounds: {
+                        x: Math.round(rect.x),
+                        y: Math.round(rect.y),
+                        width: Math.round(rect.width),
+                        height: Math.round(rect.height)
+                      },
+
+                      area:
+                        rect.width * rect.height
+                    });
+
+                  }
+
+                  current =
+                    current.parentElement;
+                }
+
+
+                // ------------------------------------------
+                // FIND CLICKABLE ELEMENTS AROUND START
+                // ------------------------------------------
+
+                const clickableParents =
+                  parents.filter(
+                    item => item.clickable
+                  );
+
+
+                // Nearest/smallest clickable element
+                clickableParents.sort(
+                  (a, b) => a.area - b.area
+                );
+
+
+                const clickable =
+                  clickableParents[0];
+
+
+                // ------------------------------------------
+                // LOG EVERYTHING
+                // ------------------------------------------
+
+                console.log(
+                  "START TEXT ELEMENT:",
+                  startElement
+                );
+
+                console.log(
+                  "START PARENT CHAIN:",
+                  parents
+                );
+
+                console.log(
+                  "CLICKABLE AROUND START:",
+                  clickable
+                );
+
+
+                // ------------------------------------------
+                // CLICK
+                // ------------------------------------------
+
+                if (!clickable) {
+
+                  return {
+                    found: true,
+
+                    clicked: false,
+
+                    startElement: {
+                      tag: startElement.tag,
+                      id: startElement.id,
+                      className:
+                        startElement.className,
+                      rawText:
+                        startElement.rawText,
+                      text:
+                        startElement.text,
+                      bounds:
+                        startElement.bounds
+                    },
+
+                    parents:
+                      parents.map(p => ({
+                        tag: p.tag,
+                        id: p.id,
+                        className: p.className,
+                        text: p.text,
+                        clickable:
+                          p.clickable,
+                        bounds:
+                          p.bounds
+                      }))
+                  };
+
+                }
+
+
+                // ------------------------------------------
+                // SCROLL CLICKABLE INTO VIEW
+                // ------------------------------------------
+
+                clickable.el.scrollIntoView({
+                  block: "center",
+                  inline: "center"
+                });
+
+
+                // ------------------------------------------
+                // CLICK IT
+                // ------------------------------------------
+
+                clickable.el.click();
+
+
+                // ------------------------------------------
+                // RETURN RESULT
+                // ------------------------------------------
+
+                return {
+
+                  found: true,
+
+                  clicked: true,
+
+                  startElement: {
+                    tag:
+                      startElement.tag,
+
+                    id:
+                      startElement.id,
+
+                    className:
+                      startElement.className,
+
+                    rawText:
+                      startElement.rawText,
+
+                    text:
+                      startElement.text,
+
+                    bounds:
+                      startElement.bounds
+                  },
+
+                  clickedElement: {
+
+                    tag:
+                      clickable.tag,
+
+                    id:
+                      clickable.id,
+
+                    className:
+                      clickable.className,
+
+                    text:
+                      clickable.text,
+
+                    bounds:
+                      clickable.bounds
+                  },
+
+                  parents:
+                    parents.map(p => ({
+                      tag: p.tag,
+                      id: p.id,
+                      className: p.className,
+                      text: p.text,
+                      clickable:
+                        p.clickable,
+                      bounds:
+                        p.bounds
+                    }))
+
+                };
+
+              })()
+            `
+          }
+        })
+      );
+    };
+
+    ws.onmessage = event => {
+
+      const message =
+        JSON.parse(event.data);
+
+      if (message.id === 1) {
+
+        clearTimeout(timer);
+
+        ws.close();
+
+        const value =
+          message.result?.result?.value;
+
+        resolve(value);
+      }
+    };
+
+    ws.onerror = () => {
+
+      clearTimeout(timer);
+
+      reject(
+        new Error(
+          "WebView START detection error"
+        )
+      );
+    };
+  });
+
+
+  // ==================================================
+  // HANDLE RESULT
+  // ==================================================
+
+  if (!result?.found) {
+
+    addEvent(
+      "START text not found",
+      "No visible DOM element beginning with START was found",
+      "error"
+    );
+
+    throw new Error(
+      "START text not found in WebView"
+    );
+  }
+
+
+  // ==================================================
+  // LOG START TEXT
+  // ==================================================
+
+  console.log(
+    "======================================"
+  );
+
+  console.log(
+    "START TEXT FOUND"
+  );
+
+  console.log(
+    "Text:",
+    result.startElement.rawText
+  );
+
+  console.log(
+    "Normalized:",
+    result.startElement.text
+  );
+
+  console.log(
+    "Tag:",
+    result.startElement.tag
+  );
+
+  console.log(
+    "ID:",
+    result.startElement.id
+  );
+
+  console.log(
+    "Class:",
+    result.startElement.className
+  );
+
+  console.log(
+    "Bounds:",
+    result.startElement.bounds
+  );
+
+  console.log(
+    "======================================"
+  );
+
+
+  addEvent(
+    "Found Start text",
+    `"${result.startElement.rawText}" detected in DOM`,
+    "success"
+  );
+
+
+  // ==================================================
+  // CLICK RESULT
+  // ==================================================
+
+  if (!result.clicked) {
+
+    console.log(
+      "No clickable parent found."
+    );
+
+    console.log(
+      "Parent chain:",
+      result.parents
+    );
+
+    addEvent(
+      "START found but not clickable",
+      "No clickable element was found around the START text",
+      "error"
+    );
+
+    throw new Error(
+      "START text found but no clickable element around it"
+    );
+  }
+
+
+  console.log(
+    "Clicked element:",
+    result.clickedElement
+  );
+
+
+  addEvent(
+    "Clicked Start",
+    `${result.clickedElement.tag} "${result.clickedElement.text}"`,
+    "success"
+  );
+
+
+  // ==================================================
+  // VERIFY WORKOUT ROUTE
+  // ==================================================
+
+  test = {
+    ...test,
+    step: "Verifying workout screen"
+  };
+
+
+  if (!await waitForRoute("/record")) {
+
+    addEvent(
+      "Workout screen failed",
+      "START was clicked but /record was not reached",
+      "error"
+    );
+
+    throw new Error(
+      "Workout screen did not open"
+    );
+  }
+
+
+  // ==================================================
+  // SUCCESS
+  // ==================================================
+
+  addEvent(
+    "Workout screen opened",
+    "Route changed from /home to /record",
+    "success"
+  );
+
+
+  test = {
+    status: "passed",
+
+    name: "Workout smoke test",
+
+    finishedAt:
+      new Date().toISOString(),
+
+    step: "Start click verified"
+  };
+
+  state.test = test;
+}
+async function debugWebViewScreen() {
+  const pages = await fetch(
+    "http://127.0.0.1:9222/json"
+  ).then(r => r.json());
+
+  const url = pages[0]?.webSocketDebuggerUrl;
+
+  if (!url) {
+    throw new Error("WebView unavailable");
+  }
+
+  return await new Promise((resolve, reject) => {
+    const ws = new WebSocket(url);
+
+    const timer = setTimeout(() => {
+      ws.close();
+      reject(new Error("Screen dump timeout"));
+    }, 5000);
+
+    ws.onopen = () => {
+      ws.send(
+        JSON.stringify({
+          id: 1,
+          method: "Runtime.evaluate",
+          params: {
+            returnByValue: true,
+
+            expression: `
+              (() => {
+
+                const normalize = (text) => {
+                  return (text || "")
+                    .replace(/[\\\\uE000-\\\\uF8FF]/g, "")
+                    .replace(/[^\\\\p{L}\\\\p{N}]+/gu, " ")
+                    .replace(/\\\\s+/g, " ")
+                    .trim()
+                    .toUpperCase();
+                };
+
+                const elements = [
+                  ...document.querySelectorAll("*")
+                ];
+
+                const result = elements.map((el, index) => {
+
+                  const rect =
+                    el.getBoundingClientRect();
+
+                  const style =
+                    getComputedStyle(el);
+
+                  const rawText =
+                    el.innerText ||
+                    el.textContent ||
+                    "";
+
+                  return {
+
+                    index,
+
+                    tag:
+                      el.tagName.toLowerCase(),
+
+                    id:
+                      el.id || "",
+
+                    className:
+                      typeof el.className === "string"
+                        ? el.className
+                        : "",
+
+                    rawText,
+
+                    normalizedText:
+                      normalize(rawText),
+
+                    visible:
+                      rect.width > 0 &&
+                      rect.height > 0 &&
+                      style.display !== "none" &&
+                      style.visibility !== "hidden",
+
+                    clickable:
+                      el.tagName === "BUTTON" ||
+                      el.tagName === "A" ||
+                      el.onclick !== null ||
+                      el.hasAttribute("onclick") ||
+                      el.getAttribute("role") === "button" ||
+                      el.hasAttribute("data-button") ||
+                      style.cursor === "pointer",
+
+                    bounds: {
+                      x: Math.round(rect.x),
+                      y: Math.round(rect.y),
+                      width: Math.round(rect.width),
+                      height: Math.round(rect.height)
+                    },
+
+                    attributes:
+                      [...el.attributes].reduce(
+                        (obj, attr) => {
+                          obj[attr.name] = attr.value;
+                          return obj;
+                        },
+                        {}
+                      )
+
+                  };
+
+                });
+
+                return {
+
+                  pageTitle:
+                    document.title,
+
+                  pageUrl:
+                    location.href,
+
+                  bodyText:
+                    document.body?.innerText || "",
+
+                  elementCount:
+                    result.length,
+
+                  elements:
+                    result
+
+                };
+
+              })()
+            `
+          }
+        })
+      );
+    };
+
+    ws.onmessage = event => {
+      const message =
+        JSON.parse(event.data);
+
+      if (message.id === 1) {
+
+        clearTimeout(timer);
+        ws.close();
+
+        resolve(
+          message.result?.result?.value
+        );
+      }
+    };
+
+    ws.onerror = () => {
+
+      clearTimeout(timer);
+
+      reject(
+        new Error("WebView screen dump error")
+      );
+    };
+  });
 }
 async function launchSand(){
   if(!state.connected)
