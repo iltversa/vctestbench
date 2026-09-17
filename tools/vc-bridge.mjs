@@ -988,45 +988,447 @@ async function launchSand(){
   );
 }
 async function findMonumentsButton() {
-  return await pageAction(`(() => {
-    const clickables = [...document.querySelectorAll(
-      'button, a, [role="button"], [onclick]'
-    )].filter(el => {
-      const rect = el.getBoundingClientRect();
+  const pages = await fetch(
+    "http://127.0.0.1:9222/json"
+  ).then(r => r.json());
 
-      return (
-        rect.width > 0 &&
-        rect.height > 0 &&
-        getComputedStyle(el).visibility !== "hidden" &&
-        getComputedStyle(el).display !== "none"
+  const url = pages[0]?.webSocketDebuggerUrl;
+
+  if (!url) {
+    return {
+      success: false,
+      reason: "WebView unavailable",
+    };
+  }
+
+  return await new Promise((resolve, reject) => {
+    const ws = new WebSocket(url);
+
+    const timer = setTimeout(() => {
+      ws.close();
+
+      reject(
+        new Error("MONUMENTS detection timeout")
       );
-    });
+    }, 5000);
 
-    if (clickables.length < 2) {
-      return {
-        success: false,
-        reason: "Less than 2 clickable elements found",
-        count: clickables.length
-      };
-    }
+    ws.onopen = () => {
+      ws.send(
+        JSON.stringify({
+          id: 1,
 
-    const element = clickables[clickables.length - 2];
+          method: "Runtime.evaluate",
 
-    const info = {
-      success: true,
-      index: clickables.length - 2,
-      total: clickables.length,
-      tag: element.tagName,
-      id: element.id,
-      text: (element.innerText || "").trim(),
-      aria: element.getAttribute("aria-label"),
-      className: String(element.className || "")
+          params: {
+            returnByValue: true,
+
+            expression: `
+              (() => {
+
+                // ------------------------------------------
+                // Check visibility
+                // ------------------------------------------
+
+                const isVisible = (el) => {
+
+                  const rect =
+                    el.getBoundingClientRect();
+
+                  const style =
+                    getComputedStyle(el);
+
+                  return (
+                    rect.width > 0 &&
+                    rect.height > 0 &&
+                    style.display !== "none" &&
+                    style.visibility !== "hidden" &&
+                    style.opacity !== "0"
+                  );
+                };
+
+
+                // ------------------------------------------
+                // Check whether element can be clicked
+                // ------------------------------------------
+
+                const isClickable = (el) => {
+
+                  const style =
+                    getComputedStyle(el);
+
+                  return (
+                    el.tagName === "BUTTON" ||
+
+                    el.tagName === "A" ||
+
+                    el.onclick !== null ||
+
+                    el.hasAttribute("onclick") ||
+
+                    el.getAttribute("role") === "button" ||
+
+                    el.hasAttribute("data-button") ||
+
+                    style.cursor === "pointer"
+                  );
+                };
+
+
+                // ------------------------------------------
+                // Find MONUMENTS text
+                // ------------------------------------------
+
+                const elements = [
+                  ...document.querySelectorAll("*")
+                ];
+
+                const matches = elements
+                  .map((el, index) => {
+
+                    if (!isVisible(el)) {
+                      return null;
+                    }
+
+                    const rawText =
+                      el.innerText ||
+                      el.textContent ||
+                      "";
+
+                    const text =
+                      rawText
+                        .trim()
+                        .toUpperCase();
+
+                    /*
+                     * We specifically want text beginning
+                     * with MONUMENTS.
+                     *
+                     * MONUMENTS
+                     * MONUMENTS →
+                     * MONUMENTS
+                     *
+                     * all work.
+                     */
+
+                    if (!text.startsWith("MONUMENTS")) {
+                      return null;
+                    }
+
+                    const rect =
+                      el.getBoundingClientRect();
+
+                    return {
+                      el,
+
+                      index,
+
+                      tag:
+                        el.tagName.toLowerCase(),
+
+                      id:
+                        el.id || "",
+
+                      className:
+                        typeof el.className === "string"
+                          ? el.className
+                          : "",
+
+                      rawText,
+
+                      text,
+
+                      bounds: {
+                        x: Math.round(rect.x),
+                        y: Math.round(rect.y),
+                        width: Math.round(rect.width),
+                        height: Math.round(rect.height)
+                      },
+
+                      area:
+                        rect.width * rect.height
+                    };
+
+                  })
+                  .filter(Boolean);
+
+
+                // ------------------------------------------
+                // Smallest MONUMENTS element
+                // ------------------------------------------
+
+                matches.sort(
+                  (a, b) => a.area - b.area
+                );
+
+
+                const monumentText =
+                  matches[0];
+
+
+                if (!monumentText) {
+
+                  return {
+                    success: false,
+
+                    reason:
+                      "MONUMENTS text not found",
+
+                    candidates: []
+                  };
+                }
+
+
+                // ------------------------------------------
+                // Walk upward from MONUMENTS text
+                // ------------------------------------------
+
+                const parents = [];
+
+                let current =
+                  monumentText.el;
+
+
+                while (
+                  current &&
+                  current !== document.body
+                ) {
+
+                  if (isVisible(current)) {
+
+                    const rect =
+                      current.getBoundingClientRect();
+
+                    parents.push({
+
+                      el: current,
+
+                      tag:
+                        current.tagName.toLowerCase(),
+
+                      id:
+                        current.id || "",
+
+                      className:
+                        typeof current.className === "string"
+                          ? current.className
+                          : "",
+
+                      text:
+                        current.innerText ||
+                        current.textContent ||
+                        "",
+
+                      clickable:
+                        isClickable(current),
+
+                      bounds: {
+                        x: Math.round(rect.x),
+                        y: Math.round(rect.y),
+                        width: Math.round(rect.width),
+                        height: Math.round(rect.height)
+                      },
+
+                      area:
+                        rect.width * rect.height
+                    });
+                  }
+
+                  current =
+                    current.parentElement;
+                }
+
+
+                // ------------------------------------------
+                // Find clickable element around text
+                // ------------------------------------------
+
+                const clickableParents =
+                  parents.filter(
+                    item => item.clickable
+                  );
+
+
+                /*
+                 * The first clickable parent in the chain
+                 * is the closest clickable element to the
+                 * MONUMENTS text.
+                 *
+                 * This is preferable to choosing a random
+                 * larger container.
+                 */
+
+                const clickable =
+                  clickableParents[0];
+
+
+                console.log(
+                  "MONUMENTS TEXT:",
+                  monumentText
+                );
+
+                console.log(
+                  "MONUMENTS PARENT CHAIN:",
+                  parents
+                );
+
+                console.log(
+                  "MONUMENTS CLICKABLE:",
+                  clickable
+                );
+
+
+                if (!clickable) {
+
+                  return {
+
+                    success: false,
+
+                    reason:
+                      "MONUMENTS text found but no clickable element around it",
+
+                    text:
+                      monumentText.rawText,
+
+                    tag:
+                      monumentText.tag,
+
+                    id:
+                      monumentText.id,
+
+                    parents:
+                      parents.map(p => ({
+                        tag: p.tag,
+                        id: p.id,
+                        className: p.className,
+                        text: p.text,
+                        clickable: p.clickable,
+                        bounds: p.bounds
+                      }))
+                  };
+                }
+
+
+                // ------------------------------------------
+                // Scroll the clickable element into view
+                // ------------------------------------------
+
+                clickable.el.scrollIntoView({
+                  block: "center",
+                  inline: "center"
+                });
+
+
+                // ------------------------------------------
+                // Click
+                // ------------------------------------------
+
+                clickable.el.click();
+
+
+                // ------------------------------------------
+                // Return result
+                // ------------------------------------------
+
+                return {
+
+                  success: true,
+
+                  text:
+                    monumentText.rawText,
+
+                  normalizedText:
+                    monumentText.text,
+
+                  tag:
+                    clickable.tag,
+
+                  id:
+                    clickable.id,
+
+                  className:
+                    clickable.className,
+
+                  bounds:
+                    clickable.bounds,
+
+                  startElement: {
+
+                    tag:
+                      monumentText.tag,
+
+                    id:
+                      monumentText.id,
+
+                    className:
+                      monumentText.className,
+
+                    text:
+                      monumentText.rawText,
+
+                    bounds:
+                      monumentText.bounds
+                  },
+
+                  clickedElement: {
+
+                    tag:
+                      clickable.tag,
+
+                    id:
+                      clickable.id,
+
+                    className:
+                      clickable.className,
+
+                    text:
+                      clickable.text,
+
+                    bounds:
+                      clickable.bounds
+                  }
+
+                };
+
+              })()
+            `
+          }
+        })
+      );
     };
 
-    element.click();
+    ws.onmessage = event => {
 
-    return info;
-  })()`);
+      const message =
+        JSON.parse(event.data);
+
+      if (message.id === 1) {
+
+        clearTimeout(timer);
+
+        ws.close();
+
+        resolve(
+          message.result?.result?.value || {
+            success: false,
+            reason:
+              "No result returned from WebView"
+          }
+        );
+      }
+    };
+
+    ws.onerror = () => {
+
+      clearTimeout(timer);
+
+      reject(
+        new Error(
+          "MONUMENTS WebView detection error"
+        )
+      );
+    };
+  });
+  
 }
 async function clickRandomMonument() {
   return await pageAction(`(() => {
@@ -1090,6 +1492,415 @@ async function clickRandomMonument() {
     };
   })()`);
 }
+async function clickSaveButton() {
+  const pages = await fetch("http://127.0.0.1:9222/json")
+    .then(r => r.json());
+
+  const url = pages[0]?.webSocketDebuggerUrl;
+
+  if (!url) {
+    throw new Error("WebView DevTools unavailable");
+  }
+
+  return await new Promise((resolve, reject) => {
+    const ws = new WebSocket(url);
+
+    const timer = setTimeout(() => {
+      ws.close();
+      reject(
+        new Error("Timeout waiting for SAVE")
+      );
+    }, 10000);
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        id: 1,
+        method: "Runtime.evaluate",
+        params: {
+          returnByValue: true,
+          expression: `
+            (() => {
+
+              const save =
+                document.getElementById("data-save");
+
+              if (!save) {
+                return {
+                  success: false,
+                  reason: "data-save not currently in DOM"
+                };
+              }
+
+              const text =
+                (
+                  save.innerText ||
+                  save.textContent ||
+                  ""
+                ).trim();
+
+              try {
+                save.click();
+
+                return {
+                  success: true,
+                  text,
+                  tag: save.tagName,
+                  id: save.id,
+                  className:
+                    save.className || ""
+                };
+
+              } catch (error) {
+
+                return {
+                  success: false,
+                  reason:
+                    "SAVE exists but click failed: " +
+                    error.message
+                };
+              }
+
+            })()
+          `
+        }
+      }));
+    };
+
+    ws.onmessage = event => {
+      const message = JSON.parse(event.data);
+
+      if (message.id !== 1) return;
+
+      clearTimeout(timer);
+      ws.close();
+
+      return resolve(
+        message.result?.result?.value
+      );
+    };
+
+    ws.onerror = () => {
+      clearTimeout(timer);
+      ws.close();
+
+      reject(
+        new Error("WebView SAVE click error")
+      );
+    };
+    
+  });
+}
+async function clickTextAround(targetText) {
+  const pages = await fetch("http://127.0.0.1:9222/json")
+    .then(r => r.json());
+
+  const url = pages[0]?.webSocketDebuggerUrl;
+
+  if (!url) {
+    throw new Error("WebView DevTools unavailable");
+  }
+
+  return await new Promise((resolve, reject) => {
+    const ws = new WebSocket(url);
+
+    const timer = setTimeout(() => {
+      ws.close();
+      reject(
+        new Error(`Timeout looking for "${targetText}"`)
+      );
+    }, 5000);
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        id: 1,
+        method: "Runtime.evaluate",
+        params: {
+          returnByValue: true,
+          expression: `
+            (() => {
+
+              const target = ${JSON.stringify(targetText)}
+                .trim()
+                .toLowerCase();
+
+              function isClickable(el) {
+                if (!el) return false;
+
+                const tag =
+                  el.tagName?.toLowerCase();
+
+                if (
+                  tag === "button" ||
+                  tag === "a" ||
+                  tag === "input"
+                ) {
+                  return true;
+                }
+
+                if (typeof el.onclick === "function") {
+                  return true;
+                }
+
+                if (
+                  el.getAttribute("role") === "button"
+                ) {
+                  return true;
+                }
+
+                if (
+                  el.hasAttribute("data-button") ||
+                  el.hasAttribute("data-action")
+                ) {
+                  return true;
+                }
+
+                const style =
+                  window.getComputedStyle(el);
+
+                if (style.cursor === "pointer") {
+                  return true;
+                }
+
+                return false;
+              }
+
+              // -----------------------------------------
+              // Find text
+              // -----------------------------------------
+
+              let textElement = null;
+
+              for (
+                const el of document.querySelectorAll("*")
+              ) {
+
+                const raw =
+                  el.innerText ||
+                  el.textContent ||
+                  "";
+
+                const text =
+                  raw.trim().toLowerCase();
+
+                if (!text) continue;
+
+                if (
+                  text === target ||
+                  text.startsWith(target)
+                ) {
+
+                  // Prefer the smallest element
+                  // containing the text.
+
+                  const children =
+                    el.querySelectorAll("*");
+
+                  let hasSmallerMatch = false;
+
+                  for (const child of children) {
+
+                    const childRaw =
+                      child.innerText ||
+                      child.textContent ||
+                      "";
+
+                    const childText =
+                      childRaw.trim().toLowerCase();
+
+                    if (
+                      childText === target ||
+                      childText.startsWith(target)
+                    ) {
+                      hasSmallerMatch = true;
+                      break;
+                    }
+                  }
+
+                  if (!hasSmallerMatch) {
+                    textElement = el;
+                    break;
+                  }
+                }
+              }
+
+              if (!textElement) {
+                return {
+                  success: false,
+                  reason:
+                    'Text "' +
+                    targetText +
+                    '" was not found'
+                };
+              }
+
+              // -----------------------------------------
+              // Walk upward to clickable element
+              // -----------------------------------------
+
+              let current = textElement;
+              let clickedElement = null;
+
+              const parentChain = [];
+
+              while (
+                current &&
+                current !== document.documentElement
+              ) {
+
+                parentChain.push({
+                  tag: current.tagName,
+                  id: current.id || "",
+                  className:
+                    current.className || "",
+                  text:
+                    (
+                      current.innerText ||
+                      current.textContent ||
+                      ""
+                    ).trim()
+                });
+
+                if (isClickable(current)) {
+                  clickedElement = current;
+                  break;
+                }
+
+                current = current.parentElement;
+              }
+
+              if (!clickedElement) {
+                return {
+                  success: false,
+
+                  reason:
+                    'Found text "' +
+                    targetText +
+                    '" but no clickable parent was found',
+
+                  text:
+                    (
+                      textElement.innerText ||
+                      textElement.textContent ||
+                      ""
+                    ).trim(),
+
+                  textTag:
+                    textElement.tagName,
+
+                  textClass:
+                    textElement.className || "",
+
+                  parentChain
+                };
+              }
+
+              // -----------------------------------------
+              // Click
+              // -----------------------------------------
+
+              try {
+                clickedElement.scrollIntoView({
+                  block: "center",
+                  inline: "center"
+                });
+              } catch (_) {}
+
+              clickedElement.click();
+
+              const rect =
+                clickedElement.getBoundingClientRect();
+
+              return {
+                success: true,
+
+                text:
+                  (
+                    textElement.innerText ||
+                    textElement.textContent ||
+                    ""
+                  ).trim(),
+
+                textTag:
+                  textElement.tagName,
+
+                textClass:
+                  textElement.className || "",
+
+                clickedTag:
+                  clickedElement.tagName,
+
+                clickedId:
+                  clickedElement.id || "",
+
+                clickedClass:
+                  clickedElement.className || "",
+
+                clickedText:
+                  (
+                    clickedElement.innerText ||
+                    clickedElement.textContent ||
+                    ""
+                  ).trim(),
+
+                attributes: {
+                  onclick:
+                    clickedElement.getAttribute(
+                      "onclick"
+                    ),
+
+                  role:
+                    clickedElement.getAttribute(
+                      "role"
+                    ),
+
+                  dataButton:
+                    clickedElement.getAttribute(
+                      "data-button"
+                    ),
+
+                  dataAction:
+                    clickedElement.getAttribute(
+                      "data-action"
+                    )
+                },
+
+                bounds: {
+                  x: rect.x,
+                  y: rect.y,
+                  width: rect.width,
+                  height: rect.height
+                }
+              };
+
+            })()
+          `
+        }
+      }));
+    };
+
+    ws.onmessage = event => {
+      const message = JSON.parse(event.data);
+
+      if (message.id !== 1) return;
+
+      clearTimeout(timer);
+      ws.close();
+
+      resolve(
+        message.result?.result?.value
+      );
+    };
+
+    ws.onerror = () => {
+      clearTimeout(timer);
+      ws.close();
+
+      reject(
+        new Error("WebView click error")
+      );
+    };
+  });
+}
 async function inspectMonumentList() {
   return await pageAction(`(() => {
     const lists = [...document.querySelectorAll("ul")];
@@ -1127,53 +1938,7 @@ async function inspectMonumentList() {
     }).filter(Boolean);
   })()`);
 }
-async function clickStartClimbing() {
-  return await pageAction(`(() => {
-    const clickables = [...document.querySelectorAll(
-      'button, a, [role="button"], [onclick]'
-    )].filter(el => {
-      const rect = el.getBoundingClientRect();
-      const style = getComputedStyle(el);
 
-      return (
-        rect.width > 0 &&
-        rect.height > 0 &&
-        style.display !== "none" &&
-        style.visibility !== "hidden"
-      );
-    });
-
-    const startButton = clickables.find(el => {
-      const text = (el.innerText || "").trim().toLowerCase();
-
-      return text.includes("start climbing");
-    });
-
-    if (!startButton) {
-      return {
-        success: false,
-        reason: "Start Climbing button not found",
-        clickables: clickables.map(el => ({
-          tag: el.tagName,
-          text: (el.innerText || "").trim(),
-          aria: el.getAttribute("aria-label")
-        }))
-      };
-    }
-
-    const result = {
-      success: true,
-      text: (startButton.innerText || "").trim(),
-      tag: startButton.tagName,
-      id: startButton.id,
-      className: String(startButton.className || "")
-    };
-
-    startButton.click();
-
-    return result;
-  })()`);
-}
 async function runMonumentTest() {
   if (test.status === "running") return;
 
@@ -1182,7 +1947,9 @@ async function runMonumentTest() {
     !state.sandboxForeground ||
     state.route !== "/home"
   ) {
-    throw new Error("Sandbox must be connected and on Home");
+    throw new Error(
+      "Sandbox must be connected and on Home"
+    );
   }
 
   events.splice(0, events.length);
@@ -1202,28 +1969,34 @@ async function runMonumentTest() {
     "info"
   );
 
-  
   // --------------------------------------------------
-  // Open Monuments
+  // 1. Open Monuments
   // --------------------------------------------------
 
-  const openResult = await findMonumentsButton();
+  const openResult =
+    await findMonumentsButton();
 
   if (!openResult?.success) {
     addEvent(
       "Monuments open failed",
-      openResult?.reason || "Could not open the Monuments modal",
+      openResult?.reason ||
+        "Could not open the Monuments modal",
       "error"
     );
 
     throw new Error(
-      openResult?.reason || "Could not open the Monuments modal"
+      openResult?.reason ||
+        "Could not open the Monuments modal"
     );
   }
 
   addEvent(
     "Monuments opened",
-    `Clicked ${openResult.text || openResult.id || openResult.tag}`,
+    `Clicked ${
+      openResult.text ||
+      openResult.id ||
+      openResult.tag
+    }`,
     "success"
   );
 
@@ -1235,219 +2008,352 @@ async function runMonumentTest() {
   state.test = test;
 
   // --------------------------------------------------
-  // Wait for modal to render
+  // 2. Wait for modal
   // --------------------------------------------------
 
   await sleep(1000);
 
-   const inspection = await inspectMonumentList();
+  const inspection =
+    await inspectMonumentList();
 
-addEvent(
-  "Monument list hierarchy",
-  JSON.stringify(inspection, null, 2),
-  "info"
-);
+  addEvent(
+    "Monument list hierarchy",
+    JSON.stringify(
+      inspection,
+      null,
+      2
+    ),
+    "info"
+  );
 
   // --------------------------------------------------
-  // Select random monument
+  // 3. Select random monument
   // --------------------------------------------------
 
-  // test = {
-  //   ...test,
-  //   step: "Selecting random monument",
-  // };
+  test = {
+    ...test,
+    step: "Selecting random monument",
+  };
 
-  // state.test = test;
+  state.test = test;
 
-  const monument = await clickRandomMonument();
+  const monument =
+    await clickRandomMonument();
 
-    addEvent(
-    "Random monument selected",
-    JSON.stringify(monument, null, 2),
+  addEvent(
+    "Random monument result",
+    JSON.stringify(
+      monument,
+      null,
+      2
+    ),
     "info"
   );
 
   if (!monument?.success) {
     addEvent(
       "Monument selection failed",
-      monument?.reason || "Unknown error",
+      monument?.reason ||
+        "Unknown error",
       "error"
     );
-    return;
+
+    throw new Error(
+      monument?.reason ||
+        "Monument selection failed"
+    );
   }
+
   addEvent(
     "Random monument selected",
-    `Clicked ${monument.text || monument.id || monument.tag}`,
+    `Clicked ${
+      monument.text ||
+      monument.id ||
+      monument.tag
+    }`,
     "success"
   );
 
   test = {
     ...test,
+
     monument:
       monument.text ||
       monument.id ||
       monument.tag ||
       "Unknown",
+
     step: "Monument selected",
   };
 
   state.test = test;
+
+  // --------------------------------------------------
+  // 4. Start monument climb
+  // --------------------------------------------------
+
   await sleep(1000);
 
-test = {
-  ...test,
-  step: "Starting monument climb",
-};
+  test = {
+    ...test,
+    step: "Starting monument climb",
+  };
 
-state.test = test;
+  state.test = test;
 
-const startResult = await clickStartClimbing();
-await sleep(1500);
+  let startResult = null;
 
-// --------------------------------------------------
-// 4. Verify monument workout is running
-// --------------------------------------------------
+  // Give START CLIMBING up to 5 seconds to appear
+  for (let i = 0; i < 20; i++) {
 
-if (state.route !== "/record-new") {
-  throw new Error(
-    `Expected /record-new after Start Climbing, got ${state.route}`
+    startResult =
+      await clickTextAround(
+        "START CLIMBING"
+      );
+
+    if (startResult?.success) {
+      break;
+    }
+
+    await sleep(250);
+  }
+
+  if (!startResult?.success) {
+    throw new Error(
+      startResult?.reason ||
+        "START CLIMBING could not be clicked"
+    );
+  }
+
+  addEvent(
+    "Start Climbing clicked",
+    `Detected "${startResult.text}" and clicked its surrounding clickable element`,
+    "success"
   );
-}
 
-addEvent(
-  "Monument workout opened",
-  "Route confirmed: /record-new",
-  "success"
-);
+  // --------------------------------------------------
+  // 5. Verify workout started
+  // --------------------------------------------------
 
-const telemetry = await pageTelemetry();
-const feet = feetFrom(telemetry.text);
+  if (
+    !await waitForRoute(
+      "/record-new"
+    )
+  ) {
+    throw new Error(
+      `Expected /record-new after Start Climbing, got ${state.route}`
+    );
+  }
 
-addEvent(
-  "Climb is running",
-  "Monument workout verified at " + feet + " ft",
-  "success"
-);
+  addEvent(
+    "Workout started",
+    "Monument workout rendered at /record-new",
+    "success"
+  );
 
-test = {
-  ...test,
-  step: "Waiting for user",
-};
+  test = {
+    ...test,
+    step: "Workout running",
+  };
 
-state.test = test;
+  state.test = test;
 
-addEvent(
-  "Waiting for user",
-  "Workout is running. No Stop/Save/Resume actions will be automated.",
-  "info"
-);
-
-// --------------------------------------------------
-// 5. Monitor workout indefinitely
-// --------------------------------------------------
-
-let paused = false;
-
-while (true) {
-  await sleep(750);
-
-  let telemetry;
+  // --------------------------------------------------
+  // 6. Confirm telemetry
+  // --------------------------------------------------
 
   try {
-    telemetry = await pageTelemetry();
+
+    const telemetry =
+      await pageTelemetry();
+
+    const feet =
+      feetFrom(
+        telemetry.text
+      );
+
+    addEvent(
+      "Climb is running",
+      "Monument workout verified at " +
+        feet +
+        " ft",
+      "success"
+    );
+
   } catch (error) {
-    addEvent(
-      "WebView telemetry unavailable",
-      "Temporary telemetry error. Continuing to monitor the workout.",
-      "warning"
-    );
-
-    continue;
-  }
-
-  const text = telemetry?.text || "";
-
-  const saveVisible = /\bsave\b/i.test(text);
-
-  const workoutActive =
-    state.sandboxForeground &&
-    state.route?.startsWith("/record-new");
-
-  const workoutEnded =
-    state.sandboxForeground &&
-    state.route === "/home";
-
-  // ----------------------------------------------
-  // Save visible -> Paused
-  // ----------------------------------------------
-
-  if (saveVisible && !paused) {
-    paused = true;
-
-    test = {
-      ...test,
-      step: "Workout paused — Save visible",
-    };
-
-    state.test = test;
 
     addEvent(
-      "Workout paused",
-      "Save button detected. Waiting for the user.",
+      "Telemetry warning",
+      "Workout started but telemetry was unavailable.",
       "warning"
     );
   }
 
-  // ----------------------------------------------
-  // Save disappeared -> Resumed
-  // ----------------------------------------------
+  // --------------------------------------------------
+  // 7. Let workout run for 1 minute
+  // --------------------------------------------------
 
-  if (!saveVisible && paused && workoutActive) {
-    paused = false;
+  test = {
+    ...test,
+    step: "Running workout for 1 minute",
+  };
 
-    test = {
-      ...test,
-      step: "Workout resumed",
-    };
+  state.test = test;
 
-    state.test = test;
+  addEvent(
+    "Workout running",
+    "Allowing monument workout to run for 1 minute.",
+    "info"
+  );
 
-    addEvent(
-      "Workout resumed",
-      "Save button disappeared and workout screen is active.",
-      "success"
+  await sleep(60000);
+
+  // --------------------------------------------------
+  // 8. Click STOP
+  // --------------------------------------------------
+
+  test = {
+    ...test,
+    step: "Stopping workout",
+  };
+
+  state.test = test;
+
+  let stopResult = null;
+
+  for (let i = 0; i < 20; i++) {
+
+    stopResult =
+      await clickTextAround(
+        "STOP"
+      );
+
+    if (stopResult?.success) {
+      break;
+    }
+
+    await sleep(250);
+  }
+
+  if (!stopResult?.success) {
+    throw new Error(
+      stopResult?.reason ||
+        "STOP could not be clicked"
     );
   }
 
-  // ----------------------------------------------
-  // Home -> Workout ended
-  // ----------------------------------------------
+  addEvent(
+    "Stop clicked",
+    `Detected "${stopResult.text}" and clicked its surrounding clickable element`,
+    "success"
+  );
 
-  if (!saveVisible && workoutEnded) {
-    addEvent(
-      "Workout ended",
-      "Workout returned to Home.",
-      "success"
-    );
+  // --------------------------------------------------
+  // 9. Wait for SAVE
+  // --------------------------------------------------
 
-    addEvent(
-      "Returned Home",
-      "Monument smoke test finished cleanly.",
-      "success"
-    );
+  test = {
+    ...test,
+    step: "Waiting for Save",
+  };
 
-    test = {
-      status: "passed",
-      name: "Monument smoke test",
-      finishedAt: new Date().toISOString(),
-      step: "Complete",
-    };
+  state.test = test;
 
-    state.test = test;
+  addEvent(
+    "Waiting for Save",
+    "Monitoring DOM for #data-save.",
+    "info"
+  );
 
-    break;
+  // --------------------------------------------------
+  // 10. Detect and click SAVE
+  // --------------------------------------------------
+
+  let saveResult = null;
+
+  for (let i = 0; i < 200; i++) {
+
+    try {
+
+      saveResult =
+        await clickSaveButton();
+
+      if (
+        saveResult?.success
+      ) {
+        break;
+      }
+
+    } catch (error) {
+
+      saveResult = {
+        success: false,
+        reason: error.message
+      };
+    }
+
+    await sleep(50);
   }
-}
+
+  if (!saveResult?.success) {
+
+    addEvent(
+      "Save failed",
+      saveResult?.reason ||
+        "SAVE could not be clicked",
+      "error"
+    );
+
+    throw new Error(
+      saveResult?.reason ||
+        "SAVE could not be clicked"
+    );
+  }
+
+  addEvent(
+    "Save clicked",
+    `Detected "${saveResult.text}" and clicked #${saveResult.id}`,
+    "success"
+  );
+
+  // --------------------------------------------------
+  // 11. Check where the app went after SAVE
+  // --------------------------------------------------
+
+  await sleep(1500);
+
+  addEvent(
+    "After Save",
+    `Current route: ${state.route}`,
+    "info"
+  );
+
+  // --------------------------------------------------
+  // 12. Test finished
+  // --------------------------------------------------
+
+  test = {
+    status: "passed",
+    name: "Monument smoke test",
+    startedAt:
+      test.startedAt,
+    finishedAt:
+      new Date().toISOString(),
+    monument:
+      monument.text ||
+      monument.id ||
+      monument.tag ||
+      "Unknown",
+    step: "Complete",
+  };
+
+  state.test = test;
+
+  addEvent(
+    "Monument test complete",
+    "Start → workout → Stop → Save flow completed.",
+    "success"
+  );
 }
 async function runVideoClassTest(){
  if(test.status==="running")return;
