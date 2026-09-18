@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import TestCaseBuilder from "./components/TestCaseBuilder";
+import CreateTestButton from "./testCases/page";
 type FeedEvent = { id: number; at: string; label: string; detail: string; kind: "info" | "success" | "warning" };
 type TabletState = { connected: boolean; device?: string; model?: string; android?: string; foregroundPackage?: string; sandboxForeground: boolean; route?: string; updatedAt: string; events: FeedEvent[]; test?: { status: "idle" | "running" | "passed" | "failed"; name?: string; step?: string; error?: string } };
 const BRIDGE = "http://localhost:3131";
@@ -53,12 +53,12 @@ export default function Home() {
                     <button className={"secondary " + (activeTest === "Video class test" ? "active" : "")} disabled={!canRun || starting} onClick={runVideoClass}>{activeTest === "Video class test" ? "Test running…" : starting ? "Starting…" : "Video class to 45 ft"}</button>
                 </div>
                 <button className="secondary refresh-button" onClick={refresh}>Refresh</button>
+                <CreateTestButton/>
             </div>
             <div className="content-grid">
                 <section className="panel timeline-panel"><div className="panel-heading"><div><p className="eyebrow">REALTIME FEED</p><h3>Confirmed actions and screen changes</h3></div><span className={"live-label " + (connected ? "" : "offline")}><i />{connected ? "LIVE" : "OFFLINE"}</span></div><div className="timeline">{!events.length && <div className="empty-feed"><div className="empty-icon">◎</div><strong>No tablet activity yet</strong><span>VC TestBench will only show events it confirms on the real device.</span></div>}{[...events].reverse().map((event, index) => <div className={"step passed " + event.kind} key={event.id}><div className="step-marker">{index === 0 && connected ? "●" : "✓"}</div><div className="step-copy"><strong>{event.label}</strong><span>{event.detail}</span></div><div className="step-time">{event.at}</div></div>)}</div></section>
                 <aside className="right-column"><section className="panel tablet-panel"><div className="panel-heading compact"><div><p className="eyebrow">LIVE TABLET VIEW</p><h3>{state?.sandboxForeground ? "Sandbox app" : "Lenovo tablet"}</h3></div><span className={"recording-dot " + (connected ? "" : "offline-dot")} /></div><div className={"live-screen " + (connected ? "" : "screen-offline")}>{connected ? <img src={BRIDGE + "/screen?t=" + imageTick} alt="Current Lenovo tablet screen" /> : <div><span>USB</span><strong>Tablet disconnected</strong><small>Reconnect and authorize USB debugging</small></div>}</div><p className="capture-note">{connected ? "This image is captured from the tablet and refreshes automatically." : "No cached image is shown while the tablet is offline."}</p></section><section className="metrics-row"><div><span>USB STATUS</span><strong>{connected ? "Online" : "Offline"}</strong></div><div><span>APP STATE</span><strong>{state?.sandboxForeground ? "Visible" : "—"}</strong></div><div><span>ROUTE</span><strong>{state?.route ?? "—"}</strong></div></section></aside>
             </div>
-            <TestCaseBuilder/>
             <footer className="actionbar"><div><span className="shield">{connected ? "✓" : "!"}</span><p><strong>{state?.test?.status === "running" ? (state.test.step ?? "Test running") : state?.test?.status === "passed" ? (state.test.name ?? "Test") + " passed" : connected ? "Choose a real test sequence" : "No tablet control active"}</strong><small>{lastError || state?.test?.error || "Only verified tablet actions appear in the feed"}</small></p></div></footer>
         </main>
     );
