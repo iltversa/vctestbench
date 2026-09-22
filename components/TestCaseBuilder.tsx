@@ -1,11 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { createTestAction } from "@/actions/tests/create-test";
+import { SavedTest } from "@/app/page";
+import { updateTestAction } from "@/actions/tests/update-test";
 type ConfirmationOption = {
   id: number;
   value: string;
 };
-
+type TestCaseBuilderDialogProps = {
+  test: SavedTest | null;
+  onClose: () => void;
+};
 type Step = {
   id: number;
 
@@ -24,31 +29,48 @@ type Step = {
   actionTimeout: string;
 };
 
-export default function TestCaseBuilder() {
-  // ===== The whole builder is a single dialog =====
+export default function TestCaseBuilderDialog({onClose, test}: TestCaseBuilderDialogProps) {
+  
   const [isDialogOpen, setIsDialogOpen] = useState(true);
-
-  // ===== Builder-level state =====
+  const isEditMode = Boolean(test);
   const [testTitle, setTestTitle] = useState("");
-
-const [actions, setActions] = useState([]);
-
-const [saving, setSaving] = useState(false);
   const [steps, setSteps] = useState<Step[]>([]);
   const [expandedStepId, setExpandedStepId] = useState<number | null>(null);
+  useEffect(() => {
+    if (!test) {
+      // CREATE
+      setTestTitle("");
+      setSteps([makeStep()]);
+      return;
+    }
 
-  // ✅ FIX: single, reliable close handler
-  const handleCloseDialog = () => {
-    setIsDialogOpen(false);
-  };
+    // EDIT
+    setTestTitle(test.title);
 
-  // ---------- Collapse / expand ----------
+    setSteps(
+      test.actions.map((action) => ({
+        id: action.id,
+        action: action.action,
+        actionTitle: action.title,
+        customAction: action.customAction ?? "",
+        hasConfirmation: action.hasConfirmation,
+        confirmationTimeout:
+          action.confirmationTimeout?.toString() ?? "5",
+        confirmationOptions:
+          action.confirmationOptions.map((option) => ({
+            id: option.id,
+            value: option.value,
+          })),
+        actionTimeout:
+          action.actionTimeout.toString(),
+      }))
+    );
+  }, [test]);
   const toggleStep = (id: number) => {
     setExpandedStepId((prev) => (prev === id ? null : id));
   };
 
-  // ---------- Step handlers ----------
- const makeStep = (overrides: Partial<Step> = {}): Step => ({
+  const makeStep = (overrides: Partial<Step> = {}): Step => ({
   id: Date.now() + Math.random(),
 
   action: "START",
@@ -72,7 +94,7 @@ const [saving, setSaving] = useState(false);
   actionTimeout: "5",
 
   ...overrides,
-});
+  });
 
   const handleAddStep = () => {
     const step = makeStep();
@@ -80,7 +102,6 @@ const [saving, setSaving] = useState(false);
     setExpandedStepId(step.id); // open the newly added step
   };
 
-  // ✅ Duplicate step (deep-copies confirmation options with fresh ids)
   const handleDuplicateStep = (id: number) => {
     setSteps((prev) => {
       const index = prev.findIndex((s) => s.id === id);
@@ -112,7 +133,6 @@ const [saving, setSaving] = useState(false);
     setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   };
 
-  // ---------- Confirmation option handlers (per step) ----------
   const handleAddOption = (stepId: number) => {
     setSteps((prev) =>
       prev.map((s) =>
@@ -156,25 +176,52 @@ const [saving, setSaving] = useState(false);
       )
     );
   };
-const handleCreateTest = async () => {
-  const result = await createTestAction({
-    title: testTitle,
+  const handleCreateTests = async () => {
+    const result = await createTestAction({
+      title: testTitle,
+      steps,
+    });
 
-    steps,
-  });
+    if (!result.success) {
+      alert(result.error);
+      return;
+    }
 
-  if (!result.success) {
-    alert(result.error);
-    return;
+    console.log("Created test:", result.data);
+
+    onClose();
+  };
+  const handleSaveTest = async () => {
+  if (test) {
+    // EDIT EXISTING TEST
+    const result = await updateTestAction({
+      testId: test.id,
+      title: testTitle,
+      steps,
+    });
+
+    if (!result.success) {
+      alert(result.error);
+      return;
+    }
+
+    console.log("Updated test:", result.data);
+  } else {
+    // CREATE NEW TEST
+    const result = await createTestAction({
+      title: testTitle,
+      steps,
+    });
+
+    if (!result.success) {
+      alert(result.error);
+      return;
+    }
+
+    console.log("Created test:", result.data);
   }
 
-  console.log("Test created:", result.data);
-
-  // Close dialog after successful creation
-  setIsDialogOpen(false);
-
-  // Optional:
-  // router.refresh();
+  onClose();
 };
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
@@ -199,7 +246,6 @@ const handleCreateTest = async () => {
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={handleCloseDialog}
           />
 
           {/* Dialog panel */}
@@ -217,11 +263,10 @@ const handleCreateTest = async () => {
               {/* ✅ FIXED close button */}
               <button
                 type="button"
-                onClick={handleCloseDialog}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-400"
-                aria-label="Close dialog"
+                onClick={onClose}
+                className="..."
               >
-                <span className="text-xl leading-none">&times;</span>
+                ×
               </button>
             </div>
 
@@ -361,7 +406,9 @@ const handleCreateTest = async () => {
                                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
                                   <option value="START">START</option>
-                                  <option value="STOP">STOP</option>
+                                  <option value="PAUSE">PAUSE</option>
+                                  <option value="RESUME">RESUME</option>
+                                  <option value="END">END</option>
                                   <option value="CUSTOM">CUSTOM</option>
                                 </select>
                               </div>
@@ -510,17 +557,16 @@ const handleCreateTest = async () => {
             <div className="flex justify-end gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4">
               <button
                 type="button"
-                onClick={handleCloseDialog}
                 className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-400"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={handleCloseDialog}
+                onClick={handleSaveTest}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
-                Save Test Case
+  {isEditMode ? "Update Test" : "Save Test"}
               </button>
             </div>
           </div>

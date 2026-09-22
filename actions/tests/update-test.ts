@@ -1,8 +1,10 @@
 "use server";
 
-import { createTest } from "@/services/tests/create-test";
+import { updateTest } from "@/services/tests/update-test";
 
-type CreateTestActionInput = {
+type UpdateTestActionInput = {
+  testId: number;
+
   title: string;
 
   steps: {
@@ -10,20 +12,26 @@ type CreateTestActionInput = {
     action: string;
     actionTitle: string;
     customAction: string;
-
     hasConfirmation: boolean;
     confirmationTimeout: string;
-
     confirmationOptions: {
       id: number;
       value: string;
     }[];
-
     actionTimeout: string;
   }[];
 };
 
-export async function createTestAction(data: CreateTestActionInput) {
+export async function updateTestAction(
+  data: UpdateTestActionInput
+) {
+  if (!data.testId) {
+    return {
+      success: false,
+      error: "Test ID is required",
+    };
+  }
+
   if (!data.title.trim()) {
     return {
       success: false,
@@ -39,7 +47,7 @@ export async function createTestAction(data: CreateTestActionInput) {
   }
 
   try {
-    const test = await createTest({
+    const test = await updateTest(data.testId, {
       title: data.title.trim(),
 
       actions: data.steps.map((step) => ({
@@ -47,19 +55,22 @@ export async function createTestAction(data: CreateTestActionInput) {
 
         action: step.action,
 
-        customAction: step.customAction.trim() || undefined,
+        customAction:
+          step.customAction.trim() || undefined,
 
         hasConfirmation: step.hasConfirmation,
 
-        confirmationTimeout: step.hasConfirmation
-          ? Number(step.confirmationTimeout)
-          : undefined,
+        confirmationTimeout:
+          step.hasConfirmation
+            ? Number(step.confirmationTimeout)
+            : undefined,
 
-        confirmationOptions: step.hasConfirmation
-          ? step.confirmationOptions
-              .map((option) => option.value.trim())
-              .filter(Boolean)
-          : [],
+        confirmationOptions:
+          step.hasConfirmation
+            ? step.confirmationOptions
+                .map((option) => option.value.trim())
+                .filter(Boolean)
+            : [],
 
         actionTimeout: Number(step.actionTimeout),
       })),
@@ -70,11 +81,11 @@ export async function createTestAction(data: CreateTestActionInput) {
       data: test,
     };
   } catch (error) {
-    console.error("createTestAction error:", error);
+    console.error("updateTestAction error:", error);
 
     return {
       success: false,
-      error: "Failed to create test",
+      error: "Failed to update test",
     };
   }
 }

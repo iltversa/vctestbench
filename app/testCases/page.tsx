@@ -3,11 +3,35 @@
 import { useState } from "react";
 import TestCaseBuilderDialog from "../../components/TestCaseBuilder";
 
-export default function CreateTestButton() {
+
+import { useEffect } from "react";
+import { SavedTest } from "../page";
+
+type CreateTestButtonProps = {
+  editingTest: SavedTest | null;
+  onEditClose: () => void;
+};
+
+export default function CreateTestButton({
+  editingTest,
+  onEditClose,
+}: CreateTestButtonProps) {
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (editingTest) {
+      setOpen(true);
+    }
+  }, [editingTest]);
+
+  const handleClose = () => {
+    setOpen(false);
+    onEditClose();
+  };
 
   return (
     <>
+      {/* Create button */}
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -17,9 +41,11 @@ export default function CreateTestButton() {
         Create Test
       </button>
 
+      {/* Same popup for create/edit */}
       {open && (
         <TestCaseBuilderDialog
-          onClose={() => setOpen(false)}
+          test={editingTest}
+          onClose={handleClose}
         />
       )}
     </>

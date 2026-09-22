@@ -2413,8 +2413,113 @@ async function runVideoClassTest(){
  addEvent("Returned Home","Video class, save, and feedback flow finished cleanly","success");
  test={status:"passed",name:"Video class test",finishedAt:new Date().toISOString(),step:"Complete"};state.test=test;
 }
+
+async function runTest(testData) {
+console.log(testData||'testData')
+
+  // if (testData.status === "running") {
+  //   throw new Error("A test is already running");
+  // }
+  // resetEvents();
+
+  test = {
+    status: "running",
+    name: testData.title,
+    startedAt: new Date().toISOString(),
+    step: "Starting test",
+  };
+
+  state.test = test;
+
+  addEvent(
+    `Starting test: ${testData.title}`,
+    "",
+    "info"
+  );
+
+  try {
+    for (const action of testData.actions) {
+      test.step = action.title;
+      state.test = test;
+
+      addEvent(
+        `Running action: ${action.title}`,
+        "",
+        "info"
+      );
+
+      await executeTestAction(action);
+    }
+
+    test = {
+      status: "passed",
+      name: testData.title,
+      startedAt: test.startedAt,
+      finishedAt: new Date().toISOString(),
+      step: "Test completed",
+    };
+
+    state.test = test;
+
+    addEvent(
+      `Test completed: ${testData.title}`,
+      "",
+      "success"
+    );
+  } catch (error) {
+    test = {
+      status: "failed",
+      name: testData.title,
+      error: error instanceof Error
+        ? error.message
+        : String(error),
+      finishedAt: new Date().toISOString(),
+    };
+
+    state.test = test;
+
+    addEvent(
+      `${testData.title} failed`,
+      test.error,
+      "warning"
+    );
+
+    throw error;
+  }
+}
+async function executeTestAction(action) {
+  if (action.action === "SAVE") {
+    await clickSaveButton();
+  } else {
+    const text =
+      action.action === "CUSTOM"
+        ? action.customAction
+        : action.action;
+
+    if (!text?.trim()) {
+      throw new Error(
+        `No text configured for action "${action.title}"`
+      );
+    }
+
+    await clickTextAround(text.trim());
+  }
+
+  if (action.hasConfirmation) {
+    await executeConfirmation(action);
+  }
+
+  if (action.actionTimeout > 0) {
+    await sleep(action.actionTimeout * 1000);
+  }
+}
+
+
 const server=http.createServer((req,res)=>{
- res.setHeader("Access-Control-Allow-Origin","*");res.setHeader("Access-Control-Allow-Methods","GET,POST,OPTIONS");res.setHeader("Cache-Control","no-store");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+//  res.setHeader("Access-Control-Allow-Origin","*");res.setHeader("Access-Control-Allow-Methods","GET,POST,OPTIONS");res.setHeader("Cache-Control","no-store");
  if(req.method==="OPTIONS"){res.writeHead(204);return res.end()}
  if(req.url?.startsWith("/screen")){if(!screen){res.writeHead(404);return res.end()}res.writeHead(200,{"Content-Type":"image/png"});return res.end(screen)}
  if(req.url==="/state"){res.writeHead(200,{"Content-Type":"application/json"});return res.end(JSON.stringify({...state,test}))}
@@ -2423,6 +2528,64 @@ const server=http.createServer((req,res)=>{
  if(req.url==="/run-monument"&&req.method==="POST"){res.writeHead(202,{"Content-Type":"application/json"});res.end(JSON.stringify({accepted:true}));runMonumentTest().catch(error=>{addEvent("Monument test f",error.message,"warning");test={status:"failed",name:"Monument smoke test",error:error.message,finishedAt:new Date().toISOString()};state.test=test;try{if(state.route?.startsWith("/record-new"))adb("shell","input","tap","660","1275")}catch{}});return}
  if(req.url==="/tap-stop"&&req.method==="POST"){res.writeHead(200,{"Content-Type":"application/json"});clickText(["stop"]).then(value=>res.end(JSON.stringify({clicked:value||false}))).catch(error=>{res.writeHead(500);res.end(JSON.stringify({error:error.message}))});return}
  if(req.url==="/run-video-class"&&req.method==="POST"){res.writeHead(202,{"Content-Type":"application/json"});res.end(JSON.stringify({accepted:true}));runVideoClassTest().catch(async error=>{addEvent("Video class test failed",error.message,"warning");test={status:"failed",name:"Video class test",error:error.message,finishedAt:new Date().toISOString()};state.test=test;try{if(state.route?.startsWith("/live-stream-ts/"))await adb("shell","input","tap","660","690")}catch{}});return}
+ if (req.url === "/run-test" && req.method === "POST") {
+  let body = "";
+
+  req.on("data", chunk => {
+    body += chunk;
+  });
+
+  req.on("end", () => {
+    try {
+      const testData = JSON.parse(body);
+
+      res.writeHead(202, {
+        "Content-Type": "application/json",
+      });
+
+      res.end(
+        JSON.stringify({
+          accepted: true,
+        })
+      );
+
+      runTest(testData).catch(error => {
+        const message =
+          error instanceof Error
+            ? error.message
+            : String(error);
+
+        addEvent(
+          `${testData.title} failed`,
+          message,
+          "warning"
+        );
+
+        test = {
+          status: "failed",
+          name: testData.title,
+          error: message,
+          finishedAt: new Date().toISOString(),
+        };
+
+        state.test = test;
+      });
+    } catch (error) {
+      res.writeHead(400, {
+        "Content-Type": "application/json",
+      });
+
+      res.end(
+        JSON.stringify({
+          accepted: false,
+          error: "Invalid test data",
+        })
+      );
+    }
+  });
+
+  return;
+}
  res.writeHead(404);res.end();
 });
 server.listen(PORT,"127.0.0.1",()=>console.log("VC TestBench bridge listening on http://localhost:"+PORT));poll();setInterval(poll,1500);
