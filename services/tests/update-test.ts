@@ -21,7 +21,7 @@ export type CreateTestInput = {
   }[];
 };
 export async function updateTest(
-  testId: number,
+  testId: string,
   data: CreateTestInput
 ) {
   return await db.transaction(async (tx) => {

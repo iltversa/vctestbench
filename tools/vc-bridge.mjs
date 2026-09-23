@@ -2415,12 +2415,7 @@ async function runVideoClassTest(){
 }
 
 async function runTest(testData) {
-console.log(testData||'testData')
-
-  // if (testData.status === "running") {
-  //   throw new Error("A test is already running");
-  // }
-  // resetEvents();
+  console.log("TEST DATA:", testData);
 
   test = {
     status: "running",
@@ -2438,18 +2433,93 @@ console.log(testData||'testData')
   );
 
   try {
-    for (const action of testData.actions) {
+    for (let i = 0; i < testData.actions.length; i++) {
+      const action = testData.actions[i];
+      const nextAction = testData.actions[i + 1];
+
+      console.log("================================");
+      console.log("CURRENT ACTION:", action.title);
+      console.log("NEXT ACTION:", nextAction?.title);
+      console.log("================================");
+
       test.step = action.title;
       state.test = test;
 
+      // -----------------------------------
+      // 1. RUN CURRENT ACTION
+      // -----------------------------------
+
       addEvent(
-        `Running action: ${action.title}`,
+        `Attempting action: ${action.title}`,
         "",
         "info"
       );
 
+      console.log(`Executing action: ${action.title}`);
+
       await executeTestAction(action);
+
+      console.log(`Finished action: ${action.title}`);
+
+      addEvent(
+        `Finished action: ${action.title}`,
+        "",
+        "success"
+      );
+
+      // -----------------------------------
+      // 2. CHECK NEXT ACTION
+      // -----------------------------------
+
+      if (!nextAction) {
+        console.log("No next action. Test is finished.");
+        continue;
+      }
+
+      const nextActionTimeout =
+        Number(nextAction.actionTimeout) || 0;
+
+      console.log(
+        `Next action: ${nextAction.title}, timeout: ${nextActionTimeout}`
+      );
+
+      // -----------------------------------
+      // 3. WAIT BEFORE NEXT ACTION
+      // -----------------------------------
+
+      if (nextActionTimeout > 0) {
+        addEvent(
+          `Waiting ${nextActionTimeout}s before next action: ${nextAction.title}`,
+          "",
+          "info"
+        );
+
+        console.log(
+          `WAITING ${nextActionTimeout}s...`
+        );
+
+        await sleep(nextActionTimeout * 1000);
+
+        console.log(
+          `WAIT FINISHED. Starting next action: ${nextAction.title}`
+        );
+
+        addEvent(
+          `Timeout finished. Starting next action: ${nextAction.title}`,
+          "",
+          "info"
+        );
+      }
+
+      // The loop automatically goes to the next iteration here.
+      console.log(
+        `Moving to next action: ${nextAction.title}`
+      );
     }
+
+    // -----------------------------------
+    // TEST PASSED
+    // -----------------------------------
 
     test = {
       status: "passed",
@@ -2466,14 +2536,17 @@ console.log(testData||'testData')
       "",
       "success"
     );
+
   } catch (error) {
     test = {
       status: "failed",
       name: testData.title,
-      error: error instanceof Error
-        ? error.message
-        : String(error),
+      error:
+        error instanceof Error
+          ? error.message
+          : String(error),
       finishedAt: new Date().toISOString(),
+      step: "Test failed",
     };
 
     state.test = test;
@@ -2488,29 +2561,74 @@ console.log(testData||'testData')
   }
 }
 async function executeTestAction(action) {
-  if (action.action === "SAVE") {
-    await clickSaveButton();
-  } else {
-    const text =
-      action.action === "CUSTOM"
-        ? action.customAction
-        : action.action;
+  // Run the action but treat failures/timeouts as step-level issues
+  // — log a warning and continue after waiting the configured timeout.
+  let lastError = null;
 
-    if (!text?.trim()) {
-      throw new Error(
-        `No text configured for action "${action.title}"`
-      );
+  try {
+    if (action.action === "SAVE") {
+      try {
+        await clickSaveButton();
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
+        addEvent(
+          `Action failed: ${action.title}`,
+          lastError,
+          "warning"
+        );
+      }
+    } else {
+      const text =
+        action.action === "CUSTOM"
+          ? action.customAction
+          : action.action;
+
+      if (!text?.trim()) {
+        lastError = `No text configured for action "${action.title}"`;
+        addEvent(
+          `Action misconfigured: ${action.title}`,
+          lastError,
+          "warning"
+        );
+      } else {
+        try {
+          await clickTextAround(text.trim());
+        } catch (err) {
+          lastError = err instanceof Error ? err.message : String(err);
+          addEvent(
+            `Action failed: ${action.title}`,
+            lastError,
+            "warning"
+          );
+        }
+      }
     }
 
-    await clickTextAround(text.trim());
+    if (action.hasConfirmation) {
+      try {
+        await executeConfirmation(action);
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
+        addEvent(
+          `Confirmation failed: ${action.title}`,
+          lastError,
+          "warning"
+        );
+      }
+    }
+  } catch (err) {
+    // Unexpected outer error — capture and continue to timeout wait below
+    lastError = err instanceof Error ? err.message : String(err);
+    addEvent(`Step execution error: ${action.title}`, lastError, "warning");
   }
 
-  if (action.hasConfirmation) {
-    await executeConfirmation(action);
-  }
-
-  if (action.actionTimeout > 0) {
-    await sleep(action.actionTimeout * 1000);
+  // If there was an error during the step, log that we're continuing.
+  if (lastError) {
+    addEvent(
+      `Continuing after error: ${action.title}`,
+      lastError,
+      "warning"
+    );
   }
 }
 

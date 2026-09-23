@@ -3,19 +3,19 @@
 import { updateTest } from "@/services/tests/update-test";
 
 type UpdateTestActionInput = {
-  testId: number;
+  testId: string;
 
   title: string;
 
   steps: {
-    id: number;
+    id: string;
     action: string;
     actionTitle: string;
     customAction: string;
     hasConfirmation: boolean;
     confirmationTimeout: string;
     confirmationOptions: {
-      id: number;
+      id: string;
       value: string;
     }[];
     actionTimeout: string;

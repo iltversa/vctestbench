@@ -4,7 +4,7 @@ import { createTestAction } from "@/actions/tests/create-test";
 import { SavedTest } from "@/app/page";
 import { updateTestAction } from "@/actions/tests/update-test";
 type ConfirmationOption = {
-  id: number;
+  id: string;
   value: string;
 };
 type TestCaseBuilderDialogProps = {
@@ -12,7 +12,7 @@ type TestCaseBuilderDialogProps = {
   onClose: () => void;
 };
 type Step = {
-  id: number;
+  id: string;
 
   action: string;
   actionTitle: string;
@@ -22,12 +22,14 @@ type Step = {
   confirmationTimeout: string;
 
   confirmationOptions: {
-    id: number;
+    id: string;
     value: string;
   }[];
 
   actionTimeout: string;
 };
+
+const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
 export default function TestCaseBuilderDialog({onClose, test}: TestCaseBuilderDialogProps) {
   
@@ -35,7 +37,7 @@ export default function TestCaseBuilderDialog({onClose, test}: TestCaseBuilderDi
   const isEditMode = Boolean(test);
   const [testTitle, setTestTitle] = useState("");
   const [steps, setSteps] = useState<Step[]>([]);
-  const [expandedStepId, setExpandedStepId] = useState<number | null>(null);
+  const [expandedStepId, setExpandedStepId] = useState<string | null>(null);
   useEffect(() => {
     if (!test) {
       // CREATE
@@ -66,12 +68,12 @@ export default function TestCaseBuilderDialog({onClose, test}: TestCaseBuilderDi
       }))
     );
   }, [test]);
-  const toggleStep = (id: number) => {
+  const toggleStep = (id: string) => {
     setExpandedStepId((prev) => (prev === id ? null : id));
   };
 
   const makeStep = (overrides: Partial<Step> = {}): Step => ({
-  id: Date.now() + Math.random(),
+  id: makeId(),
 
   action: "START",
   actionTitle: "START",
@@ -82,11 +84,11 @@ export default function TestCaseBuilderDialog({onClose, test}: TestCaseBuilderDi
 
   confirmationOptions: [
     {
-      id: Date.now() + Math.random(),
+      id: makeId(),
       value: "Yes",
     },
     {
-      id: Date.now() + Math.random(),
+      id: makeId(),
       value: "No",
     },
   ],
@@ -99,10 +101,10 @@ export default function TestCaseBuilderDialog({onClose, test}: TestCaseBuilderDi
   const handleAddStep = () => {
     const step = makeStep();
     setSteps((prev) => [...prev, step]);
-    setExpandedStepId(step.id); // open the newly added step
+    setExpandedStepId(step.id);
   };
 
-  const handleDuplicateStep = (id: number) => {
+  const handleDuplicateStep = (id: string) => {
     setSteps((prev) => {
       const index = prev.findIndex((s) => s.id === id);
       if (index === -1) return prev;
@@ -110,10 +112,10 @@ export default function TestCaseBuilderDialog({onClose, test}: TestCaseBuilderDi
       const source = prev[index];
       const copy: Step = {
         ...source,
-        id: Date.now() + Math.random(),
+        id: makeId(),
         actionTitle: `${source.actionTitle} (copy)`,
         confirmationOptions: source.confirmationOptions.map((o) => ({
-          id: Date.now() + Math.random(),
+          id: makeId(),
           value: o.value,
         })),
       };
@@ -124,16 +126,16 @@ export default function TestCaseBuilderDialog({onClose, test}: TestCaseBuilderDi
     });
   };
 
-  const handleRemoveStep = (id: number) => {
+  const handleRemoveStep = (id: string) => {
     setSteps((prev) => prev.filter((s) => s.id !== id));
     setExpandedStepId((prev) => (prev === id ? null : prev));
   };
 
-  const handleUpdateStep = (id: number, patch: Partial<Step>) => {
+  const handleUpdateStep = (id: string, patch: Partial<Step>) => {
     setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   };
 
-  const handleAddOption = (stepId: number) => {
+  const handleAddOption = (stepId: string) => {
     setSteps((prev) =>
       prev.map((s) =>
         s.id === stepId
@@ -141,7 +143,7 @@ export default function TestCaseBuilderDialog({onClose, test}: TestCaseBuilderDi
               ...s,
               confirmationOptions: [
                 ...s.confirmationOptions,
-                { id: Date.now() + Math.random(), value: "" },
+                { id: makeId(), value: "" },
               ],
             }
           : s
@@ -149,7 +151,7 @@ export default function TestCaseBuilderDialog({onClose, test}: TestCaseBuilderDi
     );
   };
 
-  const handleUpdateOption = (stepId: number, optionId: number, value: string) => {
+  const handleUpdateOption = (stepId: string, optionId: string, value: string) => {
     setSteps((prev) =>
       prev.map((s) =>
         s.id === stepId
@@ -164,7 +166,7 @@ export default function TestCaseBuilderDialog({onClose, test}: TestCaseBuilderDi
     );
   };
 
-  const handleRemoveOption = (stepId: number, optionId: number) => {
+  const handleRemoveOption = (stepId: string, optionId: string) => {
     setSteps((prev) =>
       prev.map((s) =>
         s.id === stepId
@@ -355,6 +357,7 @@ export default function TestCaseBuilderDialog({onClose, test}: TestCaseBuilderDi
                                 {step.action}
                                 {step.hasConfirmation &&
                                   ` · confirmation (${step.confirmationTimeout}s, ${step.confirmationOptions.length} options)`}
+                                {` · timeout (${step.actionTimeout}s)`}
                               </p>
                             </div>
                           </div>
@@ -544,6 +547,24 @@ export default function TestCaseBuilderDialog({onClose, test}: TestCaseBuilderDi
                                 </div>
                               </div>
                             )}
+
+                            {/* Action Timeout */}
+                            <div>
+                              <label className="mb-1.5 block text-xs font-medium text-slate-600">
+                                Action Timeout (seconds)
+                              </label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={step.actionTimeout}
+                                onChange={(e) =>
+                                  handleUpdateStep(step.id, {
+                                    actionTimeout: e.target.value,
+                                  })
+                                }
+                                className="w-32 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                            </div>
                           </div>
                         )}
                       </li>

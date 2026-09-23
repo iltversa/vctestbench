@@ -6,7 +6,7 @@ type CreateTestActionInput = {
   title: string;
 
   steps: {
-    id: number;
+    id: string;
     action: string;
     actionTitle: string;
     customAction: string;
@@ -15,7 +15,7 @@ type CreateTestActionInput = {
     confirmationTimeout: string;
 
     confirmationOptions: {
-      id: number;
+      id: string;
       value: string;
     }[];
 

@@ -7,27 +7,27 @@ type TabletState = { connected: boolean; device?: string; model?: string; androi
 const BRIDGE = "http://localhost:3131";
 
 export type SavedTest = {
-  id: number;
-  title: string;
-
-  actions: {
-    id: number;
+    id: string;
     title: string;
-    action: string;
-    customAction: string | null;
 
-    hasConfirmation: boolean;
-    confirmationTimeout: number | null;
+    actions: {
+        id: string;
+        title: string;
+        action: string;
+        customAction: string | null;
 
-    actionTimeout: number;
-    sortOrder: number;
+        hasConfirmation: boolean;
+        confirmationTimeout: number | null;
 
-    confirmationOptions: {
-      id: number;
-      value: string;
-      sortOrder: number;
+        actionTimeout: number;
+        sortOrder: number;
+
+        confirmationOptions: {
+            id: string;
+            value: string;
+            sortOrder: number;
+        }[];
     }[];
-  }[];
 };
 
 
@@ -41,28 +41,28 @@ export default function Home() {
     const runVideoClass = async () => { setStarting(true); try { const response = await fetch(BRIDGE + "/run-video-class", { method: "POST" }); if (!response.ok) throw new Error(); await refresh() } catch { setLastError("Could not start the video class test") } finally { setStarting(false) } };
     const runMonument = async () => { setStarting(true); try { const response = await fetch(BRIDGE + "/run-monument", { method: "POST" }); if (!response.ok) throw new Error(); await refresh() } catch { setLastError("Could not start the Monument test") } finally { setStarting(false) } };
     const launchSand = async () => { setLaunching(true); setLastError(""); try { const response = await fetch(BRIDGE + "/launch-sand", { method: "POST" }); if (!response.ok) throw new Error(); window.setTimeout(refresh, 1200) } catch { setLastError("Could not launch Sandbox") } finally { window.setTimeout(() => setLaunching(false), 1200) } };
-    
+
     const currentLabel = !bridgeOnline ? "Waiting for VC TestBench monitor" : !connected ? "Tablet disconnected" : state?.sandboxForeground ? (state.route ? "Sandbox visible · " + state.route : "Sandbox is open") : "Tablet connected · Sandbox not in foreground";
     const activeTest = state?.test?.status === "running" ? state.test.name : "";
-    const [savedTests, setSavedTests] = useState<{ id: number; title: string;  }[]>([]);
-    
+    const [savedTests, setSavedTests] = useState<SavedTest[]>([]);
+
     const handleRunTest = async (test: SavedTest) => {
         if (!canRun || starting) return;
 
         setStarting(true);
         setLastError("");
-console.log(test)
+        console.log(test)
         try {
             const response = await fetch(BRIDGE + "/run-test", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(test),
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(test),
             });
 
             if (!response.ok) {
-            throw new Error("Failed to start test");
+                throw new Error("Failed to start test");
             }
 
             await refresh();
@@ -74,20 +74,26 @@ console.log(test)
         }
     };
     const [editingTest, setEditingTest] =
-  useState<SavedTest | null>(null);
-    useEffect(() => {
-    const loadTests = async () => {
-        const result = await getTestsAction();
+        useState<SavedTest | null>(null);
 
-        if (!result.success) {
-        console.error(result.error);
-        return;
-        }
-
-        setSavedTests(result.data);
+    const handleDeleteTest = async (testId: string) => {
+        // TODO: Implement delete test action
+        setSavedTests((current) => current.filter((t) => t.id !== testId));
     };
 
-    loadTests();
+    useEffect(() => {
+        const loadTests = async () => {
+            const result = await getTestsAction();
+
+            if (!result.success) {
+                console.error(result.error);
+                return;
+            }
+
+            setSavedTests((result.data ?? []) as SavedTest[]);
+        };
+
+        loadTests();
     }, []);
     return (
         <main className="shell">
@@ -119,50 +125,58 @@ console.log(test)
                     <span>{state?.updatedAt ? new Date(state.updatedAt).toLocaleTimeString() : "No live update"}</span>
                 </div>
             </section>
-            <div className="flowbar">
-                {/* <div className="flow-actions">
-                    <button className={"secondary " + (activeTest === "Workout smoke test" ? "active" : "")} disabled={!canRun || starting} onClick={runWorkout}>Workout smoke</button>
-                    <button className={"secondary " + (activeTest === "Monument smoke test" ? "active" : "")} disabled={!canRun || starting} onClick={runMonument}>Monument smoke</button>
-                    <button className={"secondary " + (activeTest === "Video class test" ? "active" : "")} disabled={!canRun || starting} onClick={runVideoClass}>{activeTest === "Video class test" ? "Test running…" : starting ? "Starting…" : "Video class to 45 ft"}</button>
-                </div> */}
-                {savedTests.map((test) => (
-  <div
-    key={test.id}
-    className="flex items-center gap-1"
-  >
-    {/* Run test */}
-    <button
-      className={
-        "secondary " +
-        (activeTest === test.title ? "active" : "")
-      }
-      disabled={!canRun || starting}
-      onClick={() => handleRunTest(test)}
-    >
-      {activeTest === test.title
-        ? "Test running…"
-        : test.title}
-    </button>
-
-    {/* Edit test */}
-    <button
-      type="button"
-      className="secondary"
-      onClick={() => setEditingTest(test)}
-    >
-      Edit
-    </button>
-  </div>
-))}
-                <button className="secondary refresh-button" onClick={refresh}>Refresh</button>
-<CreateTestButton
-  editingTest={editingTest}
-  onEditClose={() => setEditingTest(null)}
-/>            </div>
-            
             <div className="content-grid">
                 <section className="panel timeline-panel"><div className="panel-heading"><div><p className="eyebrow">REALTIME FEED</p><h3>Confirmed actions and screen changes</h3></div><span className={"live-label " + (connected ? "" : "offline")}><i />{connected ? "LIVE" : "OFFLINE"}</span></div><div className="timeline">{!events.length && <div className="empty-feed"><div className="empty-icon">◎</div><strong>No tablet activity yet</strong><span>VC TestBench will only show events it confirms on the real device.</span></div>}{[...events].reverse().map((event, index) => <div className={"step passed " + event.kind} key={event.id}><div className="step-marker">{index === 0 && connected ? "●" : "✓"}</div><div className="step-copy"><strong>{event.label}</strong><span>{event.detail}</span></div><div className="step-time">{event.at}</div></div>)}</div></section>
-                <aside className="right-column"><section className="panel tablet-panel"><div className="panel-heading compact"><div><p className="eyebrow">LIVE TABLET VIEW</p><h3>{state?.sandboxForeground ? "Sandbox app" : "Lenovo tablet"}</h3></div><span className={"recording-dot " + (connected ? "" : "offline-dot")} /></div><div className={"live-screen " + (connected ? "" : "screen-offline")}>{connected ? <img src={BRIDGE + "/screen?t=" + imageTick} alt="Current Lenovo tablet screen" /> : <div><span>USB</span><strong>Tablet disconnected</strong><small>Reconnect and authorize USB debugging</small></div>}</div><p className="capture-note">{connected ? "This image is captured from the tablet and refreshes automatically." : "No cached image is shown while the tablet is offline."}</p></section><section className="metrics-row"><div><span>USB STATUS</span><strong>{connected ? "Online" : "Offline"}</strong></div><div><span>APP STATE</span><strong>{state?.sandboxForeground ? "Visible" : "—"}</strong></div><div><span>ROUTE</span><strong>{state?.route ?? "—"}</strong></div></section></aside>
+                {/* <aside className="right-column"> */}
+                <section className="panel tablet-panel">
+                    <div className="panel-heading compact"><div>
+                        <p className="eyebrow">LIVE TABLET VIEW</p>
+                        <h3>{state?.sandboxForeground ? "Sandbox app" : "Lenovo tablet"}</h3>
+                    </div>
+                        <span className={"recording-dot " + (connected ? "" : "offline-dot")} /></div>
+                    <div className={"live-screen " + (connected ? "" : "screen-offline")}>
+                        {connected ?
+                            <img src={BRIDGE + "/screen?t=" + imageTick} alt="Current Lenovo tablet screen" />
+                            : <div><span>USB</span><strong>Tablet disconnected</strong><small>Reconnect and authorize USB debugging</small></div>}
+                    </div>
+                    <p className="capture-note">{connected ? "This image is captured from the tablet and refreshes automatically." : "No cached image is shown while the tablet is offline."}</p>
+                </section>
+                <section className="panel tests-panel">
+                    <div className="panel-heading compact tests-header-row"><div>
+                        <p className="eyebrow">TEST CASES</p><h3>Saved tests</h3>
+                    </div>
+                        <div className="tests-header-actions">
+                            <button className="secondary refresh-button" onClick={refresh}>Refresh</button>
+                            <CreateTestButton
+                                editingTest={editingTest}
+                                onEditClose={() => setEditingTest(null)}
+                            />
+                        </div>
+                    </div>
+                    <div className="tests-list-wrap">{savedTests.length === 0 ? (<div className="empty-tests">No tests yet. Create one to get started.</div>)
+                        : (<ul className="tests-list">{savedTests.map((test) => (<li key={test.id} className="test-item">
+                            <div className="test-info"><button className="test-run-button secondary" disabled={!canRun || starting} onClick={() => handleRunTest(test)}>{activeTest === test.title ? "Test running…" : "Run"}</button>
+                                <span className="test-title">{test.title}</span>
+                            </div>
+                            <div className="test-actions">
+                                <button type="button" className="icon-button edit-button" onClick={() => setEditingTest(test)} title="Edit test">✏️</button>
+                                <button type="button" className="icon-button delete-button" onClick={() => handleDeleteTest(test.id)} title="Delete test">🗑️</button>
+                            </div>
+                        </li>))}
+                        </ul>)}
+                    </div>
+                </section>
+                <section className="metrics-row">
+                    <div>
+                        <span>USB STATUS</span><strong>{connected ? "Online" : "Offline"}</strong>
+                    </div>
+                    <div><span>APP STATE</span><strong>{state?.sandboxForeground ? "Visible" : "—"}</strong>
+                    </div>
+                    <div>
+                        <span>ROUTE</span><strong>{state?.route ?? "—"}</strong>
+                    </div>
+                </section>
+                {/* </aside> */}
             </div>
             <footer className="actionbar"><div><span className="shield">{connected ? "✓" : "!"}</span><p><strong>{state?.test?.status === "running" ? (state.test.step ?? "Test running") : state?.test?.status === "passed" ? (state.test.name ?? "Test") + " passed" : connected ? "Choose a real test sequence" : "No tablet control active"}</strong><small>{lastError || state?.test?.error || "Only verified tablet actions appear in the feed"}</small></p></div></footer>
         </main>
