@@ -520,4 +520,504 @@
   background: white;
   border-color: #94a3b8;
 }
-/* ========================================================= CONFIGURATION PANEL ========================================================= */ .test-configuration { padding: 20px; background: white; border-bottom: 1px solid #e5e7eb; } /* ========================================================= HEADER ========================================================= */ .configuration-header { margin-bottom: 22px; } .configuration-header h2 { margin: 0 0 5px; font-size: 18px; } .configuration-header p { margin: 0; color: #64748b; font-size: 12px; line-height: 1.5; } /* ========================================================= SECTION ========================================================= */ .configuration-section { margin-bottom: 22px; } .configuration-section:last-child { margin-bottom: 0; } /* ========================================================= LABEL ========================================================= */ .configuration-label { display: block; margin-bottom: 8px; color: #334155; font-size: 12px; font-weight: 700; } /* ========================================================= TITLE INPUT ========================================================= */ .test-title-input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 7px; outline: none; font-size: 13px; color: #0f172a; } .test-title-input::placeholder { color: #94a3b8; } .test-title-input:focus { border-color: #64748b; } /* ========================================================= CLASS OPTIONS ========================================================= */ .class-options { display: flex; flex-direction: column; gap: 9px; } .class-option { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 13px; color: #334155; } .class-option input { width: 15px; height: 15px; margin: 0; cursor: pointer; } /* ========================================================= ACTION HEADER ========================================================= */ .actions-header { display: flex; align-items: center; justify-content: space-between; } .action-count { display: flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 20px; background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 700; } /* ========================================================= PREDEFINED ACTIONS ========================================================= */ .predefined-actions { display: flex; flex-direction: column; gap: 7px; margin-bottom: 10px; } .predefined-action { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid #e2e8f0; border-radius: 7px; background: #f8fafc; } .action-number { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; flex-shrink: 0; border-radius: 6px; background: white; color: #64748b; font-size: 11px; font-weight: 700; } .action-info { display: flex; flex-direction: column; gap: 2px; } .action-type { color: #94a3b8; font-size: 8px; font-weight: 700; letter-spacing: 0.08em; } .action-info strong { color: #1e293b; font-size: 12px; } /* ========================================================= ADD ACTION BUTTON ========================================================= */ .add-action-button { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; padding: 10px; border: 1px dashed #94a3b8; border-radius: 7px; background: white; color: #475569; cursor: pointer; font-size: 12px; font-weight: 600; transition: 0.15s; } .add-action-button:hover { background: #f8fafc; border-color: #64748b; color: #1e293b; } .add-action-button span { font-size: 16px; line-height: 1; } /* ========================================================= MODAL OVERLAY ========================================================= */ .action-modal-overlay { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; background: rgba(15, 23, 42, 0.35); } /* ========================================================= MODAL ========================================================= */ .action-modal { width: min(500px, 100%); max-height: 90vh; display: flex; flex-direction: column; background: white; border-radius: 12px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2); overflow: hidden; } /* ========================================================= MODAL HEADER ========================================================= */ .action-modal-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 20px; border-bottom: 1px solid #e5e7eb; } .action-modal-header h3 { margin: 0 0 4px; font-size: 17px; } .action-modal-header p { margin: 0; color: #64748b; font-size: 12px; } .modal-close-button { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: none; border-radius: 6px; background: transparent; color: #64748b; cursor: pointer; font-size: 22px; } .modal-close-button:hover { background: #f1f5f9; color: #0f172a; } /* ========================================================= MODAL BODY ========================================================= */ .action-modal-body { padding: 30px; overflow-y: auto; } .modal-placeholder { display: flex; align-items: center; justify-content: center; min-height: 180px; border: 2px dashed #cbd5e1; border-radius: 8px; color: #94a3b8; font-size: 13px; } /* ========================================================= MODAL FOOTER ========================================================= */ .action-modal-footer { display: flex; justify-content: flex-end; padding: 15px 20px; border-top: 1px solid #e5e7eb; } .modal-cancel-button { padding: 8px 15px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; color: #475569; cursor: pointer; font-size: 12px; font-weight: 600; } .modal-cancel-button:hover { background: #f8fafc; }
+ .test-configuration { padding: 20px; background: white; border-bottom: 1px solid #e5e7eb; } /* ========================================================= HEADER ========================================================= */ .configuration-header { margin-bottom: 22px; } .configuration-header h2 { margin: 0 0 5px; font-size: 18px; } .configuration-header p { margin: 0; color: #64748b; font-size: 12px; line-height: 1.5; } /* ========================================================= SECTION ========================================================= */ .configuration-section { margin-bottom: 22px; } .configuration-section:last-child { margin-bottom: 0; } /* ========================================================= LABEL ========================================================= */ .configuration-label { display: block; margin-bottom: 8px; color: #334155; font-size: 12px; font-weight: 700; } /* ========================================================= TITLE INPUT ========================================================= */ .test-title-input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 7px; outline: none; font-size: 13px; color: #0f172a; } .test-title-input::placeholder { color: #94a3b8; } .test-title-input:focus { border-color: #64748b; } /* ========================================================= CLASS OPTIONS ========================================================= */ .class-options { display: flex; flex-direction: column; gap: 9px; } .class-option { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 13px; color: #334155; } .class-option input { width: 15px; height: 15px; margin: 0; cursor: pointer; } /* ========================================================= ACTION HEADER ========================================================= */ .actions-header { display: flex; align-items: center; justify-content: space-between; } .action-count { display: flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 20px; background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 700; } /* ========================================================= PREDEFINED ACTIONS ========================================================= */ .predefined-actions { display: flex; flex-direction: column; gap: 7px; margin-bottom: 10px; } .predefined-action { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid #e2e8f0; border-radius: 7px; background: #f8fafc; } .action-number { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; flex-shrink: 0; border-radius: 6px; background: white; color: #64748b; font-size: 11px; font-weight: 700; } .action-info { display: flex; flex-direction: column; gap: 2px; } .action-type { color: #94a3b8; font-size: 8px; font-weight: 700; letter-spacing: 0.08em; } .action-info strong { color: #1e293b; font-size: 12px; } /* ========================================================= ADD ACTION BUTTON ========================================================= */ .add-action-button { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; padding: 10px; border: 1px dashed #94a3b8; border-radius: 7px; background: white; color: #475569; cursor: pointer; font-size: 12px; font-weight: 600; transition: 0.15s; } .add-action-button:hover { background: #f8fafc; border-color: #64748b; color: #1e293b; } .add-action-button span { font-size: 16px; line-height: 1; } /* ========================================================= MODAL OVERLAY ========================================================= */ .action-modal-overlay { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; background: rgba(15, 23, 42, 0.35); } /* ========================================================= MODAL ========================================================= */ .action-modal { width: min(500px, 100%); max-height: 90vh; display: flex; flex-direction: column; background: white; border-radius: 12px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2); overflow: hidden; } /* ========================================================= MODAL HEADER ========================================================= */ .action-modal-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 20px; border-bottom: 1px solid #e5e7eb; } .action-modal-header h3 { margin: 0 0 4px; font-size: 17px; } .action-modal-header p { margin: 0; color: #64748b; font-size: 12px; } .modal-close-button { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: none; border-radius: 6px; background: transparent; color: #64748b; cursor: pointer; font-size: 22px; } .modal-close-button:hover { background: #f1f5f9; color: #0f172a; } /* ========================================================= MODAL BODY ========================================================= */ .action-modal-body { padding: 30px; overflow-y: auto; } .modal-placeholder { display: flex; align-items: center; justify-content: center; min-height: 180px; border: 2px dashed #cbd5e1; border-radius: 8px; color: #94a3b8; font-size: 13px; } /* ========================================================= MODAL FOOTER ========================================================= */ .action-modal-footer { display: flex; justify-content: flex-end; padding: 15px 20px; border-top: 1px solid #e5e7eb; } .modal-cancel-button { padding: 8px 15px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; color: #475569; cursor: pointer; font-size: 12px; font-weight: 600; } .modal-cancel-button:hover { background: #f8fafc; }
+/* =========================================================
+   LAYOUT
+========================================================= */
+
+.flow-builder {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  background: #f9fafb;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  color: #101828;
+}
+
+/* =========================================================
+   SIDEBAR
+========================================================= */
+
+.flow-sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  background: #ffffff;
+  border-right: 1px solid #eaecf0;
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.sidebar-header h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: #101828;
+}
+
+.sidebar-header p {
+  font-size: 12px;
+  color: #667085;
+  margin: 0;
+}
+
+/* -------- Test configuration -------- */
+
+.test-configuration {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.configuration-header h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: #101828;
+}
+
+.configuration-header p {
+  font-size: 12px;
+  color: #667085;
+  margin: 0;
+}
+
+.configuration-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.configuration-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #344054;
+}
+
+.test-title-input,
+.configuration-section select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  font-size: 13px;
+  background: #ffffff;
+  color: #101828;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.test-title-input:focus,
+.configuration-section select:focus {
+  border-color: #667085;
+  box-shadow: 0 0 0 3px rgba(102, 112, 133, 0.12);
+}
+
+/* -------- Action list -------- */
+
+.action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.action-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #eaecf0;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 13px;
+  color: #344054;
+  cursor: grab;
+  user-select: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.action-item:hover {
+  border-color: #d0d5dd;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  background: #fcfcfd;
+}
+
+.action-item.dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+
+.drag-icon {
+  color: #98a2b3;
+  font-size: 12px;
+  letter-spacing: -2px;
+}
+
+/* =========================================================
+   CANVAS
+========================================================= */
+
+.flow-canvas {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  background: #f9fafb;
+  background-image: radial-gradient(#eaecf0 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.canvas-header {
+  padding: 24px 32px 0;
+}
+
+.canvas-header h1 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: #101828;
+}
+
+.canvas-header p {
+  font-size: 13px;
+  color: #667085;
+  margin: 0;
+}
+
+.flow-area {
+  flex: 1;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  min-height: min-content;
+}
+
+.flow-root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 48px;
+}
+
+/* =========================================================
+   TREE NODE
+========================================================= */
+
+.tree-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+/* =========================================================
+   NODE CARD
+========================================================= */
+
+.node-card {
+  min-width: 180px;
+  max-width: 220px;
+  background: #ffffff;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  padding: 10px 14px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease,
+    background 0.15s ease;
+  position: relative;
+  z-index: 2;
+}
+
+.node-card.action {
+  cursor: default;
+}
+
+.node-card.action:hover {
+  border-color: #98a2b3;
+  box-shadow: 0 2px 6px rgba(16, 24, 40, 0.08);
+}
+
+/* Empty action node — waiting for a drop */
+.node-card.empty {
+  border-style: dashed;
+  border-color: #d0d5dd;
+  background: #fcfcfd;
+  cursor: pointer;
+}
+
+.node-card.empty .node-card-title {
+  color: #667085;
+  font-weight: 400;
+}
+
+.node-card.empty:hover {
+  border-color: #667085;
+  background: #f9fafb;
+}
+
+/* Confirmation nodes are terminal choices */
+.node-card.confirmation {
+  background: #f9fafb;
+  border-style: dashed;
+  border-color: #d0d5dd;
+  cursor: default;
+  min-width: 150px;
+}
+
+.node-card.confirmation:hover {
+  border-color: #98a2b3;
+}
+
+.node-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.node-card-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #101828;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =========================================================
+   NODE MENU
+========================================================= */
+
+.node-card-menu {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.menu-trigger {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #667085;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.menu-trigger:hover {
+  background: #f2f4f7;
+  color: #101828;
+}
+
+.menu-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #eaecf0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.12);
+  padding: 4px;
+  z-index: 20;
+  min-width: 130px;
+}
+
+.menu-dropdown button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #344054;
+  transition: background 0.15s ease;
+}
+
+.menu-dropdown button:hover {
+  background: #f9fafb;
+}
+
+/* =========================================================
+   CONNECTORS
+========================================================= */
+
+/* Vertical stem from parent card down to the horizontal bus */
+.connector-stem {
+  width: 2px;
+  height: 24px;
+  background: #d0d5dd;
+}
+
+/* Wrapper centers the horizontal bus */
+.connector-bus-wrapper {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+/* Horizontal bus spanning all children */
+.connector-bus {
+  height: 2px;
+  background: #d0d5dd;
+  width: calc(100% - 40px);
+  max-width: 100%;
+}
+
+/* Row holding all children */
+.children-row {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+/* Column for each child */
+.child-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Vertical stub from bus down into each child card */
+.connector-stub {
+  width: 2px;
+  height: 24px;
+  background: #d0d5dd;
+}
+
+/* =========================================================
+   DRAG-AFFORDANCE (body class toggled on dragstart)
+========================================================= */
+
+body.is-dragging .node-card.empty {
+  border-color: #667085;
+  background: #f9fafb;
+}
+
+body.is-dragging .node-card.action:not(.empty) {
+  border-color: #98a2b3;
+}
+
+body.is-dragging .node-card.empty .node-card-title::before {
+  content: "＋ ";
+  color: #667085;
+}
+
+/* =========================================================
+   END DROP AREA
+========================================================= */
+
+.end-drop-area {
+  padding: 16px 24px;
+  border: 1px dashed #d0d5dd;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #667085;
+  background: #ffffff;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.end-drop-area:hover {
+  border-color: #98a2b3;
+  background: #fcfcfd;
+}
+/* =========================================================
+   CONNECTORS — Mailchimp-style rounded elbows
+========================================================= */
+
+/* Wrapper that holds the whole connector + children row */
+.connector {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Vertical stem from the parent card down to the elbow line */
+.connector-stem {
+  width: 2px;
+  height: 24px;
+  background: #d0d5dd;
+}
+
+/* The horizontal run + curved ends.
+   Width is 100% of the children row so ends line up with
+   the first and last child centers. */
+.connector-elbow {
+  position: relative;
+  height: 24px;
+  border-top: 2px solid #d0d5dd;
+  border-left: 2px solid #d0d5dd;
+  border-right: 2px solid #d0d5dd;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  border-bottom: none;
+  background: transparent;
+  /* pull the sides in by half the gap so the rounded corners
+     land on the child centers, not the row edges */
+  margin: 0 24px;
+  align-self: stretch;
+}
+
+/* Children row */
+.children-row {
+  display: flex;
+  gap: 48px;                 /* wider gap so the elbows read clearly */
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.child-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Straight stub from the elbow line down into each child card.
+   For the first and last child we hide the top of the stub so
+   the curve blends smoothly. */
+.connector-stub {
+  width: 2px;
+  height: 24px;
+  background: #d0d5dd;
+}
+
+/* Hide the stub for children whose center aligns with an elbow
+   corner — the border-radius already draws that segment. */
+.child-column:first-child .connector-stub,
+.child-column:last-child .connector-stub {
+  background: transparent;
+}
+/* =========================================================
+   CONNECTORS — SVG bezier (Mailchimp-style)
+========================================================= */
+
+.connector-svg {
+  display: block;
+  /* SVG sits directly above the children row, centered on parent */
+  align-self: center;
+}
+
+.children-row {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  /* gap is set inline to stay in sync with SVG geometry */
+}
+
+.child-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* width is set inline */
+}

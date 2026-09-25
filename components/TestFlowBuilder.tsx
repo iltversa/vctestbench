@@ -1,48 +1,35 @@
 "use client";
 
 import "../app/TestFlowBuilder.css";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import CreateTestButton from "@/app/testCases/page";
 import { SavedTest } from "@/app/page";
+import getActionsAction from "@/actions/get-actions";
+import { TestActionDefinition } from "@/services/get-test-actions";
+import { getTestClassesAction } from "@/actions/get-classes";
 
-type ActionType =
-  | "START"
-  | "PAUSE"
-  | "RESUME"
-  | "END"
-  | "DELETE"
-  | "DISCARD"
-  | "SAVE"
-  | "STOP"
-  | "CUSTOM";
 
 type FlowNode = {
   id: string;
-  action?: ActionType;
-  customAction?: string;
-
-  // Every node can have multiple paths
+  actionId?: string;
+  actionTitle?: string;
+  optionId?: string;
+  optionLabel?: string;
+  nodeType: "action" | "confirmation";
   paths: FlowNode[];
-}; type TestClass = | "VIDEO_CLASS" | "WORKOUT" | "MONUMENTS";
-type Action = { id: string; name: string; };
-const PREDEFINED_ACTIONS: Record<TestClass, Action[]> =
-{
-  VIDEO_CLASS: [{ id: "video-start", name: "START", },],
-  WORKOUT: [{ id: "workout-start", name: "START", },],
-  MONUMENTS: [{ id: "monuments-start", name: "START", },],
 };
 
-const ACTIONS: ActionType[] = [
-  "START",
-  "PAUSE",
-  "RESUME",
-  "END",
-  "DELETE",
-  "DISCARD",
-  "SAVE",
-  "STOP",
-  "CUSTOM",
-];
+type FlowPath = {
+  id: string;
+  label: string;
+  nodes: FlowNode[];
+};
+// type TestClass = | "VIDEO_CLASS" | "WORKOUT" | "MONUMENTS";
+type Action = { id: string; name: string; };
+type TestClass = {
+  id: string;
+  name: string;
+};
 
 /* =========================================================
    CREATE NODE
@@ -50,50 +37,81 @@ const ACTIONS: ActionType[] = [
 
 const createNode = (): FlowNode => ({
   id: crypto.randomUUID(),
-  action: undefined,
-  customAction: "",
+  nodeType: "action",
   paths: [],
 });
+type ActionType = {
+  id?: string;
+  title: string;
+  testClassId?: string;
+  hasConfirmation: boolean;
+  confirmationTimeout?: number | null;
+  confirmationOptions?: string[];
+  // sortOrder: number;
+  actionTimeout: number;
+};
 
 
 export default function TestFlowBuilder() {
+  const [nodes, setNodes] = useState<FlowNode[]>([createNode()]);
+  const [draggedAction, setDraggedAction] = useState<TestActionDefinition | null>(null);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [editingTest, setEditingTest] = useState<SavedTest | null>(null);
+  const [classes, setClasses] = useState<TestClass[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState<string>("");
+  const [actions, setActions] = useState<TestActionDefinition[]>([]);
+  const [testTitle, setTestTitle] = useState("");
 
-  const [nodes, setNodes] = useState<FlowNode[]>([
-    createNode(),
-  ]);
-
-  const [draggedAction, setDraggedAction] =
-    useState<ActionType | null>(null);
-
-  const [openMenu, setOpenMenu] =
-    useState<string | null>(null);
+  const filteredActions = selectedClassId ? actions.filter((action) => action.testClassId === selectedClassId) : actions;
 
   const handleDragStart = (
-    event: React.DragEvent,
-    action: ActionType
-  ) => {
-    setDraggedAction(action);
+  event: React.DragEvent<HTMLDivElement>,
+  action: TestActionDefinition
+) => {
+  setDraggedAction(action);
+  document.body.classList.add("is-dragging");
+  event.dataTransfer.effectAllowed = "copy";
+  event.dataTransfer.setData("application/action-id", action.id);
+};
 
-    event.dataTransfer.effectAllowed = "copy";
-
-    event.dataTransfer.setData(
-      "action",
-      action
-    );
-  };
-
-  const handleDragEnd = () => {
-    setDraggedAction(null);
-  };
-
+const handleDragEnd = () => {
+  setDraggedAction(null);
+  document.body.classList.remove("is-dragging");
+};
 
   const handleDragOver = (
-    event: React.DragEvent
+    event: React.DragEvent<HTMLDivElement>
   ) => {
     event.preventDefault();
 
     event.dataTransfer.dropEffect = "copy";
   };
+const buildChildrenForAction = (
+  action: TestActionDefinition
+): FlowNode[] => {
+  // If the action has confirmation options, those become children.
+  if (action.hasConfirmation && action.confirmationOptions.length > 0) {
+    return action.confirmationOptions.map((option) => ({
+      id: crypto.randomUUID(),
+      optionId: option.id,
+      optionLabel: option.option,
+      nodeType: "confirmation" as const,
+      paths: [],
+    }));
+  }
+
+  // Otherwise, seed with one empty slot so the user can chain immediately.
+  return [
+    {
+      id: crypto.randomUUID(),
+      nodeType: "action" as const,
+      paths: [],
+    },
+  ];
+};
+  // const handleDragEnd = () => {
+  //   setDraggedAction(null);
+  // };
 
   const updateNode = (
     nodes: FlowNode[],
@@ -117,56 +135,62 @@ export default function TestFlowBuilder() {
   };
 
   const handleDrop = (
-    event: React.DragEvent,
+    event: React.DragEvent<HTMLDivElement>,
     nodeId: string
   ) => {
     event.preventDefault();
 
-    const action =
-      (event.dataTransfer.getData("action") ||
-        draggedAction) as ActionType;
+    const actionId = event.dataTransfer.getData(
+      "application/action-id"
+    );
 
-    if (!action) return;
+    if (!actionId) {
+      setDraggedAction(null);
+      return;
+    }
+
+    const action = actions.find(
+      (item) => item.id === actionId
+    );
+
+    if (!action) {
+      setDraggedAction(null);
+      return;
+    }
 
     setNodes((currentNodes) =>
-      updateNode(
-        currentNodes,
-        nodeId,
-        (node) => ({
-          ...node,
+  updateNode(currentNodes, nodeId, (node) => {
+    const children = buildChildrenForAction(action);
 
-          action,
-
-          customAction:
-            action === "CUSTOM"
-              ? node.customAction || ""
-              : undefined,
-        })
-      )
-    );
+    return {
+      ...node,
+      actionId: action.id,
+      actionTitle: action.title,
+      nodeType: "action" as const,
+      paths: children,
+    };
+  })
+);
 
     setDraggedAction(null);
   };
 
-
   const addPath = (nodeId: string) => {
-    setNodes((currentNodes) =>
-      updateNode(
-        currentNodes,
-        nodeId,
-        (node) => ({
-          ...node,
-
-          paths: [
-            ...node.paths,
-            createNode(),
-          ],
-        })
-      )
-    );
-
-    setOpenMenu(null);
-  };
+  setNodes((current) =>
+    updateNode(current, nodeId, (node) => ({
+      ...node,
+      paths: [
+        ...node.paths,
+        {
+          id: crypto.randomUUID(),
+          nodeType: "action",
+          paths: [],
+        },
+      ],
+    }))
+  );
+  setOpenMenu(null);
+};
 
   const removeNode = (nodeId: string) => {
     const removeNodeRecursive = (
@@ -199,225 +223,272 @@ export default function TestFlowBuilder() {
     setOpenMenu(null);
   };
 
+  const STEM_H = 24;       // vertical drop before branching
+const CURVE_H = 28;      // height of the bezier curve section
+const STUB_H = 20;       // vertical stub into each child
+const CHILD_W = 200;     // width of each child column (must match CSS)
+const CHILD_GAP = 48;    // gap between child columns (must match CSS)
+const DOT_R = 5;
 
-  const updateCustomAction = (
-    nodeId: string,
-    value: string
-  ) => {
-    setNodes((currentNodes) =>
-      updateNode(
-        currentNodes,
-        nodeId,
-        (node) => ({
-          ...node,
-          customAction: value,
-        })
-      )
-    );
-  };
+const renderConnector = (parentId: string, children: FlowNode[]) => {
+  const N = children.length;
 
+  if (N === 0) return null;
 
-  const renderNode = (
-    node: FlowNode,
-    index: number,
-    level: number = 0
-  ) => {
+  // Single child — just a straight line, no branching
+  if (N === 1) {
     return (
-      <div
-        key={node.id}
-        className="flow-node-tree"
+      <svg
+        className="connector-svg"
+        width={4}
+        height={STEM_H + CURVE_H + STUB_H}
+        viewBox={`0 0 4 ${STEM_H + CURVE_H + STUB_H}`}
       >
-        {/* =================================================
-            NODE
-        ================================================= */}
+        <line
+          x1={2}
+          y1={0}
+          x2={2}
+          y2={STEM_H + CURVE_H + STUB_H}
+          stroke="#d0d5dd"
+          strokeWidth={2}
+        />
+      </svg>
+    );
+  }
 
-        <div
-          className={`flow-node ${node.action
-              ? "filled"
-              : "empty"
-            }`}
-          onDragOver={handleDragOver}
-          onDrop={(event) =>
-            handleDrop(
-              event,
-              node.id
-            )
-          }
-        >
-          {!node.action ? (
-            <div className="empty-node">
-              <div className="empty-plus">
-                +
-              </div>
+  // Multi-child — trunk + bezier branches
+  const totalW = N * CHILD_W + (N - 1) * CHILD_GAP;
+  const totalH = STEM_H + CURVE_H + STUB_H;
+  const cx = totalW / 2;
 
-              <span>
-                Drag action here
-              </span>
-            </div>
-          ) : (
-            <div className="filled-node">
-              {/* NODE NUMBER */}
+  const childCx = (i: number) =>
+    CHILD_W / 2 + i * (CHILD_W + CHILD_GAP);
 
-              <div className="node-icon">
-                {index + 1}
-              </div>
+  return (
+    <svg
+      className="connector-svg"
+      width={totalW}
+      height={totalH}
+      viewBox={`0 0 ${totalW} ${totalH}`}
+      style={{ overflow: "visible" }}
+    >
+      {/* Trunk: from parent bottom down to branch point */}
+      <line
+        x1={cx}
+        y1={0}
+        x2={cx}
+        y2={STEM_H}
+        stroke="#d0d5dd"
+        strokeWidth={2}
+      />
 
-              {/* CONTENT */}
+      {/* Junction dot at branch point */}
+      <circle cx={cx} cy={STEM_H} r={DOT_R} fill="#14b8a6" />
 
-              <div className="node-content">
-                <span className="node-label">
-                  ACTION
-                </span>
+      {children.map((child, i) => {
+        const x = childCx(i);
+        const y0 = STEM_H;
+        const y1 = STEM_H + CURVE_H;
 
-                {node.action ===
-                  "CUSTOM" ? (
-                  <input
-                    value={
-                      node.customAction ||
-                      ""
-                    }
-                    onChange={(event) =>
-                      updateCustomAction(
-                        node.id,
-                        event.target.value
-                      )
-                    }
-                    placeholder="Custom action"
-                    className="custom-action-input"
-                  />
-                ) : (
-                  <strong>
-                    {node.action}
-                  </strong>
-                )}
-              </div>
+        // Cubic bezier: leave parent vertically, arrive at child vertically.
+        // Control points sit at (cx, y0 + k) and (x, y1 - k) so both ends
+        // are tangent to vertical, producing the Mailchimp "S" shape.
+        const k = CURVE_H * 0.6;
+        const d = `M ${cx} ${y0}
+                   C ${cx} ${y0 + k},
+                     ${x}  ${y1 - k},
+                     ${x}  ${y1}`;
 
-              {/* =================================================
-                  THREE DOT MENU
-              ================================================= */}
+        return (
+          <g key={child.id}>
+            <path
+              d={d}
+              fill="none"
+              stroke="#d0d5dd"
+              strokeWidth={2}
+            />
 
-              <div className="node-menu-wrapper">
-                <button
-                  className="node-menu-button"
-                  onClick={() =>
-                    setOpenMenu(
-                      openMenu === node.id
-                        ? null
-                        : node.id
-                    )
-                  }
-                >
-                  ⋮
-                </button>
+            {/* Stub from curve end into child card */}
+            <line
+              x1={x}
+              y1={y1}
+              x2={x}
+              y2={y1 + STUB_H}
+              stroke="#d0d5dd"
+              strokeWidth={2}
+            />
 
-                {openMenu === node.id && (
-                  <div className="node-menu">
-                    <button
-                      onClick={() =>
-                        addPath(node.id)
-                      }
-                    >
-                      <span>＋</span>
+            {/* Entry dot above each child */}
+            <circle cx={x} cy={y1} r={DOT_R - 1} fill="#14b8a6" />
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
 
+  const renderNode = (node: FlowNode, level: number = 0): React.ReactNode => {
+  const isConfirmation = node.nodeType === "confirmation";
+  const isDropZone = node.nodeType === "action" && !node.actionId;
+
+  // An action node with confirmation children owns its paths — can't add more.
+  const hasConfirmationChildren =
+    node.nodeType === "action" &&
+    node.paths.length > 0 &&
+    node.paths.every((p) => p.nodeType === "confirmation");
+
+  // "Add path" is allowed on: confirmation nodes, and action nodes
+  // that either have no children or don't have confirmation children.
+  const canAddPath =
+    isConfirmation || (!hasConfirmationChildren && !isDropZone);
+
+  // Drop is allowed on action nodes only.
+  const canAcceptDrop = node.nodeType === "action";
+
+  return (
+    <div className="tree-node" key={node.id}>
+      {/* ------- NODE CARD ------- */}
+      <div
+        className={`node-card ${isConfirmation ? "confirmation" : "action"} ${
+          isDropZone ? "empty" : ""
+        }`}
+        onDragOver={canAcceptDrop ? handleDragOver : undefined}
+        onDrop={
+          canAcceptDrop ? (e) => handleDrop(e, node.id) : undefined
+        }
+      >
+        <div className="node-card-header">
+          <span className="node-card-title">
+            {isDropZone
+              ? "Drop action here"
+              : isConfirmation
+              ? node.optionLabel ?? "Option"
+              : node.actionTitle ?? "Unassigned"}
+          </span>
+
+          {/* Only show the ⋮ menu if this node can do anything */}
+          {(canAddPath || !isConfirmation) && (
+            <div className="node-card-menu">
+              <button
+                className="menu-trigger"
+                onClick={() =>
+                  setOpenMenu(openMenu === node.id ? null : node.id)
+                }
+              >
+                ⋮
+              </button>
+
+              {openMenu === node.id && (
+                <div className="menu-dropdown">
+                  {canAddPath && (
+                    <button onClick={() => addPath(node.id)}>
                       Add path
                     </button>
-
-                    <button
-                      className="danger"
-                      onClick={() =>
-                        removeNode(
-                          node.id
-                        )
-                      }
-                    >
-                      <span>×</span>
-
-                      Remove
-                    </button>
-                  </div>
-                )}
-              </div>
+                  )}
+                  <button onClick={() => removeNode(node.id)}>Delete</button>
+                </div>
+              )}
             </div>
           )}
         </div>
-
-        {/* =================================================
-            PATHS
-        ================================================= */}
-
-        {node.paths.length > 0 && (
-          <div className="node-paths">
-            {node.paths.map(
-              (path, pathIndex) => (
-                <div
-                  key={path.id}
-                  className="path-column"
-                >
-                  {/* PATH CONNECTOR */}
-
-                  <div className="path-connector">
-                    <div className="connector-horizontal" />
-
-                    <div className="connector-vertical" />
-
-                    <div className="connector-arrow">
-                      ↓
-                    </div>
-
-                    <span className="path-label">
-                      PATH {pathIndex + 1}
-                    </span>
-                  </div>
-
-                  {/* CHILD NODE */}
-
-                  {renderNode(
-                    path,
-                    pathIndex,
-                    level + 1
-                  )}
-                </div>
-              )
-            )}
-          </div>
-        )}
       </div>
-    );
-  };
 
+      {/* ------- CONNECTOR + CHILDREN ------- */}
+     {node.paths.length > 0 && (
+  <>
+    {renderConnector(node.id, node.paths)}
+    <div
+      className="children-row"
+      style={{
+        gap: `${CHILD_GAP}px`,
+      }}
+    >
+      {node.paths.map((child) => (
+        <div
+          className="child-column"
+          key={child.id}
+          style={{ width: `${CHILD_W}px` }}
+        >
+          {renderNode(child, level + 1)}
+        </div>
+      ))}
+    </div>
+  </>
+)}
+    </div>
+  );
+};
 
-  const handleDropAtEnd = (
-    event: React.DragEvent
-  ) => {
+  const handleDropAtEnd = (event: React.DragEvent) => {
     event.preventDefault();
-
-    const action =
-      event.dataTransfer.getData(
-        "action"
-      ) as ActionType;
-
+    const actionId = event.dataTransfer.getData("application/action-id");
+    if (!actionId) return;
+    const action = actions.find((a) => a.id === actionId);
     if (!action) return;
+
+    const confirmationNodes = action.hasConfirmation
+      ? action.confirmationOptions.map((option) => ({
+          id: crypto.randomUUID(),
+          optionId: option.id,
+          optionLabel: option.option,
+          nodeType: "confirmation" as const,
+          paths: [],
+        }))
+      : [];
 
     const newNode: FlowNode = {
       id: crypto.randomUUID(),
-      action,
-      customAction:
-        action === "CUSTOM"
-          ? ""
-          : undefined,
-      paths: [],
+      actionId: action.id,
+      actionTitle: action.title,
+      nodeType: "action",
+      paths: buildChildrenForAction(action),
     };
 
-    setNodes((current) => [
-      ...current,
-      newNode,
-    ]);
+    setNodes((current) => [...current, newNode]);
   };
-  const [editingTest, setEditingTest] = useState<SavedTest | null>(null);
-  const [testTitle, setTestTitle] = useState("");
-  const [selectedClass, setSelectedClass] = useState<TestClass>("VIDEO_CLASS");
-  const [isAddActionOpen, setIsAddActionOpen] = useState(false);
-  const handleClassChange = (testClass: TestClass) => { setSelectedClass(testClass); };
+  useEffect(() => {
+    async function loadActions() {
+      try {
+
+        const result = await getActionsAction();
+
+        if (!result.success) {
+          throw new Error(
+            result.message ?? "Failed to fetch test classes"
+          );
+        }
+
+        setActions(result.data);
+      } catch (error) {
+        console.error("Failed to load actions:", error);
+      } finally {
+        console.log("Failed to load actions:");
+      }
+    }
+    async function loadClasses() {
+      try {
+        const result = await getTestClassesAction();
+
+        if (!result.success) {
+          throw new Error(
+            result.message ?? "Failed to fetch test classes"
+          );
+        }
+
+        setClasses(result.data);
+      } catch (error) {
+        console.error("Failed to load test classes:", error);
+      } finally {
+        console.log('hi');
+      }
+    }
+
+    loadClasses();
+    loadActions();
+  }, []);
+
+
+
 
   return (
     <div className="flow-builder">
@@ -437,102 +508,65 @@ export default function TestFlowBuilder() {
           {/* ================================================= TEST CLASS ================================================= */}
           <div className="configuration-section">
             <label className="configuration-label"> Test class </label>
-            <div className="class-options"> {/* VIDEO CLASS */}
-              <label className="class-option">
-                <input type="radio" name="test-class" value="VIDEO_CLASS" checked={selectedClass === "VIDEO_CLASS"} onChange={() => handleClassChange("VIDEO_CLASS")} />
-                <span> Video Class </span>
-              </label>
-              {/* WORKOUT */}
-              <label className="class-option">
-                <input type="radio" name="test-class" value="WORKOUT" checked={selectedClass === "WORKOUT"} onChange={() => handleClassChange("WORKOUT")} />
-                <span> Workout </span>
-              </label>
-              {/* MONUMENTS */}
-              <label className="class-option">
-                <input type="radio" name="test-class" value="MONUMENTS" checked={selectedClass === "MONUMENTS"} onChange={() => handleClassChange("MONUMENTS")} />
-                <span> Monuments </span>
-              </label>
-            </div>
+            <select
+              value={selectedClassId}
+              onChange={(event) => setSelectedClassId(event.target.value)}
+            >
+              <option value="">All classes</option>
+              {classes.map((testClass) => (
+                <option key={testClass.id} value={testClass.id}>
+                  {testClass.name}
+                </option>
+              ))}
+            </select>
           </div>
           {/* ================================================= PREDEFINED ACTIONS ================================================= */}
-          <div className="configuration-section">
-            <CreateTestButton
-              editingAction={editingTest}
-              onEditClose={() => setEditingTest(null)}
-            />
-          </div>
         </div>
         <div className="sidebar-header">
           <h2>Actions</h2>
-
-          <p>
-            Drag an action into the flow
-          </p>
+          <p>Drag an action into the flow</p>
+           <CreateTestButton
+              editingAction={editingTest}
+              onEditClose={() => setEditingTest(null)}
+            />
         </div>
 
         <div className="action-list">
-          {ACTIONS.map((action) => (
+          {filteredActions.map((action) => (
             <div
-              key={action}
+              key={action.id}
               draggable
-              className={`action-item ${draggedAction === action
+              className={`action-item ${draggedAction?.id === action.id
                   ? "dragging"
                   : ""
                 }`}
               onDragStart={(event) =>
-                handleDragStart(
-                  event,
-                  action
-                )
+                handleDragStart(event, action)
               }
-              onDragEnd={
-                handleDragEnd
-              }
+              onDragEnd={handleDragEnd}
             >
-              <span className="drag-icon">
-                ⋮⋮
-              </span>
-
-              <span>
-                {action}
-              </span>
+              <span className="drag-icon">⋮⋮</span>
+              <span>{action.title}</span>
             </div>
           ))}
         </div>
       </aside>
 
-      {/* ===================================================
-          FLOW CANVAS
-      =================================================== */}
-
+      {/* FLOW CANVAS */}
       <main className="flow-canvas">
-
         <div className="canvas-header">
           <div>
-            <h1>
-              Test Flow
-            </h1>
-
-            <p>
-              Build your test sequence by
-              dragging actions into the flow.
-            </p>
+            <h1> Test Flow</h1>
+            <p> Build your test sequence by dragging actions into the flow.</p>
           </div>
         </div>
 
         <div className="flow-area">
 
-          {/* =================================================
-              ROOT NODES
-          ================================================= */}
-
+          {/*  ROOT NODES */}
           <div className="flow-root">
-            {nodes.map(
-              (node, index) =>
-                renderNode(
-                  node,
-                  index
-                )
+            {nodes.map((node, index) => renderNode(node, index
+            )
             )}
           </div>
 

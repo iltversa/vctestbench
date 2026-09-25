@@ -4,7 +4,7 @@ import { createTestActionService } from "@/services/create-test-action";
 
 export type CreateTestActionInput = {
   id?: string;
-  // testId: string;
+  testId?: string;
   testClassId: string;
   title: string;
   hasConfirmation: boolean;

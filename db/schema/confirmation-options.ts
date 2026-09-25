@@ -6,19 +6,14 @@ import {
 
 import { testActions } from "./test-actions";
 
-export const confirmationOptions = pgTable(
-  "confirmation_options",
-  {
-    id: uuid("id")
-      .defaultRandom()
-      .primaryKey(),
+export const confirmationOptions = pgTable("confirmation_options", {
 
-    testActionId: uuid("test_action_id")
-      .notNull()
-      .references(() => testActions.id, {
-        onDelete: "cascade",
-      }),
+  id: uuid("id").defaultRandom().primaryKey(),
+  testActionId: uuid("action_id")
+    .notNull()
+    .references(() => testActions.id, {
+      onDelete: "cascade",
+    }),
 
-    option: text("option").notNull(),
-  }
-);
+  option: text("value").notNull(),
+});
