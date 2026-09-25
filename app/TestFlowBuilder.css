@@ -1,0 +1,523 @@
+/* =========================================================
+   MAIN LAYOUT
+========================================================= */
+
+.flow-builder {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+
+/* =========================================================
+   LEFT SIDEBAR
+========================================================= */
+
+.flow-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  padding: 24px;
+  background: white;
+  border-right: 1px solid #e5e7eb;
+}
+
+.sidebar-header h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+
+.sidebar-header p {
+  margin: 0 0 20px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.action-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  padding: 12px 14px;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+
+  background: white;
+
+  cursor: grab;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  transition: 0.15s;
+}
+
+.action-item:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.action-item.dragging {
+  opacity: 0.5;
+}
+
+.drag-icon {
+  color: #94a3b8;
+  font-size: 16px;
+}
+
+
+/* =========================================================
+   CANVAS
+========================================================= */
+
+.flow-canvas {
+  flex: 1;
+  overflow: auto;
+}
+
+.canvas-header {
+  padding: 28px 32px;
+
+  background: white;
+
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.canvas-header h1 {
+  margin: 0 0 5px;
+  font-size: 24px;
+}
+
+.canvas-header p {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
+
+/* =========================================================
+   FLOW AREA
+========================================================= */
+
+.flow-area {
+  min-width: 900px;
+  min-height: calc(100vh - 100px);
+
+  padding: 50px;
+}
+
+.flow-root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 40px;
+}
+
+
+/* =========================================================
+   NODE TREE
+========================================================= */
+
+.flow-node-tree {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+
+/* =========================================================
+   NODE
+========================================================= */
+
+.flow-node {
+  position: relative;
+
+  width: 280px;
+  min-height: 100px;
+
+  border-radius: 12px;
+
+  background: white;
+
+  border: 2px dashed #cbd5e1;
+
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.flow-node.filled {
+  border-style: solid;
+  border-color: #94a3b8;
+}
+
+.flow-node.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+/* =========================================================
+   EMPTY NODE
+========================================================= */
+
+.empty-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
+  min-height: 100px;
+
+  color: #94a3b8;
+
+  font-size: 12px;
+}
+
+.empty-plus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 28px;
+  height: 28px;
+
+  border-radius: 50%;
+
+  background: #f1f5f9;
+
+  font-size: 20px;
+}
+
+
+/* =========================================================
+   FILLED NODE
+========================================================= */
+
+.filled-node {
+  display: flex;
+  align-items: center;
+
+  min-height: 100px;
+
+  padding: 16px;
+}
+
+.node-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 34px;
+  height: 34px;
+
+  flex-shrink: 0;
+
+  border-radius: 8px;
+
+  background: #f1f5f9;
+
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.node-content {
+  display: flex;
+  flex-direction: column;
+
+  gap: 5px;
+
+  margin-left: 12px;
+
+  min-width: 0;
+}
+
+.node-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+
+  color: #94a3b8;
+}
+
+.node-content strong {
+  font-size: 14px;
+}
+
+
+/* =========================================================
+   CUSTOM ACTION
+========================================================= */
+
+.custom-action-input {
+  width: 140px;
+
+  padding: 6px 8px;
+
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+
+  outline: none;
+}
+
+.custom-action-input:focus {
+  border-color: #64748b;
+}
+
+
+/* =========================================================
+   THREE DOT MENU
+========================================================= */
+
+.node-menu-wrapper {
+  position: relative;
+
+  margin-left: auto;
+}
+
+.node-menu-button {
+  width: 30px;
+  height: 30px;
+
+  border: none;
+  background: transparent;
+
+  border-radius: 6px;
+
+  cursor: pointer;
+
+  font-size: 20px;
+}
+
+.node-menu-button:hover {
+  background: #f1f5f9;
+}
+
+.node-menu {
+  position: absolute;
+
+  top: 35px;
+  right: 0;
+
+  z-index: 100;
+
+  width: 140px;
+
+  padding: 5px;
+
+  background: white;
+
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.node-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  width: 100%;
+
+  padding: 9px 10px;
+
+  border: none;
+  border-radius: 6px;
+
+  background: transparent;
+
+  cursor: pointer;
+
+  text-align: left;
+
+  font-size: 13px;
+}
+
+.node-menu button:hover {
+  background: #f1f5f9;
+}
+
+.node-menu button.danger {
+  color: #dc2626;
+}
+
+
+/* =========================================================
+   MULTIPLE PATHS
+========================================================= */
+
+.node-paths {
+  display: flex;
+
+  justify-content: center;
+  align-items: flex-start;
+
+  gap: 50px;
+
+  margin-top: 0;
+
+  padding-top: 40px;
+
+  position: relative;
+}
+
+
+/*
+   Horizontal branch line above all paths
+*/
+
+.node-paths::before {
+  content: "";
+
+  position: absolute;
+
+  top: 20px;
+
+  left: 50%;
+
+  width: calc(100% - 150px);
+
+  height: 2px;
+
+  transform: translateX(-50%);
+
+  background: #cbd5e1;
+}
+
+
+/* =========================================================
+   INDIVIDUAL PATH
+========================================================= */
+
+.path-column {
+  position: relative;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+
+/* =========================================================
+   PATH CONNECTOR
+========================================================= */
+
+.path-connector {
+  position: relative;
+
+  width: 100px;
+  height: 40px;
+
+  display: flex;
+  justify-content: center;
+}
+
+
+/*
+   Vertical connector
+*/
+
+.connector-vertical {
+  position: absolute;
+
+  top: 0;
+  left: 50%;
+
+  width: 2px;
+  height: 30px;
+
+  transform: translateX(-50%);
+
+  background: #cbd5e1;
+}
+
+
+/*
+   Arrow
+*/
+
+.connector-arrow {
+  position: absolute;
+
+  top: 23px;
+
+  font-size: 14px;
+
+  color: #64748b;
+
+  background: #f8fafc;
+
+  padding: 0 4px;
+}
+
+
+/*
+   PATH LABEL
+*/
+
+.path-label {
+  position: absolute;
+
+  top: 4px;
+
+  left: 50%;
+
+  transform:
+    translateX(-50%)
+    translateY(-50%);
+
+  padding: 3px 7px;
+
+  border-radius: 10px;
+
+  background: #f8fafc;
+
+  color: #94a3b8;
+
+  font-size: 9px;
+  font-weight: 700;
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   DROP AREA
+========================================================= */
+
+.end-drop-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 280px;
+  min-height: 70px;
+
+  margin: 50px auto;
+
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+
+  color: #94a3b8;
+
+  font-size: 12px;
+}
+
+.end-drop-area:hover {
+  background: white;
+  border-color: #94a3b8;
+}
+/* ========================================================= CONFIGURATION PANEL ========================================================= */ .test-configuration { padding: 20px; background: white; border-bottom: 1px solid #e5e7eb; } /* ========================================================= HEADER ========================================================= */ .configuration-header { margin-bottom: 22px; } .configuration-header h2 { margin: 0 0 5px; font-size: 18px; } .configuration-header p { margin: 0; color: #64748b; font-size: 12px; line-height: 1.5; } /* ========================================================= SECTION ========================================================= */ .configuration-section { margin-bottom: 22px; } .configuration-section:last-child { margin-bottom: 0; } /* ========================================================= LABEL ========================================================= */ .configuration-label { display: block; margin-bottom: 8px; color: #334155; font-size: 12px; font-weight: 700; } /* ========================================================= TITLE INPUT ========================================================= */ .test-title-input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 7px; outline: none; font-size: 13px; color: #0f172a; } .test-title-input::placeholder { color: #94a3b8; } .test-title-input:focus { border-color: #64748b; } /* ========================================================= CLASS OPTIONS ========================================================= */ .class-options { display: flex; flex-direction: column; gap: 9px; } .class-option { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 13px; color: #334155; } .class-option input { width: 15px; height: 15px; margin: 0; cursor: pointer; } /* ========================================================= ACTION HEADER ========================================================= */ .actions-header { display: flex; align-items: center; justify-content: space-between; } .action-count { display: flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 20px; background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 700; } /* ========================================================= PREDEFINED ACTIONS ========================================================= */ .predefined-actions { display: flex; flex-direction: column; gap: 7px; margin-bottom: 10px; } .predefined-action { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid #e2e8f0; border-radius: 7px; background: #f8fafc; } .action-number { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; flex-shrink: 0; border-radius: 6px; background: white; color: #64748b; font-size: 11px; font-weight: 700; } .action-info { display: flex; flex-direction: column; gap: 2px; } .action-type { color: #94a3b8; font-size: 8px; font-weight: 700; letter-spacing: 0.08em; } .action-info strong { color: #1e293b; font-size: 12px; } /* ========================================================= ADD ACTION BUTTON ========================================================= */ .add-action-button { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; padding: 10px; border: 1px dashed #94a3b8; border-radius: 7px; background: white; color: #475569; cursor: pointer; font-size: 12px; font-weight: 600; transition: 0.15s; } .add-action-button:hover { background: #f8fafc; border-color: #64748b; color: #1e293b; } .add-action-button span { font-size: 16px; line-height: 1; } /* ========================================================= MODAL OVERLAY ========================================================= */ .action-modal-overlay { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; background: rgba(15, 23, 42, 0.35); } /* ========================================================= MODAL ========================================================= */ .action-modal { width: min(500px, 100%); max-height: 90vh; display: flex; flex-direction: column; background: white; border-radius: 12px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2); overflow: hidden; } /* ========================================================= MODAL HEADER ========================================================= */ .action-modal-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 20px; border-bottom: 1px solid #e5e7eb; } .action-modal-header h3 { margin: 0 0 4px; font-size: 17px; } .action-modal-header p { margin: 0; color: #64748b; font-size: 12px; } .modal-close-button { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: none; border-radius: 6px; background: transparent; color: #64748b; cursor: pointer; font-size: 22px; } .modal-close-button:hover { background: #f1f5f9; color: #0f172a; } /* ========================================================= MODAL BODY ========================================================= */ .action-modal-body { padding: 30px; overflow-y: auto; } .modal-placeholder { display: flex; align-items: center; justify-content: center; min-height: 180px; border: 2px dashed #cbd5e1; border-radius: 8px; color: #94a3b8; font-size: 13px; } /* ========================================================= MODAL FOOTER ========================================================= */ .action-modal-footer { display: flex; justify-content: flex-end; padding: 15px 20px; border-top: 1px solid #e5e7eb; } .modal-cancel-button { padding: 8px 15px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; color: #475569; cursor: pointer; font-size: 12px; font-weight: 600; } .modal-cancel-button:hover { background: #f8fafc; }

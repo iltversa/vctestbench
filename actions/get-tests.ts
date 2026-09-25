@@ -1,6 +1,6 @@
 "use server";
 
-import { getTests } from "@/services/tests/get-tests";
+import { getTests } from "@/services/get-tests";
 
 export async function getTestsAction() {
   try {

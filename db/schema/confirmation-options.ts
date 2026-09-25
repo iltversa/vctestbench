@@ -1,10 +1,7 @@
-// db/schema/confirmation-options.ts
-
 import {
   pgTable,
   uuid,
   text,
-  integer,
 } from "drizzle-orm/pg-core";
 
 import { testActions } from "./test-actions";
@@ -16,16 +13,12 @@ export const confirmationOptions = pgTable(
       .defaultRandom()
       .primaryKey(),
 
-    actionId: uuid("action_id")
+    testActionId: uuid("test_action_id")
       .notNull()
       .references(() => testActions.id, {
         onDelete: "cascade",
       }),
 
-    value: text("value")
-      .notNull(),
-
-    sortOrder: integer("sort_order")
-      .notNull(),
+    option: text("option").notNull(),
   }
 );

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
-import { createTestAction } from "@/actions/tests/create-test";
+import { createTestAction } from "@/actions/create-test";
 import { SavedTest } from "@/app/page";
-import { updateTestAction } from "@/actions/tests/update-test";
+import { updateTestAction } from "@/actions/update-test";
 type ConfirmationOption = {
   id: string;
   value: string;

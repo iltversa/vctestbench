@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import CreateTestButton from "./testCases/page";
-import { getTestsAction } from "@/actions/tests/get-tests";
+import { getTestsAction } from "@/actions/get-tests";
+import TestFlowBuilder from "@/components/TestFlowBuilder";
 type FeedEvent = { id: number; at: string; label: string; detail: string; kind: "info" | "success" | "warning" };
 type TabletState = { connected: boolean; device?: string; model?: string; android?: string; foregroundPackage?: string; sandboxForeground: boolean; route?: string; updatedAt: string; events: FeedEvent[]; test?: { status: "idle" | "running" | "passed" | "failed"; name?: string; step?: string; error?: string } };
 const BRIDGE = "http://localhost:3131";
@@ -9,25 +10,15 @@ const BRIDGE = "http://localhost:3131";
 export type SavedTest = {
     id: string;
     title: string;
-
-    actions: {
+    testClassId: string;
+    hasConfirmation: boolean;
+    confirmationOptions: {
         id: string;
-        title: string;
-        action: string;
-        customAction: string | null;
-
-        hasConfirmation: boolean;
-        confirmationTimeout: number | null;
-
-        actionTimeout: number;
+        value: string;
         sortOrder: number;
-
-        confirmationOptions: {
-            id: string;
-            value: string;
-            sortOrder: number;
-        }[];
     }[];
+    actionTimeout: number;
+    sortOrder: number;
 };
 
 
@@ -44,57 +35,57 @@ export default function Home() {
 
     const currentLabel = !bridgeOnline ? "Waiting for VC TestBench monitor" : !connected ? "Tablet disconnected" : state?.sandboxForeground ? (state.route ? "Sandbox visible · " + state.route : "Sandbox is open") : "Tablet connected · Sandbox not in foreground";
     const activeTest = state?.test?.status === "running" ? state.test.name : "";
-    const [savedTests, setSavedTests] = useState<SavedTest[]>([]);
+    
+    // const [savedTests, setSavedTests] = useState<SavedTest[]>([]);
+    // const handleRunTest = async (test: SavedTest) => {
+    //     if (!canRun || starting) return;
 
-    const handleRunTest = async (test: SavedTest) => {
-        if (!canRun || starting) return;
+    //     setStarting(true);
+    //     setLastError("");
+    //     console.log(test)
+    //     try {
+    //         const response = await fetch(BRIDGE + "/run-test", {
+    //             method: "POST",
+    //             headers: {
+    //                 "Content-Type": "application/json",
+    //             },
+    //             body: JSON.stringify(test),
+    //         });
 
-        setStarting(true);
-        setLastError("");
-        console.log(test)
-        try {
-            const response = await fetch(BRIDGE + "/run-test", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(test),
-            });
+    //         if (!response.ok) {
+    //             throw new Error("Failed to start test");
+    //         }
 
-            if (!response.ok) {
-                throw new Error("Failed to start test");
-            }
+    //         await refresh();
+    //     } catch (error) {
+    //         console.error("handleRunTest error:", error);
+    //         setLastError(`Could not start ${test.title}`);
+    //     } finally {
+    //         setStarting(false);
+    //     }
+    // };
+    // const [editingTest, setEditingTest] =
+    //     useState<SavedTest | null>(null);
 
-            await refresh();
-        } catch (error) {
-            console.error("handleRunTest error:", error);
-            setLastError(`Could not start ${test.title}`);
-        } finally {
-            setStarting(false);
-        }
-    };
-    const [editingTest, setEditingTest] =
-        useState<SavedTest | null>(null);
+    // const handleDeleteTest = async (testId: string) => {
+    //     // TODO: Implement delete test action
+    //     setSavedTests((current) => current.filter((t) => t.id !== testId));
+    // };
 
-    const handleDeleteTest = async (testId: string) => {
-        // TODO: Implement delete test action
-        setSavedTests((current) => current.filter((t) => t.id !== testId));
-    };
+    // useEffect(() => {
+    //     const loadTests = async () => {
+    //         const result = await getTestsAction();
 
-    useEffect(() => {
-        const loadTests = async () => {
-            const result = await getTestsAction();
+    //         if (!result.success) {
+    //             console.error(result.error);
+    //             return;
+    //         }
 
-            if (!result.success) {
-                console.error(result.error);
-                return;
-            }
+    //         setSavedTests((result.data ?? []) as SavedTest[]);
+    //     };
 
-            setSavedTests((result.data ?? []) as SavedTest[]);
-        };
-
-        loadTests();
-    }, []);
+    //     loadTests();
+    // }, []);
     return (
         <main className="shell">
             <header className="topbar">
@@ -147,13 +138,13 @@ export default function Home() {
                     </div>
                         <div className="tests-header-actions">
                             <button className="secondary refresh-button" onClick={refresh}>Refresh</button>
-                            <CreateTestButton
+                            {/* <CreateTestButton
                                 editingTest={editingTest}
                                 onEditClose={() => setEditingTest(null)}
-                            />
+                            /> */}
                         </div>
                     </div>
-                    <div className="tests-list-wrap">{savedTests.length === 0 ? (<div className="empty-tests">No tests yet. Create one to get started.</div>)
+                    {/* <div className="tests-list-wrap">{savedTests.length === 0 ? (<div className="empty-tests">No tests yet. Create one to get started.</div>)
                         : (<ul className="tests-list">{savedTests.map((test) => (<li key={test.id} className="test-item">
                             <div className="test-info"><button className="test-run-button secondary" disabled={!canRun || starting} onClick={() => handleRunTest(test)}>{activeTest === test.title ? "Test running…" : "Run"}</button>
                                 <span className="test-title">{test.title}</span>
@@ -164,7 +155,7 @@ export default function Home() {
                             </div>
                         </li>))}
                         </ul>)}
-                    </div>
+                    </div> */}
                 </section>
                 <section className="metrics-row">
                     <div>
@@ -176,8 +167,9 @@ export default function Home() {
                         <span>ROUTE</span><strong>{state?.route ?? "—"}</strong>
                     </div>
                 </section>
-                {/* </aside> */}
+
             </div>
+                    <TestFlowBuilder />
             <footer className="actionbar"><div><span className="shield">{connected ? "✓" : "!"}</span><p><strong>{state?.test?.status === "running" ? (state.test.step ?? "Test running") : state?.test?.status === "passed" ? (state.test.name ?? "Test") + " passed" : connected ? "Choose a real test sequence" : "No tablet control active"}</strong><small>{lastError || state?.test?.error || "Only verified tablet actions appear in the feed"}</small></p></div></footer>
         </main>
     );

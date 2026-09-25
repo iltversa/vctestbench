@@ -1,5 +1,3 @@
-// db/schema/test-actions.ts
-
 import {
   pgTable,
   uuid,
@@ -9,6 +7,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { tests } from "./tests";
+import { testClasses } from "./test-classes";
 
 export const testActions = pgTable("test_actions", {
   id: uuid("id")
@@ -16,22 +15,21 @@ export const testActions = pgTable("test_actions", {
     .primaryKey(),
 
   testId: uuid("test_id")
-    .notNull()
+    // .notNull()
     .references(() => tests.id, {
       onDelete: "cascade",
     }),
 
-  title: text("title")
-    .notNull(),
+  testClassId: uuid("test_class_id")
+    .notNull()
+    .references(() => testClasses.id, {
+      onDelete: "cascade",
+    }),
 
-  action: text("action")
-    .notNull(),
-
-  customAction: text("custom_action"),
-
+  title: text("title").notNull(),
   hasConfirmation: boolean("has_confirmation")
-    .default(false)
-    .notNull(),
+    .notNull()
+    .default(false),
 
   confirmationTimeout: integer("confirmation_timeout"),
 

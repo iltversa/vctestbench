@@ -1,6 +1,6 @@
 "use server";
 
-import { updateTest } from "@/services/tests/update-test";
+import { updateTest } from "@/services/update-test";
 
 type UpdateTestActionInput = {
   testId: string;
