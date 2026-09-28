@@ -7,6 +7,7 @@ import { SavedTest } from "@/app/page";
 import getActionsAction from "@/actions/get-actions";
 import { TestActionDefinition } from "@/services/get-test-actions";
 import { getTestClassesAction } from "@/actions/get-classes";
+import { createFullTestAction } from "@/actions/create-full-test";
 
 
 type FlowNode = {
@@ -17,39 +18,16 @@ type FlowNode = {
   optionLabel?: string;
   nodeType: "action" | "confirmation";
   paths: FlowNode[];
+  actionData?: TestActionDefinition;
 };
 
-type FlowPath = {
-  id: string;
-  label: string;
-  nodes: FlowNode[];
-};
-// type TestClass = | "VIDEO_CLASS" | "WORKOUT" | "MONUMENTS";
-type Action = { id: string; name: string; };
-type TestClass = {
-  id: string;
-  name: string;
-};
-
-/* =========================================================
-   CREATE NODE
-========================================================= */
+/*  CREATE NODE */
 
 const createNode = (): FlowNode => ({
   id: crypto.randomUUID(),
   nodeType: "action",
   paths: [],
 });
-type ActionType = {
-  id?: string;
-  title: string;
-  testClassId?: string;
-  hasConfirmation: boolean;
-  confirmationTimeout?: number | null;
-  confirmationOptions?: string[];
-  // sortOrder: number;
-  actionTimeout: number;
-};
 
 
 export default function TestFlowBuilder() {
@@ -57,27 +35,28 @@ export default function TestFlowBuilder() {
   const [draggedAction, setDraggedAction] = useState<TestActionDefinition | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [editingTest, setEditingTest] = useState<SavedTest | null>(null);
-  const [classes, setClasses] = useState<TestClass[]>([]);
+  const [classes, setClasses] = useState<{ id: string; name: string }[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>("");
   const [actions, setActions] = useState<TestActionDefinition[]>([]);
   const [testTitle, setTestTitle] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const filteredActions = selectedClassId ? actions.filter((action) => action.testClassId === selectedClassId) : actions;
 
   const handleDragStart = (
-  event: React.DragEvent<HTMLDivElement>,
-  action: TestActionDefinition
-) => {
-  setDraggedAction(action);
-  document.body.classList.add("is-dragging");
-  event.dataTransfer.effectAllowed = "copy";
-  event.dataTransfer.setData("application/action-id", action.id);
-};
+    event: React.DragEvent<HTMLDivElement>,
+    action: TestActionDefinition
+  ) => {
+    setDraggedAction(action);
+    document.body.classList.add("is-dragging");
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData("application/action-id", action.id);
+  };
 
-const handleDragEnd = () => {
-  setDraggedAction(null);
-  document.body.classList.remove("is-dragging");
-};
+  const handleDragEnd = () => {
+    setDraggedAction(null);
+    document.body.classList.remove("is-dragging");
+  };
 
   const handleDragOver = (
     event: React.DragEvent<HTMLDivElement>
@@ -86,29 +65,36 @@ const handleDragEnd = () => {
 
     event.dataTransfer.dropEffect = "copy";
   };
-const buildChildrenForAction = (
-  action: TestActionDefinition
-): FlowNode[] => {
-  // If the action has confirmation options, those become children.
-  if (action.hasConfirmation && action.confirmationOptions.length > 0) {
-    return action.confirmationOptions.map((option) => ({
-      id: crypto.randomUUID(),
-      optionId: option.id,
-      optionLabel: option.option,
-      nodeType: "confirmation" as const,
-      paths: [],
-    }));
-  }
+  const buildChildrenForAction = (
+    action: TestActionDefinition
+  ): FlowNode[] => {
+    // If the action has confirmation options, those become children and each
+    // confirmation value gets its own empty action drop zone beneath it.
+    if (action.hasConfirmation && action.confirmationOptions.length > 0) {
+      return action.confirmationOptions.map((option) => ({
+        id: crypto.randomUUID(),
+        optionId: option.id,
+        optionLabel: option.option,
+        nodeType: "confirmation" as const,
+        paths: [
+          {
+            id: crypto.randomUUID(),
+            nodeType: "action" as const,
+            paths: [],
+          },
+        ],
+      }));
+    }
 
-  // Otherwise, seed with one empty slot so the user can chain immediately.
-  return [
-    {
-      id: crypto.randomUUID(),
-      nodeType: "action" as const,
-      paths: [],
-    },
-  ];
-};
+    // Otherwise, seed with one empty slot so the user can chain immediately.
+    return [
+      {
+        id: crypto.randomUUID(),
+        nodeType: "action" as const,
+        paths: [],
+      },
+    ];
+  };
   // const handleDragEnd = () => {
   //   setDraggedAction(null);
   // };
@@ -159,38 +145,43 @@ const buildChildrenForAction = (
     }
 
     setNodes((currentNodes) =>
-  updateNode(currentNodes, nodeId, (node) => {
-    const children = buildChildrenForAction(action);
+      updateNode(currentNodes, nodeId, (node) => {
+        const children = buildChildrenForAction(action);
 
-    return {
-      ...node,
-      actionId: action.id,
-      actionTitle: action.title,
-      nodeType: "action" as const,
-      paths: children,
-    };
-  })
-);
+        return {
+          ...node,
+          actionId: action.id,
+          actionTitle: action.title,
+          nodeType: "action" as const,
+          actionData: action,
+          paths: children,
+        };
+      })
+    );
+
+    if (isDelayAction(action.title)) {
+      openActionEditor(action);
+    }
 
     setDraggedAction(null);
   };
 
   const addPath = (nodeId: string) => {
-  setNodes((current) =>
-    updateNode(current, nodeId, (node) => ({
-      ...node,
-      paths: [
-        ...node.paths,
-        {
-          id: crypto.randomUUID(),
-          nodeType: "action",
-          paths: [],
-        },
-      ],
-    }))
-  );
-  setOpenMenu(null);
-};
+    setNodes((current) =>
+      updateNode(current, nodeId, (node) => ({
+        ...node,
+        paths: [
+          ...node.paths,
+          {
+            id: crypto.randomUUID(),
+            nodeType: "action",
+            paths: [],
+          },
+        ],
+      }))
+    );
+    setOpenMenu(null);
+  };
 
   const removeNode = (nodeId: string) => {
     const removeNodeRecursive = (
@@ -223,229 +214,354 @@ const buildChildrenForAction = (
     setOpenMenu(null);
   };
 
+  const handleEditAction = (node: TestActionDefinition) => {
+      const testAction = {
+        id: node.id,
+        title: node.title,
+        testClassId: node.testClassId,
+        hasConfirmation: node.hasConfirmation,
+        confirmationTimeout: node.confirmationTimeout,
+        confirmationOptions: node.confirmationOptions.map(
+          (opt) => opt.option
+        ),
+        actionTimeout: node.actionTimeout,
+      };
+      setEditingTest(testAction as any);
+  };
+
+  const openActionEditor = (action: TestActionDefinition) => {
+    const testAction = {
+      id: action.id,
+      title: action.title,
+      testClassId: action.testClassId,
+      hasConfirmation: action.hasConfirmation,
+      confirmationTimeout: action.confirmationTimeout,
+      confirmationOptions: action.confirmationOptions.map((opt) => opt.option),
+      actionTimeout: action.actionTimeout,
+    };
+    setEditingTest(testAction as any);
+  };
+
+  const isDelayAction = (title?: string) =>
+    title?.trim().toUpperCase() === "DELAY";
+
+  const getDelayLabel = (action: TestActionDefinition | undefined) => {
+    if (!action) return "0s";
+    const seconds = Math.round((action.actionTimeout ?? 0) / 1000);
+    return `${seconds}s`;
+  };
+
+  const extractActionIdsFromNodes = (flowNodes: FlowNode[]): string[] => {
+    const ordered: string[] = [];
+
+    const visit = (node: FlowNode) => {
+      if (node.nodeType === "action" && node.actionId) {
+        ordered.push(node.actionId);
+      }
+
+      node.paths.forEach(visit);
+    };
+
+    flowNodes.forEach(visit);
+    return ordered;
+  };
+
+  const extractFlowTree = (flowNodes: FlowNode[]): any[] => {
+    return flowNodes.map((node) => ({
+      id: node.id,
+      actionId: node.actionId ?? null,
+      actionTitle: node.actionTitle ?? null,
+      optionId: node.optionId ?? null,
+      optionLabel: node.optionLabel ?? null,
+      nodeType: node.nodeType,
+      actionData: node.actionData
+        ? {
+            id: node.actionData.id,
+            title: node.actionData.title,
+            testClassId: node.actionData.testClassId,
+            hasConfirmation: node.actionData.hasConfirmation,
+            confirmationTimeout: node.actionData.confirmationTimeout,
+            actionTimeout: node.actionData.actionTimeout,
+            confirmationOptions: node.actionData.confirmationOptions.map((opt) => ({
+              id: opt.id,
+              option: opt.option,
+            })),
+          }
+        : null,
+      paths: extractFlowTree(node.paths),
+    }));
+  };
+
+  const extractActionsFromNodes = (flowNodes: FlowNode[]): any[] => {
+    const actions: any[] = [];
+
+    const processNode = (node: FlowNode, index: number) => {
+      if (node.nodeType === "action" && node.actionId && node.actionData) {
+        actions.push({
+          id: node.actionId,
+          title: node.actionTitle,
+          testClassId: node.actionData.testClassId,
+          hasConfirmation: node.actionData.hasConfirmation,
+          confirmationTimeout: node.actionData.confirmationTimeout ?? null,
+          confirmationOptions: node.actionData.confirmationOptions.map(
+            (opt) => opt.option
+          ),
+          actionTimeout: node.actionData.actionTimeout,
+          sortOrder: index,
+        });
+      }
+
+      node.paths.forEach((child, childIndex) => processNode(child, index + childIndex));
+    };
+
+    flowNodes.forEach((node, index) => processNode(node, index));
+    return actions;
+  };
+
+  const handleSaveTest = async () => {
+    if (!testTitle.trim()) {
+      alert("Please enter a test title");
+      return;
+    }
+
+    const flowTree = extractFlowTree(nodes);
+    const testActions = extractActionsFromNodes(nodes);
+
+    if (testActions.length === 0) {
+      alert("Please add at least one action to the test");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const result = await createFullTestAction({
+        title: testTitle.trim(),
+        flow: flowTree,
+        actions: testActions,
+      });
+
+      if (result.success) {
+        alert("Test saved successfully!");
+        setTestTitle("");
+        setNodes([createNode()]);
+      } else {
+        alert(result.message || "Failed to save test");
+      }
+    } catch (error) {
+      console.error("Failed to save test:", error);
+      alert("Failed to save test");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const STEM_H = 24;       // vertical drop before branching
-const CURVE_H = 28;      // height of the bezier curve section
-const STUB_H = 20;       // vertical stub into each child
-const CHILD_W = 200;     // width of each child column (must match CSS)
-const CHILD_GAP = 48;    // gap between child columns (must match CSS)
-const DOT_R = 5;
+  const CURVE_H = 28;      // height of the bezier curve section
+  const STUB_H = 20;       // vertical stub into each child
+  const CHILD_W = 200;     // width of each child column (must match CSS)
+  const CHILD_GAP = 48;    // gap between child columns (must match CSS)
+  const DOT_R = 5;
 
-const renderConnector = (parentId: string, children: FlowNode[]) => {
-  const N = children.length;
+  const renderConnector = (parentId: string, children: FlowNode[]) => {
+    const N = children.length;
 
-  if (N === 0) return null;
+    if (N === 0) return null;
 
-  // Single child — just a straight line, no branching
-  if (N === 1) {
+    // Single child — just a straight line, no branching
+    if (N === 1) {
+      return (
+        <svg
+          className="connector-svg"
+          width={4}
+          height={STEM_H + CURVE_H + STUB_H}
+          viewBox={`0 0 4 ${STEM_H + CURVE_H + STUB_H}`}
+        >
+          <line
+            x1={2}
+            y1={0}
+            x2={2}
+            y2={STEM_H + CURVE_H + STUB_H}
+            stroke="#d0d5dd"
+            strokeWidth={2}
+          />
+        </svg>
+      );
+    }
+
+    // Multi-child — trunk + bezier branches
+    const totalW = N * CHILD_W + (N - 1) * CHILD_GAP;
+    const totalH = STEM_H + CURVE_H + STUB_H;
+    const cx = totalW / 2;
+
+    const childCx = (i: number) =>
+      CHILD_W / 2 + i * (CHILD_W + CHILD_GAP);
+
     return (
       <svg
         className="connector-svg"
-        width={4}
-        height={STEM_H + CURVE_H + STUB_H}
-        viewBox={`0 0 4 ${STEM_H + CURVE_H + STUB_H}`}
+        width={totalW}
+        height={totalH}
+        viewBox={`0 0 ${totalW} ${totalH}`}
+        style={{ overflow: "visible" }}
       >
+        {/* Trunk: from parent bottom down to branch point */}
         <line
-          x1={2}
+          x1={cx}
           y1={0}
-          x2={2}
-          y2={STEM_H + CURVE_H + STUB_H}
+          x2={cx}
+          y2={STEM_H}
           stroke="#d0d5dd"
           strokeWidth={2}
         />
-      </svg>
-    );
-  }
 
-  // Multi-child — trunk + bezier branches
-  const totalW = N * CHILD_W + (N - 1) * CHILD_GAP;
-  const totalH = STEM_H + CURVE_H + STUB_H;
-  const cx = totalW / 2;
+        {/* Junction dot at branch point */}
+        <circle cx={cx} cy={STEM_H} r={DOT_R} fill="#14b8a6" />
 
-  const childCx = (i: number) =>
-    CHILD_W / 2 + i * (CHILD_W + CHILD_GAP);
+        {children.map((child, i) => {
+          const x = childCx(i);
+          const y0 = STEM_H;
+          const y1 = STEM_H + CURVE_H;
 
-  return (
-    <svg
-      className="connector-svg"
-      width={totalW}
-      height={totalH}
-      viewBox={`0 0 ${totalW} ${totalH}`}
-      style={{ overflow: "visible" }}
-    >
-      {/* Trunk: from parent bottom down to branch point */}
-      <line
-        x1={cx}
-        y1={0}
-        x2={cx}
-        y2={STEM_H}
-        stroke="#d0d5dd"
-        strokeWidth={2}
-      />
-
-      {/* Junction dot at branch point */}
-      <circle cx={cx} cy={STEM_H} r={DOT_R} fill="#14b8a6" />
-
-      {children.map((child, i) => {
-        const x = childCx(i);
-        const y0 = STEM_H;
-        const y1 = STEM_H + CURVE_H;
-
-        // Cubic bezier: leave parent vertically, arrive at child vertically.
-        // Control points sit at (cx, y0 + k) and (x, y1 - k) so both ends
-        // are tangent to vertical, producing the Mailchimp "S" shape.
-        const k = CURVE_H * 0.6;
-        const d = `M ${cx} ${y0}
+          // Cubic bezier: leave parent vertically, arrive at child vertically.
+          // Control points sit at (cx, y0 + k) and (x, y1 - k) so both ends
+          // are tangent to vertical, producing the Mailchimp "S" shape.
+          const k = CURVE_H * 0.6;
+          const d = `M ${cx} ${y0}
                    C ${cx} ${y0 + k},
                      ${x}  ${y1 - k},
                      ${x}  ${y1}`;
 
-        return (
-          <g key={child.id}>
-            <path
-              d={d}
-              fill="none"
-              stroke="#d0d5dd"
-              strokeWidth={2}
-            />
+          return (
+            <g key={child.id}>
+              <path
+                d={d}
+                fill="none"
+                stroke="#d0d5dd"
+                strokeWidth={2}
+              />
 
-            {/* Stub from curve end into child card */}
-            <line
-              x1={x}
-              y1={y1}
-              x2={x}
-              y2={y1 + STUB_H}
-              stroke="#d0d5dd"
-              strokeWidth={2}
-            />
+              {/* Stub from curve end into child card */}
+              <line
+                x1={x}
+                y1={y1}
+                x2={x}
+                y2={y1 + STUB_H}
+                stroke="#d0d5dd"
+                strokeWidth={2}
+              />
 
-            {/* Entry dot above each child */}
-            <circle cx={x} cy={y1} r={DOT_R - 1} fill="#14b8a6" />
-          </g>
-        );
-      })}
-    </svg>
-  );
-};
+              {/* Entry dot above each child */}
+              <circle cx={x} cy={y1} r={DOT_R - 1} fill="#14b8a6" />
+            </g>
+          );
+        })}
+      </svg>
+    );
+  };
 
   const renderNode = (node: FlowNode, level: number = 0): React.ReactNode => {
-  const isConfirmation = node.nodeType === "confirmation";
-  const isDropZone = node.nodeType === "action" && !node.actionId;
+    const isConfirmation = node.nodeType === "confirmation";
+    const isDropZone = node.nodeType === "action" && !node.actionId;
+    const isDelayNode = node.nodeType === "action" && isDelayAction(node.actionTitle);
 
-  // An action node with confirmation children owns its paths — can't add more.
-  const hasConfirmationChildren =
-    node.nodeType === "action" &&
-    node.paths.length > 0 &&
-    node.paths.every((p) => p.nodeType === "confirmation");
+    const hasConfirmationChildren =
+      node.nodeType === "action" &&
+      node.paths.length > 0 &&
+      node.paths.every((p) => p.nodeType === "confirmation");
 
-  // "Add path" is allowed on: confirmation nodes, and action nodes
-  // that either have no children or don't have confirmation children.
-  const canAddPath =
-    isConfirmation || (!hasConfirmationChildren && !isDropZone);
+    const canAddPath = isConfirmation || (!hasConfirmationChildren && !isDropZone);
+    const canAcceptDrop = node.nodeType === "action";
 
-  // Drop is allowed on action nodes only.
-  const canAcceptDrop = node.nodeType === "action";
-
-  return (
-    <div className="tree-node" key={node.id}>
-      {/* ------- NODE CARD ------- */}
-      <div
-        className={`node-card ${isConfirmation ? "confirmation" : "action"} ${
-          isDropZone ? "empty" : ""
-        }`}
-        onDragOver={canAcceptDrop ? handleDragOver : undefined}
-        onDrop={
-          canAcceptDrop ? (e) => handleDrop(e, node.id) : undefined
-        }
-      >
-        <div className="node-card-header">
-          <span className="node-card-title">
-            {isDropZone
-              ? "Drop action here"
-              : isConfirmation
-              ? node.optionLabel ?? "Option"
-              : node.actionTitle ?? "Unassigned"}
-          </span>
-
-          {/* Only show the ⋮ menu if this node can do anything */}
-          {(canAddPath || !isConfirmation) && (
-            <div className="node-card-menu">
-              <button
-                className="menu-trigger"
-                onClick={() =>
-                  setOpenMenu(openMenu === node.id ? null : node.id)
-                }
-              >
-                ⋮
-              </button>
-
-              {openMenu === node.id && (
-                <div className="menu-dropdown">
-                  {canAddPath && (
-                    <button onClick={() => addPath(node.id)}>
-                      Add path
-                    </button>
-                  )}
-                  <button onClick={() => removeNode(node.id)}>Delete</button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ------- CONNECTOR + CHILDREN ------- */}
-     {node.paths.length > 0 && (
-  <>
-    {renderConnector(node.id, node.paths)}
-    <div
-      className="children-row"
-      style={{
-        gap: `${CHILD_GAP}px`,
-      }}
-    >
-      {node.paths.map((child) => (
+    return (
+      <div className="tree-node" key={node.id}>
         <div
-          className="child-column"
-          key={child.id}
-          style={{ width: `${CHILD_W}px` }}
+          className={`node-card ${isConfirmation ? "confirmation" : "action"} ${isDropZone ? "empty" : ""}`}
+          onDragOver={canAcceptDrop ? handleDragOver : undefined}
+          onDrop={canAcceptDrop ? (e) => handleDrop(e, node.id) : undefined}
+          style={
+            isConfirmation
+              ? { minHeight: 80 }
+              : undefined
+          }
         >
-          {renderNode(child, level + 1)}
+          <div className="node-card-header">
+            <span className="node-card-title">
+              {isDropZone
+                ? "Drop action here"
+                : isConfirmation
+                  ? node.optionLabel ?? "Option"
+                  : isDelayNode
+                    ? getDelayLabel(node.actionData)
+                    : node.actionTitle ?? "Unassigned"}
+            </span>
+
+            {!isConfirmation && !isDropZone && isDelayNode && (
+              <button
+                className="edit-button"
+                onClick={() => node.actionData && openActionEditor(node.actionData)}
+                type="button"
+                title="Edit delay action"
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "4px 8px",
+                  fontSize: "16px",
+                }}
+              >
+                ✏️
+              </button>
+            )}
+
+            {(canAddPath || !isConfirmation) && !isDelayNode && (
+              <div className="node-card-menu">
+                <button
+                  className="menu-trigger"
+                  onClick={() =>
+                    setOpenMenu(openMenu === node.id ? null : node.id)
+                  }
+                >
+                  ⋮
+                </button>
+
+                {openMenu === node.id && (
+                  <div className="menu-dropdown">
+                    {canAddPath && (
+                      <button onClick={() => addPath(node.id)}>
+                        Add path
+                      </button>
+                    )}
+                    <button onClick={() => removeNode(node.id)}>Delete</button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      ))}
-    </div>
-  </>
-)}
-    </div>
-  );
-};
 
-  const handleDropAtEnd = (event: React.DragEvent) => {
-    event.preventDefault();
-    const actionId = event.dataTransfer.getData("application/action-id");
-    if (!actionId) return;
-    const action = actions.find((a) => a.id === actionId);
-    if (!action) return;
-
-    const confirmationNodes = action.hasConfirmation
-      ? action.confirmationOptions.map((option) => ({
-          id: crypto.randomUUID(),
-          optionId: option.id,
-          optionLabel: option.option,
-          nodeType: "confirmation" as const,
-          paths: [],
-        }))
-      : [];
-
-    const newNode: FlowNode = {
-      id: crypto.randomUUID(),
-      actionId: action.id,
-      actionTitle: action.title,
-      nodeType: "action",
-      paths: buildChildrenForAction(action),
-    };
-
-    setNodes((current) => [...current, newNode]);
+        {node.paths.length > 0 && (
+          <>
+            {renderConnector(node.id, node.paths)}
+            <div
+              className="children-row"
+              style={{ gap: `${CHILD_GAP}px` }}
+            >
+              {node.paths.map((child) => (
+                <div
+                  className="child-column"
+                  key={child.id}
+                  style={{ width: `${CHILD_W}px` }}
+                >
+                  {renderNode(child, level + 1)}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    );
   };
+
   useEffect(() => {
     async function loadActions() {
       try {
@@ -525,10 +641,10 @@ const renderConnector = (parentId: string, children: FlowNode[]) => {
         <div className="sidebar-header">
           <h2>Actions</h2>
           <p>Drag an action into the flow</p>
-           <CreateTestButton
-              editingAction={editingTest}
-              onEditClose={() => setEditingTest(null)}
-            />
+          <CreateTestButton
+            editingAction={editingTest} isDelayNode={isDelayAction(editingTest?.title)}
+            onEditClose={() => setEditingTest(null)}
+          />
         </div>
 
         <div className="action-list">
@@ -537,14 +653,29 @@ const renderConnector = (parentId: string, children: FlowNode[]) => {
               key={action.id}
               draggable
               className={`action-item ${draggedAction?.id === action.id
-                  ? "dragging"
-                  : ""
+                ? "dragging"
+                : ""
                 }`}
               onDragStart={(event) =>
                 handleDragStart(event, action)
               }
               onDragEnd={handleDragEnd}
             >
+              <button
+                className="edit-button"
+                onClick={() => handleEditAction(action)}
+                type="button"
+                title="Edit action"
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "4px 8px",
+                  fontSize: "16px",
+                }}
+              >
+                ✏️
+              </button>
               <span className="drag-icon">⋮⋮</span>
               <span>{action.title}</span>
             </div>
@@ -559,6 +690,25 @@ const renderConnector = (parentId: string, children: FlowNode[]) => {
             <h1> Test Flow</h1>
             <p> Build your test sequence by dragging actions into the flow.</p>
           </div>
+          <button
+            onClick={handleSaveTest}
+            disabled={saving || !testTitle.trim()}
+            type="button"
+            style={{
+              marginLeft: "auto",
+              padding: "10px 20px",
+              backgroundColor: saving ? "#cbd5e1" : "#0f172a",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              cursor: saving || !testTitle.trim() ? "not-allowed" : "pointer",
+              fontSize: "14px",
+              fontWeight: "600",
+              transition: "background-color 0.2s",
+            }}
+          >
+            {saving ? "Saving..." : "Save Test"}
+          </button>
         </div>
 
         <div className="flow-area">
@@ -570,23 +720,7 @@ const renderConnector = (parentId: string, children: FlowNode[]) => {
             )}
           </div>
 
-          {/* =================================================
-              DROP AREA
-          ================================================= */}
 
-          <div
-            className="end-drop-area"
-            onDragOver={
-              handleDragOver
-            }
-            onDrop={
-              handleDropAtEnd
-            }
-          >
-            <span>
-              Drag another action here
-            </span>
-          </div>
         </div>
       </main>
     </div>

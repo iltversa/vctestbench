@@ -22,13 +22,15 @@ type TestClass = {
 type ActionDialogProps = {
     test?: TestAction | null;
     onClose: () => void;
-onSave?: (action: TestAction) => Promise<void>;
+    isDelayNode: boolean;
+    onSave?: (action: TestAction) => Promise<void>;
 };
 
 const DEFAULT_CONFIRMATION_OPTIONS = ["YES"];
 
 export default function ActionDialog({
     test,
+    isDelayNode,
     onClose,
     onSave,
 }: ActionDialogProps) {
@@ -205,36 +207,38 @@ export default function ActionDialog({
                     <div className="space-y-5">
 
                         {/* Test Class */}
-                        <div>
-                            <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                                Test Class
-                            </label>
-
-                            <select
-                                value={testClassId}
-                                onChange={(event) => setTestClassId(event.target.value)}
-                                disabled={loadingClasses}
-                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black disabled:bg-gray-100"
-                                >
-                                <option value="">
-                                    {loadingClasses
-                                    ? "Loading classes..."
-                                    : "Select a class"}
-                                </option>
-
-                                {classes.map((testClass) => (
-                                    <option
-                                    key={testClass.id}
-                                    value={testClass.id}
+                        {!isDelayNode &&(
+                            <div>
+                                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                                    Test Class
+                                </label>
+                                <select
+                                    value={testClassId}
+                                    onChange={(event) => setTestClassId(event.target.value)}
+                                    disabled={loadingClasses}
+                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black disabled:bg-gray-100"
                                     >
-                                    {testClass.name}
+                                    <option value="">
+                                        {loadingClasses
+                                        ? "Loading classes..."
+                                        : "Select a class"}
                                     </option>
-                                ))}
+
+                                    {classes.map((testClass) => (
+                                        <option
+                                        key={testClass.id}
+                                        value={testClass.id}
+                                        >
+                                        {testClass.name}
+                                        </option>
+                                    ))}
                                 </select>
-                        </div>
+                            </div>
+                        )}
 
                         {/* Title */}
-                        <div>
+                        {!isDelayNode &&(
+                            <div>
                             <label className="mb-1.5 block text-sm font-medium text-gray-700">
                                 Action Title
                             </label>
@@ -248,8 +252,8 @@ export default function ActionDialog({
                                 placeholder="e.g. Start workout"
                                 className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
                             />
-                        </div>
-
+                            </div>
+                        )}
                         {/* Action Timeout */}
                         <div>
                             <label className="mb-1.5 block text-sm font-medium text-gray-700">
@@ -274,7 +278,8 @@ export default function ActionDialog({
                         </div>
 
                         {/* Confirmation */}
-                        <div className="rounded-lg border border-gray-200 p-4">
+                        {!isDelayNode &&(
+                            <div className="rounded-lg border border-gray-200 p-4">
                             <label className="flex cursor-pointer items-center gap-3">
                                 <input
                                     type="checkbox"
@@ -372,7 +377,8 @@ export default function ActionDialog({
                                     </div>
                                 </div>
                             )}
-                        </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 

@@ -1,0 +1,52 @@
+import { eq } from "drizzle-orm";
+
+import { db } from "@/db";
+import { confirmationOptions } from "@/db/schema/confirmation-options";
+import { testActions } from "@/db/schema/test-actions";
+
+export type UpdateTestActionInput = {
+  id: string;
+  testClassId: string;
+  title: string;
+  hasConfirmation: boolean;
+  confirmationTimeout?: number | null;
+  confirmationOptions: string[];
+  actionTimeout: number;
+  sortOrder?: number;
+};
+
+export async function updateTestActionService(input: UpdateTestActionInput) {
+  return await db.transaction(async (tx) => {
+    const [updatedAction] = await tx
+      .update(testActions)
+      .set({
+        testClassId: input.testClassId,
+        title: input.title,
+        hasConfirmation: input.hasConfirmation,
+        confirmationTimeout: input.hasConfirmation ? input.confirmationTimeout ?? null : null,
+        actionTimeout: input.actionTimeout,
+        ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
+      })
+      .where(eq(testActions.id, input.id))
+      .returning();
+
+    if (!updatedAction) {
+      throw new Error("Action not found");
+    }
+
+    await tx
+      .delete(confirmationOptions)
+      .where(eq(confirmationOptions.testActionId, input.id));
+
+    if (input.hasConfirmation && input.confirmationOptions.length > 0) {
+      await tx.insert(confirmationOptions).values(
+        input.confirmationOptions.map((option) => ({
+          testActionId: input.id,
+          option,
+        }))
+      );
+    }
+
+    return updatedAction;
+  });
+}

@@ -8,13 +8,15 @@ import { useEffect } from "react";
 import { SavedTest } from "../page";
 import ActionDialog, { TestAction } from "@/components/ActionDialog";
 import { createTestActionAction } from "@/actions/create-test-action";
+import { updateTestActionAction } from "@/actions/update-test-action";
 
 type CreateTestButtonProps = {
-  editingAction: SavedTest | null;
+  editingAction: SavedTest | TestAction | null;
+  isDelayNode:boolean;
   onEditClose: () => void;
 };
 
-export default function CreateTestButton({ editingAction, onEditClose }: CreateTestButtonProps) {
+export default function CreateTestButton({ editingAction, onEditClose, isDelayNode }: CreateTestButtonProps) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -30,11 +32,32 @@ export default function CreateTestButton({ editingAction, onEditClose }: CreateT
 
   const transformedAction = editingAction ? {
     ...editingAction,
-    confirmationOptions: editingAction.confirmationOptions?.map(opt => opt.value) || [],
+    confirmationOptions: Array.isArray(editingAction.confirmationOptions)
+      ? (editingAction.confirmationOptions as any[]).map((opt) =>
+          typeof opt === "string" ? opt : opt.value
+        )
+      : [],
   } : null;
 
   const handleSaveAction = async (action: TestAction) => {
     try {
+      const targetId = action.id ?? editingAction?.id;
+
+      if (targetId) {
+        const result = await updateTestActionAction({
+          id: targetId,
+          testClassId: action.testClassId || "",
+          title: action.title,
+          hasConfirmation: action.hasConfirmation,
+          confirmationTimeout: action.confirmationTimeout ?? null,
+          confirmationOptions: action.confirmationOptions || [],
+          actionTimeout: action.actionTimeout,
+        });
+
+        console.log("Action updated:", result);
+        return;
+      }
+
       const result = await createTestActionAction({
         ...action,
         testId: editingAction?.id || "",
@@ -63,6 +86,7 @@ export default function CreateTestButton({ editingAction, onEditClose }: CreateT
       {open && (
         <ActionDialog
           test={transformedAction}
+          isDelayNode={isDelayNode}
           onClose={handleClose}
           onSave={handleSaveAction}
         />

@@ -5,22 +5,26 @@ import { getTestsAction } from "@/actions/get-tests";
 import TestFlowBuilder from "@/components/TestFlowBuilder";
 type FeedEvent = { id: number; at: string; label: string; detail: string; kind: "info" | "success" | "warning" };
 type TabletState = { connected: boolean; device?: string; model?: string; android?: string; foregroundPackage?: string; sandboxForeground: boolean; route?: string; updatedAt: string; events: FeedEvent[]; test?: { status: "idle" | "running" | "passed" | "failed"; name?: string; step?: string; error?: string } };
-// const BRIDGE = "http://localhost:3131";
+
+const BRIDGE = "http://localhost:3131";
 
 export type SavedTest = {
     id: string;
     title: string;
-    testClassId: string;
-    hasConfirmation: boolean;
-    confirmationOptions: {
+    flow?: any[];
+    actions?: Array<{
         id: string;
-        value: string;
+        title: string;
+        action?: string;
+        customAction?: string | null;
+        testClassId?: string | null;
+        hasConfirmation: boolean;
+        confirmationTimeout?: number | null;
+        confirmationOptions: Array<{ id: string; value?: string; option?: string; }>; 
+        actionTimeout: number;
         sortOrder: number;
-    }[];
-    actionTimeout: number;
-    sortOrder: number;
+    }>;
 };
-
 
 export default function Home() {
     const [state, setState] = useState<TabletState | null>(null),
@@ -29,85 +33,81 @@ export default function Home() {
     [imageTick, setImageTick] = useState(0),
     [starting, setStarting] = useState(false),
     [launching, setLaunching] = useState(false);
-    // const refresh = useCallback(async () => {
-    //     try {
-    //         const response = await fetch(BRIDGE + "/state", { cache: "no-store" });
-    //         if (!response.ok) throw new Error();
-    //         const next = (await response.json()) as TabletState;
-    //         setState(next);
-    //         setBridgeOnline(true);
-    //         setLastError("");
-    //         if (next.connected) setImageTick(Date.now())
-    //     } catch {
-    //         setBridgeOnline(false);
-    //         setLastError("Local tablet monitor is not running")
-    //     }
-    // }, []);
-    // useEffect(() => { 
-    //     refresh(); 
-    //     const timer = window.setInterval(refresh, 1500); 
-    //     return () => window.clearInterval(timer) 
-    // }, [refresh]);
+    const refresh = useCallback(async () => {
+        try {
+            const response = await fetch(BRIDGE + "/state", { cache: "no-store" });
+            if (!response.ok) throw new Error();
+            const next = (await response.json()) as TabletState;
+            setState(next);
+            setBridgeOnline(true);
+            setLastError("");
+            if (next.connected) setImageTick(Date.now());
+        } catch {
+            setBridgeOnline(false);
+            setLastError("Local tablet monitor is not running");
+        }
+    }, []);
+    useEffect(() => {
+        refresh();
+        const timer = window.setInterval(refresh, 1500);
+        return () => window.clearInterval(timer);
+    }, [refresh]);
     const connected = bridgeOnline && Boolean(state?.connected), events = state?.events ?? [];
     const canRun = connected && state?.sandboxForeground && state.route === "/home" && state.test?.status !== "running";
     // const runWorkout = async () => { setStarting(true); try { const response = await fetch(BRIDGE + "/run-workout", { method: "POST" }); if (!response.ok) throw new Error(); await refresh() } catch { setLastError("Could not start the workout test") } finally { setStarting(false) } };
     // const runVideoClass = async () => { setStarting(true); try { const response = await fetch(BRIDGE + "/run-video-class", { method: "POST" }); if (!response.ok) throw new Error(); await refresh() } catch { setLastError("Could not start the video class test") } finally { setStarting(false) } };
     // const runMonument = async () => { setStarting(true); try { const response = await fetch(BRIDGE + "/run-monument", { method: "POST" }); if (!response.ok) throw new Error(); await refresh() } catch { setLastError("Could not start the Monument test") } finally { setStarting(false) } };
-    // const launchSand = async () => { setLaunching(true); setLastError(""); try { const response = await fetch(BRIDGE + "/launch-sand", { method: "POST" }); if (!response.ok) throw new Error(); window.setTimeout(refresh, 1200) } catch { setLastError("Could not launch Sandbox") } finally { window.setTimeout(() => setLaunching(false), 1200) } };
+    const launchSand = async () => { setLaunching(true); setLastError(""); try { const response = await fetch(BRIDGE + "/launch-sand", { method: "POST" }); if (!response.ok) throw new Error(); window.setTimeout(refresh, 1200) } catch { setLastError("Could not launch Sandbox") } finally { window.setTimeout(() => setLaunching(false), 1200) } };
 
     const currentLabel = !bridgeOnline ? "Waiting for VC TestBench monitor" : !connected ? "Tablet disconnected" : state?.sandboxForeground ? (state.route ? "Sandbox visible · " + state.route : "Sandbox is open") : "Tablet connected · Sandbox not in foreground";
     const activeTest = state?.test?.status === "running" ? state.test.name : "";
 
-    // const [savedTests, setSavedTests] = useState<SavedTest[]>([]);
-    // const handleRunTest = async (test: SavedTest) => {
-    //     if (!canRun || starting) return;
+    const [savedTests, setSavedTests] = useState<SavedTest[]>([]);
+    const handleRunTest = async (test: SavedTest) => {
+        if (!canRun || starting) return;
 
-    //     setStarting(true);
-    //     setLastError("");
-    //     console.log(test)
-    //     try {
-    //         const response = await fetch(BRIDGE + "/run-test", {
-    //             method: "POST",
-    //             headers: {
-    //                 "Content-Type": "application/json",
-    //             },
-    //             body: JSON.stringify(test),
-    //         });
+        setStarting(true);
+        setLastError("");
+        console.log(test);
+        try {
+            const response = await fetch(BRIDGE + "/run-test", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    title: test.title,
+                    actions: test.actions ?? [],
+                }),
+            });
 
-    //         if (!response.ok) {
-    //             throw new Error("Failed to start test");
-    //         }
+            if (!response.ok) {
+                throw new Error("Failed to start test");
+            }
 
-    //         await refresh();
-    //     } catch (error) {
-    //         console.error("handleRunTest error:", error);
-    //         setLastError(`Could not start ${test.title}`);
-    //     } finally {
-    //         setStarting(false);
-    //     }
-    // };
-    // const [editingTest, setEditingTest] =
-    //     useState<SavedTest | null>(null);
+            await refresh();
+        } catch (error) {
+            console.error("handleRunTest error:", error);
+            setLastError(`Could not start ${test.title}`);
+        } finally {
+            setStarting(false);
+        }
+    };
 
-    // const handleDeleteTest = async (testId: string) => {
-    //     // TODO: Implement delete test action
-    //     setSavedTests((current) => current.filter((t) => t.id !== testId));
-    // };
+    useEffect(() => {
+        const loadTests = async () => {
+            const result = await getTestsAction();
 
-    // useEffect(() => {
-    //     const loadTests = async () => {
-    //         const result = await getTestsAction();
+            if (!result.success) {
+                console.error(result.error);
+                return;
+            }
 
-    //         if (!result.success) {
-    //             console.error(result.error);
-    //             return;
-    //         }
+            setSavedTests((result.data ?? []) as SavedTest[]);
+        };
 
-    //         setSavedTests((result.data ?? []) as SavedTest[]);
-    //     };
-
-    //     loadTests();
-    // }, []);
+        loadTests();
+    }, []);
     return (
         <main className="shell">
             <header className="topbar">
@@ -116,7 +116,7 @@ export default function Home() {
                     <p className="eyebrow">VERSACLIMBER AUTOMATION</p>
                     <h1>VC TestBench</h1>
                 </div>
-                {/* <button className="launch-sand" disabled={!connected || launching} onClick={launchSand}>{launching ? "Launching…" : "Launch Sand"}</button> */}
+                <button className="launch-sand" disabled={!connected || launching} onClick={launchSand}>{launching ? "Launching…" : "Launch Sand"}</button>
                 <div className={"device-pill " + (connected ? "connected" : "disconnected")}>
                     <span className="online-dot" />{connected ? "Lenovo tablet connected" : "Tablet disconnected"}
                 </div>
@@ -140,44 +140,35 @@ export default function Home() {
             </section>
             <div className="content-grid">
                 <section className="panel timeline-panel"><div className="panel-heading"><div><p className="eyebrow">REALTIME FEED</p><h3>Confirmed actions and screen changes</h3></div><span className={"live-label " + (connected ? "" : "offline")}><i />{connected ? "LIVE" : "OFFLINE"}</span></div><div className="timeline">{!events.length && <div className="empty-feed"><div className="empty-icon">◎</div><strong>No tablet activity yet</strong><span>VC TestBench will only show events it confirms on the real device.</span></div>}{[...events].reverse().map((event, index) => <div className={"step passed " + event.kind} key={event.id}><div className="step-marker">{index === 0 && connected ? "●" : "✓"}</div><div className="step-copy"><strong>{event.label}</strong><span>{event.detail}</span></div><div className="step-time">{event.at}</div></div>)}</div></section>
-                {/* <aside className="right-column"> */}
                 <section className="panel tablet-panel">
                     <div className="panel-heading compact"><div>
                         <p className="eyebrow">LIVE TABLET VIEW</p>
                         <h3>{state?.sandboxForeground ? "Sandbox app" : "Lenovo tablet"}</h3>
                     </div>
                         <span className={"recording-dot " + (connected ? "" : "offline-dot")} /></div>
-                    {/* <div className={"live-screen " + (connected ? "" : "screen-offline")}>
+                    <div className={"live-screen " + (connected ? "" : "screen-offline")}>
                         {connected ?
                             <img src={BRIDGE + "/screen?t=" + imageTick} alt="Current Lenovo tablet screen" />
                             : <div><span>USB</span><strong>Tablet disconnected</strong><small>Reconnect and authorize USB debugging</small></div>}
-                    </div> */}
+                    </div>
                     <p className="capture-note">{connected ? "This image is captured from the tablet and refreshes automatically." : "No cached image is shown while the tablet is offline."}</p>
                 </section>
                 <section className="panel tests-panel">
                     <div className="panel-heading compact tests-header-row"><div>
                         <p className="eyebrow">TEST CASES</p><h3>Saved tests</h3>
                     </div>
-                        <div className="tests-header-actions">
-                            {/* <button className="secondary refresh-button" onClick={refresh}>Refresh</button> */}
-                            {/* <CreateTestButton
-                                editingTest={editingTest}
-                                onEditClose={() => setEditingTest(null)}
-                            /> */}
-                        </div>
+                        <div className="tests-header-actions" />
                     </div>
-                    {/* <div className="tests-list-wrap">{savedTests.length === 0 ? (<div className="empty-tests">No tests yet. Create one to get started.</div>)
+                    <div className="tests-list-wrap">{savedTests.length === 0 ? (<div className="empty-tests">No tests yet. Create one to get started.</div>)
                         : (<ul className="tests-list">{savedTests.map((test) => (<li key={test.id} className="test-item">
-                            <div className="test-info"><button className="test-run-button secondary" disabled={!canRun || starting} onClick={() => handleRunTest(test)}>{activeTest === test.title ? "Test running…" : "Run"}</button>
+                            <div className="test-info">
+                                <button className="test-run-button secondary" disabled={!canRun || starting} onClick={() => handleRunTest(test)}>{activeTest === test.title ? "Test running…" : "Run"}</button>
                                 <span className="test-title">{test.title}</span>
                             </div>
-                            <div className="test-actions">
-                                <button type="button" className="icon-button edit-button" onClick={() => setEditingTest(test)} title="Edit test">✏️</button>
-                                <button type="button" className="icon-button delete-button" onClick={() => handleDeleteTest(test.id)} title="Delete test">🗑️</button>
-                            </div>
+                            <div className="test-actions" />
                         </li>))}
                         </ul>)}
-                    </div> */}
+                    </div>
                 </section>
                 <section className="metrics-row">
                     <div>
