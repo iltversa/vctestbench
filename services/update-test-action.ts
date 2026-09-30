@@ -6,7 +6,6 @@ import { testActions } from "@/db/schema/test-actions";
 
 export type UpdateTestActionInput = {
   id: string;
-  testClassId: string;
   title: string;
   hasConfirmation: boolean;
   confirmationTimeout?: number | null;
@@ -20,7 +19,6 @@ export async function updateTestActionService(input: UpdateTestActionInput) {
     const [updatedAction] = await tx
       .update(testActions)
       .set({
-        testClassId: input.testClassId,
         title: input.title,
         hasConfirmation: input.hasConfirmation,
         confirmationTimeout: input.hasConfirmation ? input.confirmationTimeout ?? null : null,
@@ -42,6 +40,7 @@ export async function updateTestActionService(input: UpdateTestActionInput) {
       await tx.insert(confirmationOptions).values(
         input.confirmationOptions.map((option) => ({
           testActionId: input.id,
+          isSelected: option === input.confirmationOptions[0] ? "true" : "false",
           option,
         }))
       );

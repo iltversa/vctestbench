@@ -54,6 +54,7 @@ export async function createTestAction(
         .values(
           input.confirmationOptions.map((option) => ({
             testActionId: createdAction.id,
+            isSelected: option === input.confirmationOptions[0] ? "true" : "false",
             option,
           }))
         );

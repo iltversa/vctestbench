@@ -1,20 +1,22 @@
 "use server";
 
+import { FlowNode } from "@/components/TestFlowBuilder";
 import { createFullTestService } from "@/services/create-full-test";
 
 export type CreateFullTestInput = {
   title: string;
-  flow?: unknown[];
-  actions: {
-    id?: string;
-    title: string;
-    testClassId: string;
-    hasConfirmation: boolean;
-    confirmationTimeout?: number | null;
-    confirmationOptions: string[];
-    actionTimeout: number;
-    sortOrder: number;
-  }[];
+  description: string;
+  flow?: FlowNode[];
+  // actions: {
+  //   id?: string;
+  //   title: string;
+  //   testClassId: string;
+  //   hasConfirmation: boolean;
+  //   confirmationTimeout?: number | null;
+  //   confirmationOptions: string[];
+  //   actionTimeout: number;
+  //   sortOrder: number;
+  // }[];
 };
 
 export async function createFullTestAction(input: CreateFullTestInput) {
@@ -26,12 +28,12 @@ export async function createFullTestAction(input: CreateFullTestInput) {
       };
     }
 
-    if (input.actions.length === 0) {
-      return {
-        success: false,
-        message: "At least one action is required",
-      };
-    }
+    // if (input.actions.length === 0) {
+    //   return {
+    //     success: false,
+    //     message: "At least one action is required",
+    //   };
+    // }
 
     const test = await createFullTestService(input);
 

@@ -1490,7 +1490,7 @@ async function clickRandomMonument() {
       height: Math.round(rect.height),
       totalMonuments: cards.length
     };
-  })()`);
+  })`);
 }
 async function clickSaveButton() {
   const pages = await fetch("http://127.0.0.1:9222/json")
@@ -2415,12 +2415,24 @@ async function runVideoClassTest(){
 }
 
 async function runTest(testData) {
-  console.log("TEST DATA:", testData);
+  console.log("================================");
+  console.log("RUN TEST:", testData?.title);
+  console.log("FLOW:", testData?.flow);
+  console.log("ACTIONS:", testData?.actions);
+  console.log("================================");
+
+  if (!Array.isArray(testData?.flow)) {
+    throw new Error(
+      "Cannot run test: testData.flow is missing."
+    );
+  }
+
+  const startedAt = new Date().toISOString();
 
   test = {
     status: "running",
     name: testData.title,
-    startedAt: new Date().toISOString(),
+    startedAt,
     step: "Starting test",
   };
 
@@ -2433,98 +2445,32 @@ async function runTest(testData) {
   );
 
   try {
-    for (let i = 0; i < testData.actions.length; i++) {
-      const action = testData.actions[i];
-      const nextAction = testData.actions[i + 1];
+    // Action definitions are only used for lookup.
+    const actionMap = new Map(
+      (testData.actions || []).map((action) => [
+        action.id,
+        action,
+      ])
+    );
 
-      console.log("================================");
-      console.log("CURRENT ACTION:", action.title);
-      console.log("NEXT ACTION:", nextAction?.title);
-      console.log("================================");
+    console.log(
+      "ACTION MAP:",
+      [...actionMap.values()].map((action) => ({
+        id: action.id,
+        title: action.title,
+      }))
+    );
 
-      test.step = action.title;
-      state.test = test;
-
-      // -----------------------------------
-      // 1. RUN CURRENT ACTION
-      // -----------------------------------
-
-      addEvent(
-        `Attempting action: ${action.title}`,
-        "",
-        "info"
-      );
-
-      console.log(`Executing action: ${action.title}`);
-
-      await executeTestAction(action);
-
-      console.log(`Finished action: ${action.title}`);
-
-      addEvent(
-        `Finished action: ${action.title}`,
-        "",
-        "success"
-      );
-
-      // -----------------------------------
-      // 2. CHECK NEXT ACTION
-      // -----------------------------------
-
-      if (!nextAction) {
-        console.log("No next action. Test is finished.");
-        continue;
-      }
-
-      const nextActionTimeout =
-        Number(nextAction.actionTimeout) || 0;
-
-      console.log(
-        `Next action: ${nextAction.title}, timeout: ${nextActionTimeout}`
-      );
-
-      // -----------------------------------
-      // 3. WAIT BEFORE NEXT ACTION
-      // -----------------------------------
-
-      if (nextActionTimeout > 0) {
-        addEvent(
-          `Waiting ${nextActionTimeout}s before next action: ${nextAction.title}`,
-          "",
-          "info"
-        );
-
-        console.log(
-          `WAITING ${nextActionTimeout}s...`
-        );
-
-        await sleep(nextActionTimeout * 1000);
-
-        console.log(
-          `WAIT FINISHED. Starting next action: ${nextAction.title}`
-        );
-
-        addEvent(
-          `Timeout finished. Starting next action: ${nextAction.title}`,
-          "",
-          "info"
-        );
-      }
-
-      // The loop automatically goes to the next iteration here.
-      console.log(
-        `Moving to next action: ${nextAction.title}`
-      );
-    }
-
-    // -----------------------------------
-    // TEST PASSED
-    // -----------------------------------
+    // Flow controls the actual execution order.
+    await executeFlowNodes(
+      testData.flow,
+      actionMap
+    );
 
     test = {
       status: "passed",
       name: testData.title,
-      startedAt: test.startedAt,
+      startedAt,
       finishedAt: new Date().toISOString(),
       step: "Test completed",
     };
@@ -2538,14 +2484,17 @@ async function runTest(testData) {
     );
 
   } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : String(error);
+
     test = {
       status: "failed",
       name: testData.title,
-      error:
-        error instanceof Error
-          ? error.message
-          : String(error),
+      startedAt,
       finishedAt: new Date().toISOString(),
+      error: message,
       step: "Test failed",
     };
 
@@ -2553,84 +2502,351 @@ async function runTest(testData) {
 
     addEvent(
       `${testData.title} failed`,
-      test.error,
+      message,
       "warning"
     );
 
     throw error;
   }
 }
-async function executeTestAction(action) {
-  // Run the action but treat failures/timeouts as step-level issues
-  // — log a warning and continue after waiting the configured timeout.
-  let lastError = null;
-
-  try {
-    if (action.action === "SAVE") {
-      try {
-        await clickSaveButton();
-      } catch (err) {
-        lastError = err instanceof Error ? err.message : String(err);
-        addEvent(
-          `Action failed: ${action.title}`,
-          lastError,
-          "warning"
-        );
-      }
-    } else {
-      const text =
-        action.action === "CUSTOM"
-          ? action.customAction
-          : action.action;
-
-      if (!text?.trim()) {
-        lastError = `No text configured for action "${action.title}"`;
-        addEvent(
-          `Action misconfigured: ${action.title}`,
-          lastError,
-          "warning"
-        );
-      } else {
-        try {
-          await clickTextAround(text.trim());
-        } catch (err) {
-          lastError = err instanceof Error ? err.message : String(err);
-          addEvent(
-            `Action failed: ${action.title}`,
-            lastError,
-            "warning"
-          );
-        }
-      }
-    }
-
-    if (action.hasConfirmation) {
-      try {
-        await executeConfirmation(action);
-      } catch (err) {
-        lastError = err instanceof Error ? err.message : String(err);
-        addEvent(
-          `Confirmation failed: ${action.title}`,
-          lastError,
-          "warning"
-        );
-      }
-    }
-  } catch (err) {
-    // Unexpected outer error — capture and continue to timeout wait below
-    lastError = err instanceof Error ? err.message : String(err);
-    addEvent(`Step execution error: ${action.title}`, lastError, "warning");
+async function executeFlowNodes(nodes, actionMap) {
+  if (!Array.isArray(nodes) || nodes.length === 0) {
+    return;
   }
 
-  // If there was an error during the step, log that we're continuing.
-  if (lastError) {
-    addEvent(
-      `Continuing after error: ${action.title}`,
-      lastError,
-      "warning"
+  for (const node of nodes) {
+    // ------------------------------------------------
+    // Empty node
+    // ------------------------------------------------
+
+    if (!node.actionId && !node.optionId) {
+      await executeFlowNodes(
+        node.paths,
+        actionMap
+      );
+
+      continue;
+    }
+
+    // ------------------------------------------------
+    // Option node
+    //
+    // Example:
+    //
+    // {
+    //   optionId: "SAVE_ID",
+    //   paths: [...]
+    // }
+    //
+    // We normally reach this through a CONFIRMATION
+    // node, so we don't execute it independently.
+    // ------------------------------------------------
+
+    if (!node.actionId && node.optionId) {
+      console.log(
+        "OPTION selected:",
+        node.isSelected
+      );
+
+      await executeFlowNodes(
+        node.paths,
+        actionMap
+      );
+
+      continue;
+    }
+
+    // ------------------------------------------------
+    // Action node
+    // ------------------------------------------------
+
+    const action = actionMap.get(node.actionId);
+
+    if (!action) {
+      throw new Error(
+        `Action not found for actionId: ${node.actionId}`
+      );
+    }
+
+    const title = String(
+      action.title || ""
+    ).trim();
+
+    const normalizedTitle = title.toUpperCase();
+
+    console.log(
+      "--------------------------------"
     );
+    console.log("EXECUTING:", title);
+    console.log("ACTION ID:", action.id);
+    console.log("NODE ID:", node.id);
+    console.log(
+      "CHILD PATHS:",
+      node.paths?.length || 0
+    );
+    console.log(
+      "--------------------------------"
+    );
+
+    // ------------------------------------------------
+    // Update test state
+    // ------------------------------------------------
+
+    test.step = title;
+    state.test = test;
+
+    addEvent(
+      `Attempting action: ${title}`,
+      "",
+      "info"
+    );
+
+    // ------------------------------------------------
+    // Execute the actual device action
+    // ------------------------------------------------
+
+    await executeDeviceAction(action);
+
+    addEvent(
+      `Finished action: ${title}`,
+      "",
+      "success"
+    );
+
+    // ------------------------------------------------
+    // CONFIRMATION
+    // ------------------------------------------------
+
+    if (normalizedTitle === "CONFIRMATION") {
+      addEvent(
+        `testtt action: ${JSON.stringify(
+          action,
+          null,
+          2
+        )}`,
+        "",
+        "success"
+      );
+      addEvent(
+  `Confirmation options: ${JSON.stringify(
+    action.confirmationOptions,
+    null,
+    2
+  )}`,
+  "",
+  "success"
+);
+      await executeConfirmationNode(
+        node,
+        action,
+        actionMap
+      );
+
+      continue;
+    }
+
+    // ------------------------------------------------
+    // Normal action
+    //
+    // executeDeviceAction already handles its
+    // actionTimeout.
+    // ------------------------------------------------
+
+    if (Array.isArray(node.paths)) {
+      await executeFlowNodes(
+        node.paths,
+        actionMap
+      );
+    }
   }
 }
+
+async function executeActionTree(nodes) {
+  if (!Array.isArray(nodes)) return;
+
+  for (const node of nodes) {
+    // 1. Execute action attached to this node
+    if (node.actionId) {
+      const action = await getActionById(node.actionId);
+
+      if (!action) {
+        throw new Error(`Action not found: ${node.actionId}`);
+      }
+
+      console.log("EXECUTING ACTION:", action.title);
+
+      await executeDeviceAction(action);
+    }
+
+    // 2. Follow child paths
+    if (Array.isArray(node.paths) && node.paths.length > 0) {
+      await executeActionTree(node.paths);
+    }
+  }
+}
+async function executeDeviceAction(action) {
+  const title = String(action.title || "").trim();
+  const normalizedTitle = title.toUpperCase();
+
+  console.log("DEVICE ACTION:", normalizedTitle);
+
+  // ---------------------------------------------
+  // DELAY
+  // ---------------------------------------------
+
+  if (normalizedTitle === "DELAY") {
+    const seconds = Number(action.actionTimeout) || 0;
+
+    addEvent(
+      `Waiting ${seconds}s`,
+      "",
+      "info"
+    );
+
+    await sleep(seconds * 1000);
+
+    return;
+  }
+
+  // ---------------------------------------------
+  // CONFIRMATION
+  //
+  // Actual option selection is handled by
+  // executeConfirmationNode().
+  // ---------------------------------------------
+
+  if (normalizedTitle === "CONFIRMATION") {
+    return;
+  }
+
+  // ---------------------------------------------
+  // SAVE / normal actions
+  // ---------------------------------------------
+
+  if (normalizedTitle === "SAVE") {
+    await clickSaveButton();
+
+    addEvent(
+      "Clicked action: SAVE",
+      "",
+      "success"
+    );
+
+    return;
+  }
+
+  await clickTextAround(title);
+
+  addEvent(
+    `Clicked action: ${title}`,
+    "",
+    "success"
+  );
+
+  // Action timeout happens AFTER clicking.
+  const seconds = Number(action.actionTimeout) || 0;
+
+  if (seconds > 0) {
+    addEvent(
+      `Waiting ${seconds}s after action: ${title}`,
+      "",
+      "info"
+    );
+
+    await sleep(seconds * 1000);
+  }
+}
+async function executeConfirmationNode(
+  node,
+  action,
+  actionMap
+) {
+  const options = Array.isArray(action.confirmationOptions)
+    ? action.confirmationOptions
+    : [];
+
+  console.log(
+    "CONFIRMATION OPTIONS:",
+    options
+  );
+
+  // ---------------------------------------------
+  // Find the option whose boolean is true
+  // ---------------------------------------------
+
+  const selectedOption = options.find(
+    (option) => option.isSelected === true
+  );
+
+  // ---------------------------------------------
+  // No option selected
+  // ---------------------------------------------
+
+  if (!selectedOption) {
+    console.log(
+      "No confirmation option is true."
+    );
+
+    addEvent(
+      "No confirmation option selected — clicking Connect",
+      "",
+      "info"
+    );
+
+    await clickTextAround("Connect");
+
+    return;
+  }
+
+  const optionName = String(
+    selectedOption.option || ""
+  ).trim();
+
+  console.log(
+    "SELECTED CONFIRMATION:",
+    optionName
+  );
+
+  addEvent(
+    `Selected confirmation: ${optionName}`,
+    "",
+    "info"
+  );
+
+  // Find the matching branch in the flow
+
+  const optionNode = (node.paths || []).find(
+    (child) =>
+      child.optionId === selectedOption.id
+  );
+
+  if (!optionNode) {
+    throw new Error(
+      `No flow path found for confirmation option "${optionName}"`
+    );
+  }
+
+  // Click the actual option on the device
+
+  await clickTextAround(optionName);
+
+  addEvent(
+    `Clicked confirmation option: ${optionName}`,
+    "",
+    "success"
+  );
+
+  // ---------------------------------------------
+  // Continue through that option's branch
+  // ---------------------------------------------
+
+  await executeFlowNodes(
+    optionNode.paths || [],
+    actionMap
+  );
+}
+
+
 
 
 const server=http.createServer((req,res)=>{

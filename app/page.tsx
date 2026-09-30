@@ -7,23 +7,29 @@ type FeedEvent = { id: number; at: string; label: string; detail: string; kind: 
 type TabletState = { connected: boolean; device?: string; model?: string; android?: string; foregroundPackage?: string; sandboxForeground: boolean; route?: string; updatedAt: string; events: FeedEvent[]; test?: { status: "idle" | "running" | "passed" | "failed"; name?: string; step?: string; error?: string } };
 
 const BRIDGE = "http://localhost:3131";
+export type ConfirmationOption = {
+  id: string;
+  testActionId: string;
+  option: string;
+  isSelected: boolean;
+};
+
+export type SavedTestAction = {
+  id: string;
+  title: string;
+  hasConfirmation: boolean;
+  confirmationTimeout?: number | null;
+  actionTimeout: number;
+  sortOrder: number;
+
+  confirmationOptions: ConfirmationOption[];
+};
 
 export type SavedTest = {
-    id: string;
-    title: string;
-    flow?: any[];
-    actions?: Array<{
-        id: string;
-        title: string;
-        action?: string;
-        customAction?: string | null;
-        testClassId?: string | null;
-        hasConfirmation: boolean;
-        confirmationTimeout?: number | null;
-        confirmationOptions: Array<{ id: string; value?: string; option?: string; }>; 
-        actionTimeout: number;
-        sortOrder: number;
-    }>;
+  id: string;
+  title: string;
+  flow?: any[];
+  actions?: SavedTestAction[];
 };
 
 export default function Home() {
@@ -78,6 +84,7 @@ export default function Home() {
                 body: JSON.stringify({
                     title: test.title,
                     actions: test.actions ?? [],
+                    flow: test.flow ?? []
                 }),
             });
 
@@ -103,87 +110,414 @@ export default function Home() {
                 return;
             }
 
-            setSavedTests((result.data ?? []) as SavedTest[]);
+            setSavedTests((result.data) as []);
         };
 
         loadTests();
     }, []);
     return (
-        <main className="shell">
-            <header className="topbar">
-                <div className="brand-mark">VC</div>
-                <div>
-                    <p className="eyebrow">VERSACLIMBER AUTOMATION</p>
-                    <h1>VC TestBench</h1>
+        <main className="min-h-screen bg-slate-950 text-white">
+            {/* TOP BAR */}
+            <header className="border-b border-white/10 bg-slate-950">
+                <div className="mx-auto flex max-w-[1800px] flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:px-8">
+
+                <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-sm font-bold text-slate-950">
+                    VC
+                    </div>
+
+                    <div>
+                    <p className="text-[10px] font-semibold tracking-[0.2em] text-slate-500">
+                        VERSACLIMBER AUTOMATION
+                    </p>
+
+                    <h1 className="text-lg font-semibold tracking-tight">
+                        VC TestBench
+                    </h1>
+                    </div>
                 </div>
-                <button className="launch-sand" disabled={!connected || launching} onClick={launchSand}>{launching ? "Launching…" : "Launch Sand"}</button>
-                <div className={"device-pill " + (connected ? "connected" : "disconnected")}>
-                    <span className="online-dot" />{connected ? "Lenovo tablet connected" : "Tablet disconnected"}
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:ml-auto">
+                    <button
+                    className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!connected || launching}
+                    onClick={launchSand}
+                    >
+                    {launching ? "Launching…" : "Launch Sand"}
+                    </button>
+
+                    <div
+                    className={[
+                        "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
+                        connected
+                        ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+                        : "border-red-500/20 bg-red-500/10 text-red-400",
+                    ].join(" ")}
+                    >
+                    <span
+                        className={[
+                        "h-2 w-2 rounded-full",
+                        connected
+                            ? "bg-emerald-400"
+                            : "bg-red-400",
+                        ].join(" ")}
+                    />
+
+                    {connected
+                        ? "Lenovo tablet connected"
+                        : "Tablet disconnected"}
+                    </div>
+                </div>
                 </div>
             </header>
-            <section className="hero-card">
-                <div>
-                    <p className="eyebrow">ACTUAL TABLET STATUS</p>
-                    <h2>{currentLabel}</h2>
-                    <p className="subtitle">{connected ? (state?.model ?? "Lenovo tablet") + " · Android " + (state?.android ?? "—") + " · " + (state?.device ?? "USB") : "Reconnect USB debugging to resume the live feed"}</p>
-                </div>
-                <div className={"status-badge " + (connected ? (state?.sandboxForeground ? "running" : "success") : "ready")}><span />
-                    {connected ? (state?.sandboxForeground ? "APP VISIBLE" : "CONNECTED") : "OFFLINE"}
-                </div>
-                <div className="progress-track">
-                    <div style={{ width: connected ? "100%" : "0%" }} />
-                </div>
-                <div className="hero-footer">
-                    <span>{events.length} confirmed tablet events</span>
-                    <span>{state?.updatedAt ? new Date(state.updatedAt).toLocaleTimeString() : "No live update"}</span>
-                </div>
-            </section>
-            <div className="content-grid">
-                <section className="panel timeline-panel"><div className="panel-heading"><div><p className="eyebrow">REALTIME FEED</p><h3>Confirmed actions and screen changes</h3></div><span className={"live-label " + (connected ? "" : "offline")}><i />{connected ? "LIVE" : "OFFLINE"}</span></div><div className="timeline">{!events.length && <div className="empty-feed"><div className="empty-icon">◎</div><strong>No tablet activity yet</strong><span>VC TestBench will only show events it confirms on the real device.</span></div>}{[...events].reverse().map((event, index) => <div className={"step passed " + event.kind} key={event.id}><div className="step-marker">{index === 0 && connected ? "●" : "✓"}</div><div className="step-copy"><strong>{event.label}</strong><span>{event.detail}</span></div><div className="step-time">{event.at}</div></div>)}</div></section>
-                <section className="panel tablet-panel">
-                    <div className="panel-heading compact"><div>
-                        <p className="eyebrow">LIVE TABLET VIEW</p>
-                        <h3>{state?.sandboxForeground ? "Sandbox app" : "Lenovo tablet"}</h3>
+            {/* MAIN*/}
+            <div className="mx-auto max-w-[1800px] px-4 py-5 sm:px-6 lg:px-8">
+
+                {/* DASHBOARD + TABS*/}
+                <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(360px,0.8fr)]">
+
+                {/*  LEFT SIDE */}
+                <div className="flex min-w-0 flex-col gap-5">
+
+                    {/* ---------------------------------------------------
+                        TABLET STATUS
+                    --------------------------------------------------- */}
+                    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                    <div className="flex items-start justify-between gap-4">
+
+                        <div className="min-w-0">
+                        <p className="text-[10px] font-semibold tracking-[0.2em] text-slate-500">
+                            ACTUAL TABLET STATUS
+                        </p>
+
+                        <h2 className="mt-1 truncate text-xl font-semibold">
+                            {currentLabel}
+                        </h2>
+
+                        <p className="mt-2 text-sm leading-5 text-slate-400">
+                            {connected
+                            ? `${state?.model ?? "Lenovo tablet"} · Android ${
+                                state?.android ?? "—"
+                                } · ${state?.device ?? "USB"}`
+                            : "Reconnect USB debugging to resume the live feed"}
+                        </p>
+                        </div>
+
+                        <div
+                        className={[
+                            "shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold",
+                            connected
+                            ? state?.sandboxForeground
+                                ? "bg-emerald-500/10 text-emerald-400"
+                                : "bg-blue-500/10 text-blue-400"
+                            : "bg-slate-500/10 text-slate-400",
+                        ].join(" ")}
+                        >
+                        {connected
+                            ? state?.sandboxForeground
+                            ? "APP VISIBLE"
+                            : "CONNECTED"
+                            : "OFFLINE"}
+                        </div>
                     </div>
-                        <span className={"recording-dot " + (connected ? "" : "offline-dot")} /></div>
-                    <div className={"live-screen " + (connected ? "" : "screen-offline")}>
-                        {connected ?
-                            <img src={BRIDGE + "/screen?t=" + imageTick} alt="Current Lenovo tablet screen" />
-                            : <div><span>USB</span><strong>Tablet disconnected</strong><small>Reconnect and authorize USB debugging</small></div>}
+
+                    <div className="mt-5 h-1 overflow-hidden rounded-full bg-white/10">
+                        <div
+                        className="h-full rounded-full bg-emerald-400 transition-all duration-500"
+                        style={{
+                            width: connected ? "100%" : "0%",
+                        }}
+                        />
                     </div>
-                    <p className="capture-note">{connected ? "This image is captured from the tablet and refreshes automatically." : "No cached image is shown while the tablet is offline."}</p>
-                </section>
-                <section className="panel tests-panel">
-                    <div className="panel-heading compact tests-header-row"><div>
-                        <p className="eyebrow">TEST CASES</p><h3>Saved tests</h3>
+
+                    <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+                        <span>
+                        {events.length} confirmed tablet events
+                        </span>
+
+                        <span>
+                        {state?.updatedAt
+                            ? new Date(
+                                state.updatedAt
+                            ).toLocaleTimeString()
+                            : "No live update"}
+                        </span>
                     </div>
-                        <div className="tests-header-actions" />
+                    </section>
+
+
+                    {/* ---------------------------------------------------
+                        REALTIME FEED
+                    --------------------------------------------------- */}
+                    <section className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.03]">
+
+                    <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                        <div>
+                        <p className="text-[10px] font-semibold tracking-[0.2em] text-slate-500">
+                            REALTIME FEED
+                        </p>
+
+                        <h3 className="mt-1 text-sm font-semibold">
+                            Confirmed actions and screen changes
+                        </h3>
+                        </div>
+
+                        <span
+                        className={[
+                            "flex items-center gap-1.5 text-[10px] font-semibold",
+                            connected
+                            ? "text-emerald-400"
+                            : "text-slate-500",
+                        ].join(" ")}
+                        >
+                        <i
+                            className={[
+                            "h-1.5 w-1.5 rounded-full",
+                            connected
+                                ? "bg-emerald-400"
+                                : "bg-slate-500",
+                            ].join(" ")}
+                        />
+
+                        {connected ? "LIVE" : "OFFLINE"}
+                        </span>
                     </div>
-                    <div className="tests-list-wrap">{savedTests.length === 0 ? (<div className="empty-tests">No tests yet. Create one to get started.</div>)
-                        : (<ul className="tests-list">{savedTests.map((test) => (<li key={test.id} className="test-item">
-                            <div className="test-info">
-                                <button className="test-run-button secondary" disabled={!canRun || starting} onClick={() => handleRunTest(test)}>{activeTest === test.title ? "Test running…" : "Run"}</button>
-                                <span className="test-title">{test.title}</span>
+
+                    <div className="max-h-[420px] overflow-y-auto">
+
+                        {!events.length ? (
+                        <div className="flex flex-col items-center justify-center px-5 py-12 text-center">
+
+                            <div className="mb-3 text-2xl text-slate-600">
+                            ◎
                             </div>
-                            <div className="test-actions" />
-                        </li>))}
-                        </ul>)}
+
+                            <strong className="text-sm text-slate-300">
+                            No tablet activity yet
+                            </strong>
+
+                            <span className="mt-1 max-w-xs text-xs leading-5 text-slate-500">
+                            VC TestBench will only show events it confirms
+                            on the real device.
+                            </span>
+
+                        </div>
+                        ) : (
+                        <div className="divide-y divide-white/5">
+
+                            {[...events].reverse().map(
+                            (event, index) => (
+                                <div
+                                className="flex gap-3 px-5 py-3"
+                                key={event.id}
+                                >
+                                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-[10px] text-emerald-400">
+                                    {index === 0 && connected
+                                    ? "●"
+                                    : "✓"}
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+
+                                    <div className="flex items-start justify-between gap-3">
+
+                                    <strong className="truncate text-xs font-medium text-slate-200">
+                                        {event.label}
+                                    </strong>
+
+                                    <span className="shrink-0 text-[10px] text-slate-600">
+                                        {event.at}
+                                    </span>
+
+                                    </div>
+
+                                    {event.detail && (
+                                    <span className="mt-0.5 block text-[11px] leading-4 text-slate-500">
+                                        {event.detail}
+                                    </span>
+                                    )}
+
+                                </div>
+                                </div>
+                            )
+                            )}
+
+                        </div>
+                        )}
+
                     </div>
-                </section>
-                <section className="metrics-row">
-                    <div>
-                        <span>USB STATUS</span><strong>{connected ? "Online" : "Offline"}</strong>
+                    </section>
+
+
+                    {/* ---------------------------------------------------
+                        SAVED TESTS
+                    --------------------------------------------------- */}
+                    <section className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.03]">
+
+                    <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                        <div>
+                        <p className="text-[10px] font-semibold tracking-[0.2em] text-slate-500">
+                            TEST CASES
+                        </p>
+
+                        <h3 className="mt-1 text-sm font-semibold">
+                            Saved tests
+                        </h3>
+                        </div>
                     </div>
-                    <div><span>APP STATE</span><strong>{state?.sandboxForeground ? "Visible" : "—"}</strong>
+
+                    {savedTests.length === 0 ? (
+                        <div className="px-5 py-8 text-center text-xs text-slate-500">
+                        No tests yet. Create one to get started.
+                        </div>
+                    ) : (
+                        <ul className="divide-y divide-white/5">
+
+                        {savedTests.map((test) => (
+                            <li
+                            key={test.id}
+                            className="flex items-center justify-between gap-3 px-5 py-3"
+                            >
+
+                            <span className="min-w-0 truncate text-sm text-slate-300">
+                                {test.title}
+                            </span>
+
+                            <button
+                                className="shrink-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                                disabled={!canRun || starting}
+                                onClick={() =>
+                                handleRunTest(test)
+                                }
+                            >
+                                {activeTest === test.title
+                                ? "Running…"
+                                : "Run"}
+                            </button>
+
+                            </li>
+                        ))}
+
+                        </ul>
+                    )}
+                    </section>
+
+
+                    {/* ---------------------------------------------------
+                        METRICS
+                    --------------------------------------------------- */}
+                    <section className="grid grid-cols-3 divide-x divide-white/10 rounded-2xl border border-white/10 bg-white/[0.03]">
+
+                    <div className="min-w-0 px-3 py-4 text-center">
+                        <span className="block text-[9px] font-semibold tracking-wider text-slate-600">
+                        USB STATUS
+                        </span>
+
+                        <strong
+                        className={[
+                            "mt-1 block truncate text-xs",
+                            connected
+                            ? "text-emerald-400"
+                            : "text-red-400",
+                        ].join(" ")}
+                        >
+                        {connected ? "Online" : "Offline"}
+                        </strong>
                     </div>
-                    <div>
-                        <span>ROUTE</span><strong>{state?.route ?? "—"}</strong>
+
+                    <div className="min-w-0 px-3 py-4 text-center">
+                        <span className="block text-[9px] font-semibold tracking-wider text-slate-600">
+                        APP STATE
+                        </span>
+
+                        <strong className="mt-1 block truncate text-xs text-slate-300">
+                        {state?.sandboxForeground
+                            ? "Visible"
+                            : "—"}
+                        </strong>
                     </div>
+
+                    <div className="min-w-0 px-3 py-4 text-center">
+                        <span className="block text-[9px] font-semibold tracking-wider text-slate-600">
+                        ROUTE
+                        </span>
+
+                        <strong className="mt-1 block truncate text-xs text-slate-300">
+                        {state?.route ?? "—"}
+                        </strong>
+                    </div>
+
+                    </section>
+
+                </div>
+
+                {/*  RIGHT SIDE  */}
+                <section className="min-w-0">
+
+                    <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]">
+
+                    {/* Keep your existing tab component here.
+                        This is where the LIVE TABLET VIEW belongs. */}
+                    {/* <TestTabs /> */}
+                                    {connected ?
+                                        <img src={BRIDGE + "/screen?t=" + imageTick} alt="Current Lenovo tablet screen" />
+                                        : <div>
+                                            <span>USB</span><strong>Tablet disconnected</strong>
+                                            <small>Reconnect and authorize USB debugging</small>
+                                            </div>
+                                    }
+                    </div>
+
                 </section>
 
+                </div>
+
+
+                {/*   TEST CREATION  */}
+                <section className="mt-5">
+                <div className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]">
+                    <TestFlowBuilder />
+                </div>
+                </section>
             </div>
-            <TestFlowBuilder />
-            <footer className="actionbar"><div><span className="shield">{connected ? "✓" : "!"}</span><p><strong>{state?.test?.status === "running" ? (state.test.step ?? "Test running") : state?.test?.status === "passed" ? (state.test.name ?? "Test") + " passed" : connected ? "Choose a real test sequence" : "No tablet control active"}</strong><small>{lastError || state?.test?.error || "Only verified tablet actions appear in the feed"}</small></p></div></footer>
+            {/*   FOOTER*/}
+            <footer className="sticky bottom-0 border-t border-white/10 bg-slate-950/95 backdrop-blur">
+                <div className="mx-auto flex max-w-[1800px] items-center px-4 py-3 sm:px-6 lg:px-8">
+                <div className="flex min-w-0 items-center gap-3">
+                    <span
+                    className={[
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
+                        connected
+                        ? "bg-emerald-500/10 text-emerald-400"
+                        : "bg-red-500/10 text-red-400",
+                    ].join(" ")}
+                    >
+                    {connected ? "✓" : "!"}
+                    </span>
+
+                    <div className="min-w-0">
+
+                    <p className="truncate text-sm font-medium text-slate-200">
+                        {state?.test?.status === "running"
+                        ? state.test.step ??
+                            "Test running"
+                        : state?.test?.status === "passed"
+                            ? `${state.test.name ?? "Test"} passed`
+                            : connected
+                            ? "Choose a real test sequence"
+                            : "No tablet control active"}
+                    </p>
+
+                    <p className="truncate text-xs text-slate-500">
+                        {lastError ||
+                        state?.test?.error ||
+                        "Only verified tablet actions appear in the feed"}
+                    </p>
+
+                    </div>
+                </div>
+                </div>
+            </footer>
         </main>
     );
 }

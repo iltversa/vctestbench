@@ -46,7 +46,6 @@ export default function CreateTestButton({ editingAction, onEditClose, isDelayNo
       if (targetId) {
         const result = await updateTestActionAction({
           id: targetId,
-          testClassId: action.testClassId || "",
           title: action.title,
           hasConfirmation: action.hasConfirmation,
           confirmationTimeout: action.confirmationTimeout ?? null,
@@ -61,7 +60,6 @@ export default function CreateTestButton({ editingAction, onEditClose, isDelayNo
       const result = await createTestActionAction({
         ...action,
         testId: editingAction?.id || "",
-        testClassId: action.testClassId || "",
         sortOrder: 0,
         confirmationOptions: action.confirmationOptions || [],
       });

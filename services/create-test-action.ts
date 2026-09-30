@@ -4,8 +4,6 @@ import { confirmationOptions } from "@/db/schema/confirmation-options";
 
 export type CreateTestActionInput = {
   id?: string;
-  // testId: string;
-  testClassId: string;
   title: string;
   hasConfirmation: boolean;
   confirmationTimeout?: number | null;
@@ -23,14 +21,8 @@ export async function createTestActionService(
       .insert(testActions)
       .values({
         ...(input.id ? { id: input.id } : {}),
-
-        // testId: input.testId,
-        testClassId: input.testClassId,
-
         title: input.title,
-
         hasConfirmation: input.hasConfirmation,
-
         confirmationTimeout:
           input.hasConfirmation
             ? input.confirmationTimeout
@@ -51,6 +43,7 @@ export async function createTestActionService(
         .values(
           input.confirmationOptions.map((option) => ({
             testActionId: createdAction.id,
+            isSelected: option === input.confirmationOptions[0] ? "true" : "false",
             option,
           }))
         );

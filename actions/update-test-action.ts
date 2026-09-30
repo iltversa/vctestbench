@@ -4,7 +4,6 @@ import { updateTestActionService } from "@/services/update-test-action";
 
 export type UpdateTestActionInput = {
   id: string;
-  testClassId: string;
   title: string;
   hasConfirmation: boolean;
   confirmationTimeout?: number | null;

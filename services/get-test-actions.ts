@@ -2,20 +2,16 @@ import { db } from "@/db";
 import { eq, asc } from "drizzle-orm";
 import { confirmationOptions } from "@/db/schema/confirmation-options";
 import { testActions } from "@/db/schema/test-actions";
-import { testClasses } from "@/db/schema/test-classes";
 export type TestActionDefinition = {
   id: string;
   title: string;
-  testClassId: string;
-  testClassName: string;
-
   hasConfirmation: boolean;
   confirmationTimeout: number | null;
   actionTimeout: number;
-
   confirmationOptions: {
     id: string;
     option: string;
+    isSelected:boolean |null;
   }[];
 };
 
@@ -24,22 +20,14 @@ export async function getActionsService(): Promise<TestActionDefinition[]> {
     .select({
       actionId: testActions.id,
       title: testActions.title,
-
-      testClassId: testActions.testClassId,
-      testClassName: testClasses.name,
-
       hasConfirmation: testActions?.hasConfirmation,
       confirmationTimeout: testActions.confirmationTimeout,
       actionTimeout: testActions.actionTimeout,
-
       confirmationOptionId: confirmationOptions.id,
       confirmationOption: confirmationOptions.option,
+      confirmationisSelected: confirmationOptions.isSelected,
     })
     .from(testActions)
-    .innerJoin(
-      testClasses,
-      eq(testActions.testClassId, testClasses.id)
-    )
     .leftJoin(
       confirmationOptions,
       eq(
@@ -64,10 +52,6 @@ export async function getActionsService(): Promise<TestActionDefinition[]> {
       action = {
         id: row.actionId,
         title: row.title,
-
-        testClassId: row.testClassId,
-        testClassName: row.testClassName,
-
         hasConfirmation: row.hasConfirmation,
         confirmationTimeout: row.confirmationTimeout,
         actionTimeout: row.actionTimeout,
@@ -80,11 +64,12 @@ export async function getActionsService(): Promise<TestActionDefinition[]> {
 
     if (
       row.confirmationOptionId &&
-      row.confirmationOption
+      row.confirmationOption && row.confirmationisSelected
     ) {
       action.confirmationOptions.push({
         id: row.confirmationOptionId,
         option: row.confirmationOption,
+        isSelected:row.confirmationisSelected
       });
     }
   }

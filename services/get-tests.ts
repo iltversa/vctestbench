@@ -6,39 +6,7 @@ import { confirmationOptions } from "@/db/schema/confirmation-options";
 
 import { eq, asc } from "drizzle-orm";
 
-function flattenFlowSteps(flowNodes: any[] = [], ordered: any[] = []): any[] {
-  for (const node of flowNodes) {
-    if (!node) continue;
 
-    if (node.nodeType === "action") {
-      const actionData = node.actionData ?? {};
-      const title = node.actionTitle ?? actionData.title ?? "Untitled";
-
-      ordered.push({
-        id: node.actionId ?? actionData.id ?? node.id,
-        title,
-        action: actionData.title ?? title,
-        customAction: actionData.customAction ?? null,
-        testClassId: actionData.testClassId ?? null,
-        hasConfirmation: Boolean(actionData.hasConfirmation),
-        confirmationTimeout: actionData.confirmationTimeout ?? null,
-        confirmationOptions: Array.isArray(actionData.confirmationOptions)
-          ? actionData.confirmationOptions.map((option: any) =>
-              typeof option === "string" ? option : option.option ?? option.value ?? ""
-            )
-          : [],
-        actionTimeout: Number(actionData.actionTimeout ?? 0),
-        sortOrder: ordered.length,
-      });
-    }
-
-    if (Array.isArray(node.paths)) {
-      flattenFlowSteps(node.paths, ordered);
-    }
-  }
-
-  return ordered;
-}
 
 export async function getTests() {
   const testRows = await db.select().from(tests);
@@ -46,38 +14,82 @@ export async function getTests() {
   const result = [];
 
   for (const test of testRows) {
-    const flowNodes = Array.isArray((test as any).flow) ? (test as any).flow : [];
-    const flowActions = flowNodes.length > 0 ? flattenFlowSteps(flowNodes) : [];
+    const flowNodes = Array.isArray((test as any).flow)
+      ? (test as any).flow
+      : [];
 
-    const actions =
-      flowActions.length > 0
-        ? flowActions
-        : await db
-            .select()
-            .from(testActions)
-            .where(eq(testActions.testId, test.id))
-            .orderBy(asc(testActions.sortOrder));
+    // -----------------------------------
+    // Collect every actionId from flow
+    // -----------------------------------
 
-    const actionsWithOptions = [];
+    const actionIds = new Set<string>();
 
-    for (const action of actions) {
-      const actionOptions = Array.isArray(action.confirmationOptions)
-        ? action.confirmationOptions
-        : await db
-            .select()
-            .from(confirmationOptions)
-            .where(eq(confirmationOptions.testActionId, action.id));
+    function collectActionIds(nodes: any[]) {
+      for (const node of nodes) {
+        if (node?.actionId) {
+          actionIds.add(node.actionId);
+        }
 
-      actionsWithOptions.push({
+        if (Array.isArray(node?.paths)) {
+          collectActionIds(node.paths);
+        }
+      }
+    }
+
+    collectActionIds(flowNodes);
+
+    // -----------------------------------
+    // Fetch actions referenced by this flow
+    // -----------------------------------
+
+    const actions = [];
+
+    for (const actionId of actionIds) {
+      const actionRows = await db
+        .select()
+        .from(testActions)
+        .where(eq(testActions.id, actionId));
+
+      if (actionRows.length === 0) {
+        console.warn(
+          `Action not found: ${actionId}`
+        );
+
+        continue;
+      }
+
+      const action = actionRows[0];
+
+      // -----------------------------------
+      // Fetch confirmation options
+      // -----------------------------------
+
+      const actionOptions = await db
+        .select()
+        .from(confirmationOptions)
+        .where(
+          eq(
+            confirmationOptions.testActionId,
+            action.id
+          )
+        );
+
+      actions.push({
         ...action,
+
         confirmationOptions: actionOptions,
       });
     }
 
     result.push({
       ...test,
+
+      // Original tree.
+      // This determines execution order.
       flow: flowNodes,
-      actions: actionsWithOptions,
+
+      // Action definitions referenced by flow.
+      actions,
     });
   }
 
