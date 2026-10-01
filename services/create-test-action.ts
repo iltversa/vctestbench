@@ -7,9 +7,8 @@ export type CreateTestActionInput = {
   title: string;
   hasConfirmation: boolean;
   confirmationTimeout?: number | null;
-  confirmationOptions: string[];
+  confirmationOptions: { option: string; isSelected: boolean }[];
   actionTimeout: number;
-  sortOrder: number;
 };
 
 
@@ -29,8 +28,6 @@ export async function createTestActionService(
             : null,
 
         actionTimeout: input.actionTimeout,
-
-        sortOrder: input.sortOrder,
       })
       .returning();
 
@@ -43,8 +40,8 @@ export async function createTestActionService(
         .values(
           input.confirmationOptions.map((option) => ({
             testActionId: createdAction.id,
-            isSelected: option === input.confirmationOptions[0] ? "true" : "false",
-            option,
+            isSelected: option.isSelected,
+            option: option.option,
           }))
         );
     }

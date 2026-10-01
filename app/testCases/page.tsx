@@ -1,9 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import TestCaseBuilderDialog from "../../components/TestCaseBuilder";
-
-
 import { useEffect } from "react";
 import { SavedTest } from "../page";
 import ActionDialog, { TestAction } from "@/components/ActionDialog";
@@ -14,9 +11,10 @@ type CreateTestButtonProps = {
   editingAction: SavedTest | TestAction | null;
   isDelayNode:boolean;
   onEditClose: () => void;
+  onActionSaved?: () => void | Promise<void>;
 };
 
-export default function CreateTestButton({ editingAction, onEditClose, isDelayNode }: CreateTestButtonProps) {
+export default function CreateTestButton({ editingAction, onEditClose, isDelayNode, onActionSaved }: CreateTestButtonProps) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -30,14 +28,30 @@ export default function CreateTestButton({ editingAction, onEditClose, isDelayNo
     onEditClose();
   };
 
-  const transformedAction = editingAction ? {
-    ...editingAction,
-    confirmationOptions: Array.isArray(editingAction.confirmationOptions)
-      ? (editingAction.confirmationOptions as any[]).map((opt) =>
-          typeof opt === "string" ? opt : opt.value
-        )
-      : [],
-  } : null;
+  const transformedAction: TestAction | null = editingAction
+    ? (() => {
+        const source = editingAction as Partial<TestAction> & {
+          confirmationOptions?: Array<string | { option?: string; isSelected?: boolean }>;
+        };
+
+        return {
+          id: typeof (editingAction as any).id === "string" ? (editingAction as any).id : undefined,
+          title: typeof (editingAction as any).title === "string" ? (editingAction as any).title : "",
+          hasConfirmation: Boolean((editingAction as any).hasConfirmation),
+          confirmationTimeout: (editingAction as any).confirmationTimeout ?? null,
+          confirmationOptions: Array.isArray(source.confirmationOptions)
+            ? source.confirmationOptions.map((opt) => {
+                const value = typeof opt === "string" ? opt : (opt?.option ?? "");
+                return {
+                  option: value,
+                  isSelected: typeof opt === "string" ? true : Boolean(opt?.isSelected),
+                };
+              })
+            : [],
+          actionTimeout: Number((editingAction as any).actionTimeout ?? 5),
+        };
+      })()
+    : null;
 
   const handleSaveAction = async (action: TestAction) => {
     try {
@@ -49,21 +63,28 @@ export default function CreateTestButton({ editingAction, onEditClose, isDelayNo
           title: action.title,
           hasConfirmation: action.hasConfirmation,
           confirmationTimeout: action.confirmationTimeout ?? null,
-          confirmationOptions: action.confirmationOptions || [],
+          confirmationOptions: (action.confirmationOptions || []).map((option) => ({
+            option: option.option,
+            isSelected: option.isSelected,
+          })),
           actionTimeout: action.actionTimeout,
         });
 
         console.log("Action updated:", result);
+        await onActionSaved?.();
         return;
       }
 
       const result = await createTestActionAction({
         ...action,
         testId: editingAction?.id || "",
-        sortOrder: 0,
-        confirmationOptions: action.confirmationOptions || [],
+        confirmationOptions: (action.confirmationOptions || []).map((option) => ({
+          option: option.option,
+          isSelected: option.isSelected,
+        })),
       });
       console.log("Action saved:", result);
+      await onActionSaved?.();
     } catch (error) {
       console.error("Failed to save action:", error);
       throw error;

@@ -9,9 +9,8 @@ export type UpdateTestActionInput = {
   title: string;
   hasConfirmation: boolean;
   confirmationTimeout?: number | null;
-  confirmationOptions: string[];
+  confirmationOptions: { option: string; isSelected: boolean }[];
   actionTimeout: number;
-  sortOrder?: number;
 };
 
 export async function updateTestActionService(input: UpdateTestActionInput) {
@@ -23,7 +22,6 @@ export async function updateTestActionService(input: UpdateTestActionInput) {
         hasConfirmation: input.hasConfirmation,
         confirmationTimeout: input.hasConfirmation ? input.confirmationTimeout ?? null : null,
         actionTimeout: input.actionTimeout,
-        ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
       })
       .where(eq(testActions.id, input.id))
       .returning();
@@ -40,8 +38,8 @@ export async function updateTestActionService(input: UpdateTestActionInput) {
       await tx.insert(confirmationOptions).values(
         input.confirmationOptions.map((option) => ({
           testActionId: input.id,
-          isSelected: option === input.confirmationOptions[0] ? "true" : "false",
-          option,
+          isSelected: option.isSelected,
+          option: option.option,
         }))
       );
     }

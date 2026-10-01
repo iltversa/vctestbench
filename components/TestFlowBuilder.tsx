@@ -8,6 +8,7 @@ import getActionsAction from "@/actions/get-actions";
 import { TestActionDefinition } from "@/services/get-test-actions";
 import { getTestClassesAction } from "@/actions/get-classes";
 import { createFullTestAction } from "@/actions/create-full-test";
+import { deleteTestActionDefinition } from "@/actions/delete-test-action";
 
 
 export type FlowNode = {
@@ -220,9 +221,11 @@ export default function TestFlowBuilder() {
       title: node.title,
       hasConfirmation: node.hasConfirmation,
       confirmationTimeout: node.confirmationTimeout,
-      confirmationOptions: node.confirmationOptions.map(
-        (opt) => opt.option
-      ),
+      confirmationOptions: node.confirmationOptions.map((opt) => ({
+        id: opt.id,
+        option: opt.option,
+        isSelected: Boolean(opt.isSelected),
+      })),
       actionTimeout: node.actionTimeout,
     };
     setEditingTest(testAction as any);
@@ -234,7 +237,11 @@ export default function TestFlowBuilder() {
       title: action.title,
       hasConfirmation: action.hasConfirmation,
       confirmationTimeout: action.confirmationTimeout,
-      confirmationOptions: action.confirmationOptions.map((opt) => opt.option),
+      confirmationOptions: action.confirmationOptions.map((opt) => ({
+        id: opt.id,
+        option: opt.option,
+        isSelected: Boolean(opt.isSelected),
+      })),
       actionTimeout: action.actionTimeout,
     };
     setEditingTest(testAction as any);
@@ -245,7 +252,7 @@ export default function TestFlowBuilder() {
 
   const getDelayLabel = (action: TestActionDefinition | undefined) => {
     if (!action) return "0s";
-    const seconds = Math.round((action.actionTimeout ?? 0) / 1000);
+    const seconds = Number(action.actionTimeout ?? 0);
     return `${seconds}s`;
   };
 
@@ -259,6 +266,63 @@ export default function TestFlowBuilder() {
   }));
 };
 
+  const syncActionDataInTree = (
+    flowNodes: FlowNode[],
+    actionList: TestActionDefinition[]
+  ): FlowNode[] =>
+    flowNodes.map((node) => {
+      const matchedAction = node.actionId
+        ? actionList.find((action) => action.id === node.actionId)
+        : undefined;
+
+      return {
+        ...node,
+        actionData: matchedAction ?? node.actionData,
+        paths: syncActionDataInTree(node.paths, actionList),
+      };
+    });
+
+  const loadActions = async () => {
+      try {
+        const result = await getActionsAction();
+
+        if (!result.success) {
+          throw new Error(
+            result.message ?? "Failed to fetch test classes"
+          );
+        }
+
+        setActions(result.data);
+        setNodes((currentNodes) => syncActionDataInTree(currentNodes, result.data));
+      } catch (error) {
+        console.error("Failed to load actions:", error);
+      }
+  };
+
+  const refreshActions = async () => {
+    await loadActions();
+  };
+
+  const handleDeleteAction = async (actionId: string) => {
+    if (!actionId) return;
+
+    const confirmed = window.confirm("Delete this saved action?");
+    if (!confirmed) return;
+
+    const result = await deleteTestActionDefinition({ id: actionId });
+
+    if (!result.success) {
+      alert(result.message ?? "Could not delete action");
+      return;
+    }
+
+    await refreshActions();
+  };
+
+  useEffect(() => {
+    loadActions();
+  }, []);
+
   const handleSaveTest = async () => {
     if (!testTitle.trim()) {
       alert("Please enter a test title");
@@ -266,8 +330,6 @@ export default function TestFlowBuilder() {
     }
 
     const flowTree = extractFlowTree(nodes);
-    // const testActions = extractActionsFromNodes(nodes);
-
 
     setSaving(true);
     try {
@@ -275,7 +337,6 @@ export default function TestFlowBuilder() {
         title: testTitle.trim(),
         description: testDescription.trim(),
         flow: flowTree,
-        // actions: testActions,
       });
 
       if (result.success) {
@@ -500,29 +561,6 @@ export default function TestFlowBuilder() {
       </div>
     );
   };
-  async function loadActions() {
-      try {
-
-        const result = await getActionsAction();
-
-        if (!result.success) {
-          throw new Error(
-            result.message ?? "Failed to fetch test classes"
-          );
-        }
-
-        setActions(result.data);
-      } catch (error) {
-        console.error("Failed to load actions:", error);
-      } finally {
-        console.log("Failed to load actions:");
-      }
-  }
-  useEffect(() => {
-    loadActions();
-  }, []);
-
-
 
   return (
     <div className="flow-builder">
@@ -545,6 +583,7 @@ export default function TestFlowBuilder() {
               editingAction={editingTest}
               isDelayNode={isDelayAction(editingTest?.title)}
               onEditClose={() => setEditingTest(null)}
+              onActionSaved={refreshActions}
             />
           </div>
 
@@ -573,6 +612,17 @@ export default function TestFlowBuilder() {
                 </button>
                 <span className="drag-icon">⋮⋮</span>
                 <span className="action-title"> {action.title}</span>
+
+                <button
+                  className="edit-button"
+                  onClick={() => handleDeleteAction(action.id)}
+                  type="button"
+                  title="Delete action"
+                  aria-label={`Delete ${action.title}`}
+                  style={{ marginLeft: "auto" }}
+                >
+                  🗑️
+                </button>
               </div>
             ))}
           </div>

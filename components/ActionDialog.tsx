@@ -3,15 +3,24 @@
 import { getTestClassesAction } from "@/actions/get-classes";
 import { useEffect, useState } from "react";
 
+export type ConfirmationChoice = {
+    option: string;
+    isSelected: boolean;
+    id?: string;
+};
+
 export type TestAction = {
     id?: string;
     title: string;
     hasConfirmation: boolean;
     confirmationTimeout?: number | null;
-    confirmationOptions?: string[];
-    // sortOrder: number;
+    confirmationOptions?: ConfirmationChoice[];
     actionTimeout: number;
 };
+
+const DEFAULT_CONFIRMATION_OPTIONS: ConfirmationChoice[] = [
+    { option: "YES", isSelected: true },
+];
 
 type TestClass = {
     id: string;
@@ -24,8 +33,6 @@ type ActionDialogProps = {
     isDelayNode: boolean;
     onSave?: (action: TestAction) => Promise<void>;
 };
-
-const DEFAULT_CONFIRMATION_OPTIONS = ["YES"];
 
 export default function ActionDialog({
     test,
@@ -50,9 +57,13 @@ export default function ActionDialog({
         test?.confirmationTimeout?.toString() ?? "5"
     );
 
-    const [confirmationOptions, setConfirmationOptions] = useState<string[]>(
+    const [confirmationOptions, setConfirmationOptions] = useState<ConfirmationChoice[]>(
         test?.confirmationOptions?.length
-            ? test.confirmationOptions
+            ? test.confirmationOptions.map((option) => ({
+                  option: option.option,
+                  isSelected: Boolean(option.isSelected),
+                  id: option.id,
+              }))
             : DEFAULT_CONFIRMATION_OPTIONS
     );
 
@@ -68,13 +79,17 @@ export default function ActionDialog({
 
         setConfirmationOptions(
             test?.confirmationOptions?.length
-                ? test.confirmationOptions
+                ? test.confirmationOptions.map((option) => ({
+                      option: option.option,
+                      isSelected: Boolean(option.isSelected),
+                      id: option.id,
+                  }))
                 : DEFAULT_CONFIRMATION_OPTIONS
         );
     }, [test]);
 
     const addConfirmationOption = () => {
-        setConfirmationOptions((current) => [...current, ""]);
+        setConfirmationOptions((current) => [...current, { option: "", isSelected: false }]);
     };
 
     const removeConfirmationOption = (index: number) => {
@@ -89,7 +104,15 @@ export default function ActionDialog({
     ) => {
         setConfirmationOptions((current) =>
             current.map((option, optionIndex) =>
-                optionIndex === index ? value : option
+                optionIndex === index ? { ...option, option: value } : option
+            )
+        );
+    };
+
+    const toggleConfirmationOption = (index: number) => {
+        setConfirmationOptions((current) =>
+            current.map((option, optionIndex) =>
+                optionIndex === index ? { ...option, isSelected: !option.isSelected } : option
             )
         );
     };
@@ -102,7 +125,7 @@ export default function ActionDialog({
 
         if (
             hasConfirmation &&
-            confirmationOptions.some((option) => !option.trim())
+            confirmationOptions.some((option) => !option.option.trim())
         ) {
             alert("Please fill in all confirmation options.");
             return;
@@ -118,8 +141,11 @@ export default function ActionDialog({
 
             confirmationOptions: hasConfirmation
             ? confirmationOptions
-                .map((option) => option.trim())
-                .filter(Boolean)
+                .map((option) => ({
+                    option: option.option.trim(),
+                    isSelected: option.isSelected,
+                }))
+                .filter((option) => option.option)
             : [],
 
             actionTimeout: Number(actionTimeout),
@@ -235,8 +261,15 @@ export default function ActionDialog({
                                                 className="flex items-center gap-2"
                                             >
                                                 <input
+                                                    type="checkbox"
+                                                    checked={option.isSelected}
+                                                    onChange={() => toggleConfirmationOption(index)}
+                                                    className="h-4 w-4 rounded border-gray-300 text-black focus:ring-black"
+                                                />
+
+                                                <input
                                                     type="text"
-                                                    value={option}
+                                                    value={option.option}
                                                     onChange={(event) =>
                                                         updateConfirmationOption(
                                                             index,

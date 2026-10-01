@@ -46,30 +46,28 @@ export async function getActionsService(): Promise<TestActionDefinition[]> {
   >();
 
   for (const row of rows) {
-    let action = actionsMap.get(row.actionId);
+    const actionId = String(row.actionId);
+    const action = actionsMap.get(actionId) ?? {
+      id: actionId,
+      title: String(row.title),
+      hasConfirmation: Boolean(row.hasConfirmation),
+      confirmationTimeout: row.confirmationTimeout ?? null,
+      actionTimeout: Number(row.actionTimeout ?? 0),
+      confirmationOptions: [],
+    };
 
-    if (!action) {
-      action = {
-        id: row.actionId,
-        title: row.title,
-        hasConfirmation: row.hasConfirmation,
-        confirmationTimeout: row.confirmationTimeout,
-        actionTimeout: row.actionTimeout,
-
-        confirmationOptions: [],
-      };
-
-      actionsMap.set(row.actionId, action);
+    if (!actionsMap.has(actionId)) {
+      actionsMap.set(actionId, action);
     }
 
-    if (
-      row.confirmationOptionId &&
-      row.confirmationOption && row.confirmationisSelected
-    ) {
+    const optionId = row.confirmationOptionId ? String(row.confirmationOptionId) : null;
+    const optionValue = row.confirmationOption ? String(row.confirmationOption) : null;
+
+    if (optionId && optionValue) {
       action.confirmationOptions.push({
-        id: row.confirmationOptionId,
-        option: row.confirmationOption,
-        isSelected:row.confirmationisSelected
+        id: optionId,
+        option: optionValue,
+        isSelected: Boolean(row.confirmationisSelected),
       });
     }
   }

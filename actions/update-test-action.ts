@@ -7,9 +7,8 @@ export type UpdateTestActionInput = {
   title: string;
   hasConfirmation: boolean;
   confirmationTimeout?: number | null;
-  confirmationOptions: string[];
+  confirmationOptions: { option: string; isSelected: boolean }[];
   actionTimeout: number;
-  sortOrder?: number;
 };
 
 export async function updateTestActionAction(input: UpdateTestActionInput) {
