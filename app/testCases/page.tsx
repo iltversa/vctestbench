@@ -9,12 +9,14 @@ import { updateTestActionAction } from "@/actions/update-test-action";
 
 type CreateTestButtonProps = {
   editingAction: SavedTest | TestAction | null;
-  isDelayNode:boolean;
+  isDelayNode: boolean;
+  isFlowPlacement?: boolean;
   onEditClose: () => void;
   onActionSaved?: () => void | Promise<void>;
+  onFlowActionSave?: (action: TestAction) => void;
 };
 
-export default function CreateTestButton({ editingAction, onEditClose, isDelayNode, onActionSaved }: CreateTestButtonProps) {
+export default function CreateTestButton({ editingAction, onEditClose, isDelayNode, isFlowPlacement, onFlowActionSave, onActionSaved }: CreateTestButtonProps) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -54,6 +56,14 @@ export default function CreateTestButton({ editingAction, onEditClose, isDelayNo
     : null;
 
   const handleSaveAction = async (action: TestAction) => {
+    // If this is for flow placement, just call the callback and don't save to DB
+    if (isFlowPlacement && onFlowActionSave) {
+      onFlowActionSave(action);
+      handleClose();
+      return;
+    }
+
+    // Otherwise, save to database as normal
     try {
       const targetId = action.id ?? editingAction?.id;
 
@@ -72,6 +82,7 @@ export default function CreateTestButton({ editingAction, onEditClose, isDelayNo
 
         console.log("Action updated:", result);
         await onActionSaved?.();
+        handleClose();
         return;
       }
 
@@ -85,6 +96,7 @@ export default function CreateTestButton({ editingAction, onEditClose, isDelayNo
       });
       console.log("Action saved:", result);
       await onActionSaved?.();
+      handleClose();
     } catch (error) {
       console.error("Failed to save action:", error);
       throw error;

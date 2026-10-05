@@ -1,14 +1,15 @@
 "use client";
 
 import "../app/TestFlowBuilder.css";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import CreateTestButton from "@/app/testCases/page";
 import { SavedTest } from "@/app/page";
 import getActionsAction from "@/actions/get-actions";
 import { TestActionDefinition } from "@/services/get-test-actions";
 import { getTestClassesAction } from "@/actions/get-classes";
-import { createFullTestAction } from "@/actions/create-full-test";
+import { createFullTestAction, updateFullTestAction } from "@/actions/create-full-test";
 import { deleteTestActionDefinition } from "@/actions/delete-test-action";
+import { TestAction } from "@/components/ActionDialog";
 
 
 export type FlowNode = {
@@ -30,36 +31,79 @@ const createNode = (): FlowNode => ({
   nodeType: "action",
   paths: [],
 });
+const hydrateFlow = (
+  flow: any[],
+  actionList: TestActionDefinition[],
+  parentAction?: TestActionDefinition
+): FlowNode[] =>
+  (flow ?? []).map((n) => {
+    const action = n.actionId
+      ? actionList.find((a) => a.id === n.actionId)
+      : undefined;
+    const isConfirmation = !!n.optionId;
+    const option = isConfirmation
+      ? parentAction?.confirmationOptions.find((o) => o.id === n.optionId)
+      : undefined;
+
+    return {
+      id: n.id,
+      actionId: n.actionId ?? undefined,
+      actionTitle: action?.title,
+      actionData: action,
+      optionId: n.optionId ?? undefined,
+      optionLabel: option?.option,
+      isSelected: n.isSelected,
+      nodeType: isConfirmation ? "confirmation" : "action",
+      paths: hydrateFlow(n.paths, actionList, action),
+    } as FlowNode;
+  });
 
 
+
+
+  
 export default function TestFlowBuilder({ editingTest: initialTest }: { editingTest?: SavedTest }) {
   const [nodes, setNodes] = useState<FlowNode[]>([createNode()]);
   const [draggedAction, setDraggedAction] = useState<TestActionDefinition | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [editingAction, setEditingAction] = useState<TestActionDefinition | null>(null);
+  const [pendingNodeId, setPendingNodeId] = useState<string | null>(null);
   const [actions, setActions] = useState<TestActionDefinition[]>([]);
   const [testTitle, setTestTitle] = useState(initialTest?.title ?? "");
   const [testDescription, setTestDescription] = useState(initialTest ? "" : "");
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (initialTest) {
-      console.log("Populating TestFlowBuilder with initial test:", initialTest);
-      setTestTitle(initialTest.title ?? "");
-      setTestDescription("");
-      // Populate nodes from flow if it exists
-      if (initialTest.flow && initialTest.flow.length > 0) {
-        setNodes(initialTest.flow);
-      } else {
-        setNodes([createNode()]);
-      }
-      // Populate actions from test if they exist
-      if (initialTest.actions && initialTest.actions.length > 0) {
-        setActions(initialTest.actions as any[]);
-      }
-    }
-  }, [initialTest]);
+  // useEffect(() => {
+  //   if (initialTest) {
+  //     console.log("Populating TestFlowBuilder with initial test:", initialTest);
+  //     setTestTitle(initialTest.title ?? "");
+  //     setTestDescription("");
+  //     // Populate nodes from flow if it exists
+  //     if (initialTest.flow && initialTest.flow.length > 0) {
+  //       setNodes(initialTest.flow);
+  //     } else {
+  //       setNodes([createNode()]);
+  //     }
+  //     // Populate actions from test if they exist
+  //     if (initialTest.actions && initialTest.actions.length > 0) {
+  //       setActions(initialTest.actions as any[]);
+  //     }
+  //   }
+  // }, [initialTest]);
 
+  const hydratedRef = useRef(false);
+
+  useEffect(() => {
+    if (!initialTest || actions.length === 0 || hydratedRef.current) return;
+    hydratedRef.current = true;
+
+    setTestTitle(initialTest.title ?? "");
+    setNodes(
+      initialTest.flow?.length
+        ? hydrateFlow(initialTest.flow, actions)
+        : [createNode()]
+    );
+  }, [initialTest, actions]);
 
   const handleDragStart = (
     event: React.DragEvent<HTMLDivElement>,
@@ -163,25 +207,9 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
       return;
     }
 
-    setNodes((currentNodes) =>
-      updateNode(currentNodes, nodeId, (node) => {
-        const children = buildChildrenForAction(action);
-
-        return {
-          ...node,
-          actionId: action.id,
-          actionTitle: action.title,
-          nodeType: "action" as const,
-          actionData: action,
-          paths: children,
-        };
-      })
-    );
-
-    if (isDelayAction(action.title)) {
-      openActionEditor(action);
-    }
-
+    // Store the target node and open the action editor
+    setPendingNodeId(nodeId);
+    setEditingAction(action);
     setDraggedAction(null);
   };
 
@@ -246,6 +274,8 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
       })),
       actionTimeout: node.actionTimeout,
     };
+    // When editing an action from sidebar, no pending node ID
+    setPendingNodeId(null);
     setEditingAction(testAction as any);
   };
 
@@ -262,7 +292,48 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
       })),
       actionTimeout: action.actionTimeout,
     };
+    // When opening from a node, no pending node ID
+    setPendingNodeId(null);
     setEditingAction(testAction as any);
+  };
+
+  const handleActionSavedToFlow = (configuredAction: TestAction) => {
+    if (!pendingNodeId) return;
+
+    // Convert TestAction to a format that can be placed in the node
+    const actionDef: TestActionDefinition = {
+      id: configuredAction.id || crypto.randomUUID(),
+      title: configuredAction.title,
+      hasConfirmation: configuredAction.hasConfirmation,
+      confirmationTimeout: configuredAction.confirmationTimeout || null,
+      confirmationOptions: (configuredAction.confirmationOptions || []).map((opt) => ({
+        id: opt.id || crypto.randomUUID(),
+        option: opt.option,
+        isSelected: opt.isSelected,
+      })),
+      actionTimeout: configuredAction.actionTimeout,
+      pasteText: (configuredAction as any).pasteText || null,
+    };
+
+    // Add the configured action to the pending node
+    setNodes((currentNodes) =>
+      updateNode(currentNodes, pendingNodeId, (node) => {
+        const children = buildChildrenForAction(actionDef);
+
+        return {
+          ...node,
+          actionId: actionDef.id,
+          actionTitle: actionDef.title,
+          nodeType: "action" as const,
+          actionData: actionDef,
+          paths: children,
+        };
+      })
+    );
+
+    // Clear the pending state and close editor
+    setPendingNodeId(null);
+    setEditingAction(null);
   };
 
   const isDelayAction = (title?: string) =>
@@ -351,19 +422,23 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
 
     setSaving(true);
     try {
-      const result = await createFullTestAction({
+      const payload = {
         title: testTitle.trim(),
         description: testDescription.trim(),
         flow: flowTree,
-      });
+      };
+
+      const result = initialTest
+        ? await updateFullTestAction({ id: initialTest.id, ...payload })
+        : await createFullTestAction(payload);
 
       if (result.success) {
         alert("Test saved successfully!");
-        setTestTitle("");
-        setTestDescription("");
-        setNodes([createNode()]);
-      } else {
-        alert(result.message || "Failed to save test");
+        if (!initialTest) {
+          setTestTitle("");
+          setTestDescription("");
+          setNodes([createNode()]);
+        }
       }
     } catch (error) {
       console.error("Failed to save test:", error);
@@ -600,7 +675,12 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
             <CreateTestButton
               editingAction={editingAction}
               isDelayNode={isDelayAction(editingAction?.title)}
-              onEditClose={() => setEditingAction(null)}
+              isFlowPlacement={pendingNodeId !== null}
+              onEditClose={() => {
+                setEditingAction(null);
+                setPendingNodeId(null);
+              }}
+              onFlowActionSave={handleActionSavedToFlow}
               onActionSaved={refreshActions}
             />
           </div>
