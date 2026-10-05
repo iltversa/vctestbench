@@ -32,15 +32,33 @@ const createNode = (): FlowNode => ({
 });
 
 
-export default function TestFlowBuilder() {
+export default function TestFlowBuilder({ editingTest: initialTest }: { editingTest?: SavedTest }) {
   const [nodes, setNodes] = useState<FlowNode[]>([createNode()]);
   const [draggedAction, setDraggedAction] = useState<TestActionDefinition | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const [editingTest, setEditingTest] = useState<SavedTest | null>(null);
+  const [editingAction, setEditingAction] = useState<TestActionDefinition | null>(null);
   const [actions, setActions] = useState<TestActionDefinition[]>([]);
-  const [testTitle, setTestTitle] = useState("");
-  const [testDescription, setTestDescription] = useState("");
+  const [testTitle, setTestTitle] = useState(initialTest?.title ?? "");
+  const [testDescription, setTestDescription] = useState(initialTest ? "" : "");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (initialTest) {
+      console.log("Populating TestFlowBuilder with initial test:", initialTest);
+      setTestTitle(initialTest.title ?? "");
+      setTestDescription("");
+      // Populate nodes from flow if it exists
+      if (initialTest.flow && initialTest.flow.length > 0) {
+        setNodes(initialTest.flow);
+      } else {
+        setNodes([createNode()]);
+      }
+      // Populate actions from test if they exist
+      if (initialTest.actions && initialTest.actions.length > 0) {
+        setActions(initialTest.actions as any[]);
+      }
+    }
+  }, [initialTest]);
 
 
   const handleDragStart = (
@@ -228,7 +246,7 @@ export default function TestFlowBuilder() {
       })),
       actionTimeout: node.actionTimeout,
     };
-    setEditingTest(testAction as any);
+    setEditingAction(testAction as any);
   };
 
   const openActionEditor = (action: TestActionDefinition) => {
@@ -244,7 +262,7 @@ export default function TestFlowBuilder() {
       })),
       actionTimeout: action.actionTimeout,
     };
-    setEditingTest(testAction as any);
+    setEditingAction(testAction as any);
   };
 
   const isDelayAction = (title?: string) =>
@@ -580,9 +598,9 @@ export default function TestFlowBuilder() {
               <p>Drag an action into the flow</p>
             </div>
             <CreateTestButton
-              editingAction={editingTest}
-              isDelayNode={isDelayAction(editingTest?.title)}
-              onEditClose={() => setEditingTest(null)}
+              editingAction={editingAction}
+              isDelayNode={isDelayAction(editingAction?.title)}
+              onEditClose={() => setEditingAction(null)}
               onActionSaved={refreshActions}
             />
           </div>

@@ -8,6 +8,7 @@ export type TestActionDefinition = {
   hasConfirmation: boolean;
   confirmationTimeout: number | null;
   actionTimeout: number;
+  pasteText?: string | null;
   confirmationOptions: {
     id: string;
     option: string;
@@ -23,6 +24,7 @@ export async function getActionsService(): Promise<TestActionDefinition[]> {
       hasConfirmation: testActions?.hasConfirmation,
       confirmationTimeout: testActions.confirmationTimeout,
       actionTimeout: testActions.actionTimeout,
+      pasteText: testActions.pasteText,
       confirmationOptionId: confirmationOptions.id,
       confirmationOption: confirmationOptions.option,
       confirmationisSelected: confirmationOptions.isSelected,
@@ -53,6 +55,7 @@ export async function getActionsService(): Promise<TestActionDefinition[]> {
       hasConfirmation: Boolean(row.hasConfirmation),
       confirmationTimeout: row.confirmationTimeout ?? null,
       actionTimeout: Number(row.actionTimeout ?? 0),
+      pasteText: row.pasteText ?? null,
       confirmationOptions: [],
     };
 

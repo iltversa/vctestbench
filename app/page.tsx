@@ -1,8 +1,9 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { getTestsAction } from "@/actions/get-tests";
 import { deleteTestAction } from "@/actions/delete-test";
-import TestFlowBuilder from "@/components/TestFlowBuilder";
+import CreateTestModal from "@/components/CreateTestModal";
 type FeedEvent = { id: number; at: string; label: string; detail: string; kind: "info" | "success" | "warning" };
 type TabletState = { connected: boolean; device?: string; model?: string; android?: string; foregroundPackage?: string; sandboxForeground: boolean; route?: string; updatedAt: string; events: FeedEvent[]; test?: { status: "idle" | "running" | "passed" | "failed"; name?: string; step?: string; error?: string } };
 
@@ -32,12 +33,14 @@ export type SavedTest = {
 };
 
 export default function Home() {
+    const router = useRouter();
     const [state, setState] = useState<TabletState | null>(null),
     [bridgeOnline, setBridgeOnline] = useState(false),
     [lastError, setLastError] = useState(""),
     [imageTick, setImageTick] = useState(0),
     [starting, setStarting] = useState(false),
-    [launching, setLaunching] = useState(false);
+    [launching, setLaunching] = useState(false),
+    [createModalOpen, setCreateModalOpen] = useState(false);
     const refresh = useCallback(async () => {
         try {
             const response = await fetch(BRIDGE + "/state", { cache: "no-store" });
@@ -66,12 +69,12 @@ export default function Home() {
 
     const activeTest = state?.test?.status === "running" ? state.test.name : "";
 
-    const handleCreateTestScroll = () => {
-        if (typeof window === "undefined") return;
-        const target = document.getElementById("test-config-zone");
-        if (target) {
-            target.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
+    const handleCreateTestClick = () => {
+        setCreateModalOpen(true);
+    };
+
+    const handleEditTest = (testId: string) => {
+        router.push(`/test/${testId}`);
     };
 
     const [savedTests, setSavedTests] = useState<SavedTest[]>([]);
@@ -190,9 +193,9 @@ export default function Home() {
 
             <div className="mx-auto max-w-[1800px] px-4 py-5 sm:px-6 lg:px-8">
                 <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(360px,0.8fr)]">
-                    <div className="h-200 flex min-w-0 flex-col gap-5">
+                    <div className="flex min-w-0 flex-col gap-5">
                         {connected && (
-                            <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm h-100">
+                            <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm h-[280px]">
                                 <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                                     <div>
                                         <p className="text-[10px] font-semibold tracking-[0.2em] text-slate-500">
@@ -256,7 +259,7 @@ export default function Home() {
                             </section>
                         )}
 
-                        <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm h-100">
+                        <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm flex-1">
                             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                                 <div>
                                     <p className="text-[10px] font-semibold tracking-[0.2em] text-slate-500">
@@ -268,7 +271,7 @@ export default function Home() {
 
                                 <button
                                     type="button"
-                                    onClick={handleCreateTestScroll}
+                                    onClick={handleCreateTestClick}
                                     className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-700"
                                 >
                                     Create test
@@ -287,6 +290,14 @@ export default function Home() {
                                                 <span className="min-w-0 truncate text-sm text-slate-700">{test.title}</span>
 
                                                 <div className="flex items-center gap-2">
+                                                    <button
+                                                        className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+                                                        onClick={() => handleEditTest(test.id)}
+                                                        type="button"
+                                                    >
+                                                        Edit
+                                                    </button>
+
                                                     <button
                                                         className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
                                                         disabled={!canRun || starting}
@@ -313,7 +324,7 @@ export default function Home() {
                             </div>
                         </section>
 
-                        <section className="grid grid-cols-3 divide-x divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <section className="flex-shrink-0 grid grid-cols-3 divide-x divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                             <div className="min-w-0 px-3 py-4 text-center">
                                 <span className="block text-[9px] font-semibold tracking-wider text-slate-500">
                                     USB STATUS
@@ -373,12 +384,6 @@ export default function Home() {
                         </div>
                     </section>
                 </div>
-
-                <section className="mt-5">
-                    <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                        <TestFlowBuilder />
-                    </div>
-                </section>
             </div>
 
             <footer className="sticky bottom-0 border-t border-slate-200 bg-white/95 backdrop-blur">
@@ -411,6 +416,8 @@ export default function Home() {
                     </div>
                 </div>
             </footer>
+
+            <CreateTestModal open={createModalOpen} onClose={() => setCreateModalOpen(false)} />
         </main>
     );
 }

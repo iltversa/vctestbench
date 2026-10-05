@@ -16,6 +16,7 @@ export type TestAction = {
     confirmationTimeout?: number | null;
     confirmationOptions?: ConfirmationChoice[];
     actionTimeout: number;
+    pasteText?: string;
 };
 
 const DEFAULT_CONFIRMATION_OPTIONS: ConfirmationChoice[] = [
@@ -48,6 +49,7 @@ export default function ActionDialog({
     const [actionTimeout, setActionTimeout] = useState(
         test?.actionTimeout?.toString() ?? "5"
     );
+    const [pasteText, setPasteText] = useState(test?.pasteText ?? "");
 
     const [hasConfirmation, setHasConfirmation] = useState(
         test?.hasConfirmation ?? false
@@ -72,6 +74,7 @@ export default function ActionDialog({
     useEffect(() => {
         setTitle(test?.title ?? "");
         setActionTimeout(test?.actionTimeout?.toString() ?? "5");
+        setPasteText(test?.pasteText ?? "");
         setHasConfirmation(test?.hasConfirmation ?? false);
         setConfirmationTimeout(
             test?.confirmationTimeout?.toString() ?? "5"
@@ -131,6 +134,12 @@ export default function ActionDialog({
             return;
         }
 
+        const isPasteAction = title.trim().toUpperCase() === "PASTE";
+        if (isPasteAction && !pasteText.trim()) {
+            alert("Please enter the text to paste.");
+            return;
+        }
+
         const payload: TestAction = {
             ...(test?.id ? { id: test.id } : {}),
             title: title.trim(),
@@ -149,6 +158,7 @@ export default function ActionDialog({
             : [],
 
             actionTimeout: Number(actionTimeout),
+            ...(isPasteAction ? { pasteText: pasteText.trim() } : {}),
         };
 
         try {
@@ -206,10 +216,28 @@ export default function ActionDialog({
                                 value={title}
                                 onChange={(event) => setTitle(event.target.value)}
                                 placeholder="e.g. Start workout"
-                                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
+                                disabled={title.trim().toUpperCase() === "PASTE"}
+                                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
                             />
                         </div>
                             )}
+
+                        {/* Paste Text */}
+                        {title.trim().toUpperCase() === "PASTE" && (
+                            <div>
+                                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                                    Text to Paste
+                                </label>
+                                <textarea
+                                    value={pasteText}
+                                    onChange={(event) => setPasteText(event.target.value)}
+                                    placeholder="Enter the text to paste into the input field"
+                                    rows={4}
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
+                                />
+                            </div>
+                        )}
+
 
                         {/* Delay */}
                         {isDelayNode && (

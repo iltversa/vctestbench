@@ -9,6 +9,7 @@ export type CreateTestActionInput = {
   confirmationTimeout?: number | null;
   confirmationOptions: { option: string; isSelected: boolean }[];
   actionTimeout: number;
+  pasteText?: string;
 };
 
 
@@ -28,6 +29,7 @@ export async function createTestActionService(
             : null,
 
         actionTimeout: input.actionTimeout,
+        pasteText: input.pasteText ?? null,
       })
       .returning();
 

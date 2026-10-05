@@ -2745,6 +2745,36 @@ async function executeDeviceAction(action) {
   }
 
   // ---------------------------------------------
+  // PASTE
+  //
+  // Get first input field and paste text
+  // ---------------------------------------------
+
+  if (normalizedTitle === "PASTE") {
+    const pasteText = String(action.pasteText || "").trim();
+
+    const result = await pageAction(
+      `(() => {
+        const input = document.querySelector('input[type="text"], input:not([type]), textarea');
+        if (!input) return 'No input field found';
+        input.focus();
+        input.value = '${pasteText.replace(/'/g, "\\'")}';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        return 'Text pasted successfully';
+      })()`
+    );
+
+    addEvent(
+      `Pasted text: ${pasteText}`,
+      result,
+      "success"
+    );
+
+    return;
+  }
+
+  // ---------------------------------------------
   // SAVE / normal actions
   // ---------------------------------------------
 
