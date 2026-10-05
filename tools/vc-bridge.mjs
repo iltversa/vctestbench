@@ -267,7 +267,6 @@ async function runWorkoutTest() {
                   ...document.querySelectorAll("*")
                 ];
 
-
                 // ------------------------------------------
                 // FIND ELEMENT CONTAINING START TEXT
                 // ------------------------------------------
@@ -1611,6 +1610,7 @@ async function clickTextAround(targetText) {
     }, 5000);
 
     ws.onopen = () => {
+
       ws.send(JSON.stringify({
         id: 1,
         method: "Runtime.evaluate",
@@ -1626,13 +1626,18 @@ async function clickTextAround(targetText) {
               function isClickable(el) {
                 if (!el) return false;
 
-                const tag =
-                  el.tagName?.toLowerCase();
+                const tag = el.tagName?.toLowerCase();
 
                 if (
                   tag === "button" ||
                   tag === "a" ||
                   tag === "input"
+                ) {
+                  return true;
+                }
+
+                if (
+                  el.classList?.contains("monument-item")
                 ) {
                   return true;
                 }
@@ -1654,8 +1659,7 @@ async function clickTextAround(targetText) {
                   return true;
                 }
 
-                const style =
-                  window.getComputedStyle(el);
+                const style = window.getComputedStyle(el);
 
                 if (style.cursor === "pointer") {
                   return true;
@@ -1665,7 +1669,7 @@ async function clickTextAround(targetText) {
               }
 
               // -----------------------------------------
-              // Find text
+              // FIND TEXT
               // -----------------------------------------
 
               let textElement = null;
@@ -1689,15 +1693,11 @@ async function clickTextAround(targetText) {
                   text.startsWith(target)
                 ) {
 
-                  // Prefer the smallest element
-                  // containing the text.
-
-                  const children =
-                    el.querySelectorAll("*");
-
                   let hasSmallerMatch = false;
 
-                  for (const child of children) {
+                  for (
+                    const child of el.querySelectorAll("*")
+                  ) {
 
                     const childRaw =
                       child.innerText ||
@@ -1723,18 +1723,22 @@ async function clickTextAround(targetText) {
                 }
               }
 
+              // -----------------------------------------
+              // NOT FOUND
+              // -----------------------------------------
+
               if (!textElement) {
                 return {
                   success: false,
                   reason:
                     'Text "' +
-                    targetText +
+                    target +
                     '" was not found'
                 };
               }
 
               // -----------------------------------------
-              // Walk upward to clickable element
+              // FIND CLICKABLE PARENT
               // -----------------------------------------
 
               let current = textElement;
@@ -1751,7 +1755,9 @@ async function clickTextAround(targetText) {
                   tag: current.tagName,
                   id: current.id || "",
                   className:
-                    current.className || "",
+                    typeof current.className === "string"
+                      ? current.className
+                      : "",
                   text:
                     (
                       current.innerText ||
@@ -1774,7 +1780,7 @@ async function clickTextAround(targetText) {
 
                   reason:
                     'Found text "' +
-                    targetText +
+                    target +
                     '" but no clickable parent was found',
 
                   text:
@@ -1787,15 +1793,12 @@ async function clickTextAround(targetText) {
                   textTag:
                     textElement.tagName,
 
-                  textClass:
-                    textElement.className || "",
-
                   parentChain
                 };
               }
 
               // -----------------------------------------
-              // Click
+              // SCROLL
               // -----------------------------------------
 
               try {
@@ -1805,26 +1808,52 @@ async function clickTextAround(targetText) {
                 });
               } catch (_) {}
 
+              // -----------------------------------------
+              // ELEMENT BEFORE CLICK
+              // -----------------------------------------
+
+              const beforeRect =
+                clickedElement.getBoundingClientRect();
+
+              const before = {
+                tag: clickedElement.tagName,
+                id: clickedElement.id || "",
+                className:
+                  typeof clickedElement.className === "string"
+                    ? clickedElement.className
+                    : "",
+
+                text:
+                  (
+                    clickedElement.innerText ||
+                    clickedElement.textContent ||
+                    ""
+                  ).trim(),
+
+                rect: {
+                  x: beforeRect.x,
+                  y: beforeRect.y,
+                  width: beforeRect.width,
+                  height: beforeRect.height
+                }
+              };
+
+              // -----------------------------------------
+              // ACTUAL CLICK
+              // -----------------------------------------
+
               clickedElement.click();
 
-              const rect =
-                clickedElement.getBoundingClientRect();
+              // -----------------------------------------
+              // RETURN RESULT
+              // -----------------------------------------
 
               return {
                 success: true,
 
-                text:
-                  (
-                    textElement.innerText ||
-                    textElement.textContent ||
-                    ""
-                  ).trim(),
+                target,
 
-                textTag:
-                  textElement.tagName,
-
-                textClass:
-                  textElement.className || "",
+                before,
 
                 clickedTag:
                   clickedElement.tagName,
@@ -1833,7 +1862,9 @@ async function clickTextAround(targetText) {
                   clickedElement.id || "",
 
                 clickedClass:
-                  clickedElement.className || "",
+                  typeof clickedElement.className === "string"
+                    ? clickedElement.className
+                    : "",
 
                 clickedText:
                   (
@@ -1842,34 +1873,7 @@ async function clickTextAround(targetText) {
                     ""
                   ).trim(),
 
-                attributes: {
-                  onclick:
-                    clickedElement.getAttribute(
-                      "onclick"
-                    ),
-
-                  role:
-                    clickedElement.getAttribute(
-                      "role"
-                    ),
-
-                  dataButton:
-                    clickedElement.getAttribute(
-                      "data-button"
-                    ),
-
-                  dataAction:
-                    clickedElement.getAttribute(
-                      "data-action"
-                    )
-                },
-
-                bounds: {
-                  x: rect.x,
-                  y: rect.y,
-                  width: rect.width,
-                  height: rect.height
-                }
+                parentChain
               };
 
             })()
@@ -1879,17 +1883,67 @@ async function clickTextAround(targetText) {
     };
 
     ws.onmessage = event => {
-      const message = JSON.parse(event.data);
+  const message = JSON.parse(event.data);
 
-      if (message.id !== 1) return;
+  console.log("\n========== RAW DEVTOOLS RESPONSE ==========");
+  console.log(JSON.stringify(message, null, 2));
+  console.log("===========================================\n");
 
-      clearTimeout(timer);
-      ws.close();
+  if (message.id !== 1) {
+    return;
+  }
 
-      resolve(
-        message.result?.result?.value
-      );
-    };
+  clearTimeout(timer);
+
+  if (message.error) {
+    ws.close();
+
+    reject(
+      new Error(
+        message.error.message ||
+        "Runtime.evaluate failed"
+      )
+    );
+
+    return;
+  }
+
+  const runtimeResult =
+    message.result?.result;
+
+  // console.log("\n========== RUNTIME RESULT ==========");
+  // console.log(
+  //   JSON.stringify(runtimeResult, null, 2)
+  // );
+  // console.log("====================================\n");
+
+  const result = runtimeResult?.value;
+
+  // console.log("\n================================");
+  // console.log("CLICK RESULT:", targetText);
+  // console.log("================================");
+  // console.log(
+  //   JSON.stringify(result, null, 2)
+  // );
+  // console.log(
+  //   "Parent chain:",
+  //   JSON.stringify(result?.parentChain, null, 2)
+  // );
+  // console.log("================================\n");
+
+  ws.close();
+
+  if (result?.success) {
+    resolve(true);
+  } else {
+    reject(
+      new Error(
+        result?.reason ||
+        `Unable to click "${targetText}"`
+      )
+    );
+  }
+};
 
     ws.onerror = () => {
       clearTimeout(timer);
@@ -2528,19 +2582,6 @@ async function executeFlowNodes(nodes, actionMap) {
       continue;
     }
 
-    // ------------------------------------------------
-    // Option node
-    //
-    // Example:
-    //
-    // {
-    //   optionId: "SAVE_ID",
-    //   paths: [...]
-    // }
-    //
-    // We normally reach this through a CONFIRMATION
-    // node, so we don't execute it independently.
-    // ------------------------------------------------
 
     if (!node.actionId && node.optionId) {
       console.log(
@@ -2561,6 +2602,13 @@ async function executeFlowNodes(nodes, actionMap) {
     // ------------------------------------------------
 
     const action = actionMap.get(node.actionId);
+  console.log("================================");
+
+    console.log("EXECUTING ACTION:", {
+  id: action?.id,
+  title: JSON.stringify(action?.title),
+});
+  console.log("================================");
 
     if (!action) {
       throw new Error(
@@ -2661,29 +2709,6 @@ async function executeFlowNodes(nodes, actionMap) {
   }
 }
 
-async function executeActionTree(nodes) {
-  if (!Array.isArray(nodes)) return;
-
-  for (const node of nodes) {
-    // 1. Execute action attached to this node
-    if (node.actionId) {
-      const action = await getActionById(node.actionId);
-
-      if (!action) {
-        throw new Error(`Action not found: ${node.actionId}`);
-      }
-
-      console.log("EXECUTING ACTION:", action.title);
-
-      await executeDeviceAction(action);
-    }
-
-    // 2. Follow child paths
-    if (Array.isArray(node.paths) && node.paths.length > 0) {
-      await executeActionTree(node.paths);
-    }
-  }
-}
 async function executeDeviceAction(action) {
   const title = String(action.title || "").trim();
   const normalizedTitle = title.toUpperCase();
@@ -2734,7 +2759,7 @@ async function executeDeviceAction(action) {
 
     return;
   }
-
+//esha
   await clickTextAround(title);
 
   addEvent(
