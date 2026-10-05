@@ -566,7 +566,7 @@ export default function TestFlowBuilder() {
     <div className="flow-builder">
 
       <aside className="flow-sidebar">
-        <div className="test-configuration">
+        <div className="test-configuration" id="test-config-zone">
           <div className="configuration-header">
             <h2>Test Configuration</h2>
             <p> Select a test class and manage the actions available for your flow. </p>

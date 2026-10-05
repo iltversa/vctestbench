@@ -1,6 +1,5 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import CreateTestButton from "./testCases/page";
 import { getTestsAction } from "@/actions/get-tests";
 import { deleteTestAction } from "@/actions/delete-test";
 import TestFlowBuilder from "@/components/TestFlowBuilder";
@@ -66,6 +65,14 @@ export default function Home() {
     const launchSand = async () => { setLaunching(true); setLastError(""); try { const response = await fetch(BRIDGE + "/launch-sand", { method: "POST" }); if (!response.ok) throw new Error(); window.setTimeout(refresh, 1200) } catch { setLastError("Could not launch Sandbox") } finally { window.setTimeout(() => setLaunching(false), 1200) } };
 
     const activeTest = state?.test?.status === "running" ? state.test.name : "";
+
+    const handleCreateTestScroll = () => {
+        if (typeof window === "undefined") return;
+        const target = document.getElementById("test-config-zone");
+        if (target) {
+            target.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+    };
 
     const [savedTests, setSavedTests] = useState<SavedTest[]>([]);
     const handleRunTest = async (test: SavedTest) => {
@@ -184,68 +191,70 @@ export default function Home() {
             <div className="mx-auto max-w-[1800px] px-4 py-5 sm:px-6 lg:px-8">
                 <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(360px,0.8fr)]">
                     <div className="h-200 flex min-w-0 flex-col gap-5">
-                        <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm h-100">
-                            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-                                <div>
-                                    <p className="text-[10px] font-semibold tracking-[0.2em] text-slate-500">
-                                        REALTIME FEED
-                                    </p>
+                        {connected && (
+                            <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm h-100">
+                                <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                                    <div>
+                                        <p className="text-[10px] font-semibold tracking-[0.2em] text-slate-500">
+                                            REALTIME FEED
+                                        </p>
 
-                                    <h3 className="mt-1 text-sm font-semibold text-slate-900">
-                                        Confirmed actions and screen changes
-                                    </h3>
+                                        <h3 className="mt-1 text-sm font-semibold text-slate-900">
+                                            Confirmed actions and screen changes
+                                        </h3>
+                                    </div>
+
+                                    <span
+                                        className={[
+                                            "flex items-center justify-center h-3 w-3 rounded-full",
+                                            connected ? "bg-emerald-500" : "bg-slate-400",
+                                        ].join(" ")}
+                                        aria-label={connected ? "Connected" : "Disconnected"}
+                                        title={connected ? "Connected" : "Disconnected"}
+                                    />
                                 </div>
 
-                                <span
-                                    className={[
-                                        "flex items-center justify-center h-3 w-3 rounded-full",
-                                        connected ? "bg-emerald-500" : "bg-slate-400",
-                                    ].join(" ")}
-                                    aria-label={connected ? "Connected" : "Disconnected"}
-                                    title={connected ? "Connected" : "Disconnected"}
-                                />
-                            </div>
-
-                            <div className="max-h-[420px] overflow-y-auto h-[calc(100%-64px)]">
-                                {!events.length ? (
-                                    <div className="flex h-full flex-col items-center justify-center px-5 py-12 text-center">
-                                        <div className="mb-3 text-2xl text-[#d60000]">◎</div>
-                                        <strong className="text-sm text-slate-700">No tablet activity yet</strong>
-                                        <span className="mt-1 max-w-xs text-xs leading-5 text-slate-500">
-                                            VC TestBench will only show events it confirms on the real device.
-                                        </span>
-                                    </div>
-                                ) : (
-                                    <div className="divide-y divide-slate-200">
-                                        {[...events].reverse().map((event, index) => (
-                                            <div className="flex gap-3 px-5 py-3" key={event.id}>
-                                                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-50 text-[10px] text-[#d60000]">
-                                                    {index === 0 && connected ? "●" : "✓"}
-                                                </div>
-
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="flex items-start justify-between gap-3">
-                                                        <strong className="truncate text-xs font-medium text-slate-900">
-                                                            {event.label}
-                                                        </strong>
-
-                                                        <span className="shrink-0 text-[10px] text-slate-500">
-                                                            {event.at}
-                                                        </span>
+                                <div className="max-h-[420px] overflow-y-auto h-[calc(100%-64px)]">
+                                    {!events.length ? (
+                                        <div className="flex h-full flex-col items-center justify-center px-5 py-12 text-center">
+                                            <div className="mb-3 text-2xl text-[#d60000]">◎</div>
+                                            <strong className="text-sm text-slate-700">No tablet activity yet</strong>
+                                            <span className="mt-1 max-w-xs text-xs leading-5 text-slate-500">
+                                                VC TestBench will only show events it confirms on the real device.
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <div className="divide-y divide-slate-200">
+                                            {[...events].reverse().map((event, index) => (
+                                                <div className="flex gap-3 px-5 py-3" key={event.id}>
+                                                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-50 text-[10px] text-[#d60000]">
+                                                        {index === 0 && connected ? "●" : "✓"}
                                                     </div>
 
-                                                    {event.detail && (
-                                                        <span className="mt-0.5 block text-[11px] leading-4 text-slate-600">
-                                                            {event.detail}
-                                                        </span>
-                                                    )}
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <strong className="truncate text-xs font-medium text-slate-900">
+                                                                {event.label}
+                                                            </strong>
+
+                                                            <span className="shrink-0 text-[10px] text-slate-500">
+                                                                {event.at}
+                                                            </span>
+                                                        </div>
+
+                                                        {event.detail && (
+                                                            <span className="mt-0.5 block text-[11px] leading-4 text-slate-600">
+                                                                {event.detail}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </section>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </section>
+                        )}
 
                         <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm h-100">
                             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
@@ -256,6 +265,14 @@ export default function Home() {
 
                                     <h3 className="mt-1 text-sm font-semibold text-slate-900">Saved tests</h3>
                                 </div>
+
+                                <button
+                                    type="button"
+                                    onClick={handleCreateTestScroll}
+                                    className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-700"
+                                >
+                                    Create test
+                                </button>
                             </div>
 
                             <div className="h-[calc(100%-56px)] overflow-y-auto">
