@@ -15,5 +15,7 @@ export const testActions = pgTable("test_actions", {
   confirmationTimeout: integer("confirmation_timeout"),
   actionTimeout: integer("action_timeout").notNull(),
   pasteText: text("paste_text"),
+  email: text("email"),
+  password: text("password"),
   sortOrder: integer("sort_order").notNull().default(0),
 });

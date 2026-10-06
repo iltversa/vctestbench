@@ -51,6 +51,8 @@ export default function CreateTestButton({ editingAction, onEditClose, isDelayNo
               })
             : [],
           actionTimeout: Number((editingAction as any).actionTimeout ?? 5),
+          email: (editingAction as any).email ?? "",
+          password: (editingAction as any).password ?? "",
         };
       })()
     : null;
@@ -78,6 +80,9 @@ export default function CreateTestButton({ editingAction, onEditClose, isDelayNo
             isSelected: option.isSelected,
           })),
           actionTimeout: action.actionTimeout,
+          pasteText: action.pasteText ?? undefined,
+          email: action.email ?? undefined,
+          password: action.password ?? undefined,
         });
 
         console.log("Action updated:", result);

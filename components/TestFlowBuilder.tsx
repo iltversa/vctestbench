@@ -365,6 +365,8 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
       ),
       actionTimeout: configuredAction.actionTimeout,
       pasteText: (configuredAction as any).pasteText ??(configuredAction as any).paste_text ??null, 
+      email: (configuredAction as any).email ?? null,
+      password: (configuredAction as any).password ?? null,
     };
 
     setNodes((currentNodes) =>
@@ -652,8 +654,8 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   };
 
   const renderNode = (node: FlowNode, level: number = 0): React.ReactNode => {
-    console.log(node.actionData, "node.actionData");
-    const isconfirmation = node.nodeType === "confirmation";
+    // console.log(node.actionData, "node.actionData");
+    const isConfirmation = node.nodeType === "confirmation";
     const isDropZone = node.nodeType === "action" && !node.actionId;
     const isDelayNode = node.nodeType === "action" && isDelayAction(node.actionTitle);
 
@@ -662,31 +664,60 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
       node.paths.length > 0 &&
       node.paths.every((p) => p.nodeType === "confirmation");
 
-    const canAddPath = isconfirmation || (!hasconfirmationChildren && !isDropZone);
+    const canAddPath = isConfirmation || (!hasconfirmationChildren && !isDropZone);
     const canAcceptDrop = node.nodeType === "action";
-    const isPasteAction =
-      node.nodeType === "action" &&
-      node.actionTitle?.trim().toUpperCase() === "PASTE";
+    const isPasteAction = node.nodeType === "action" && node.actionTitle?.trim().toUpperCase() === "PASTE";
+    const isAuthenticationAction =
+  node.nodeType === "action" &&
+  node.actionTitle?.trim().toUpperCase() === "AUTHENTICATION";
     return (
       <div className="tree-node" key={node.id}>
         <div
-          className={`node-card ${isconfirmation ? "confirmation" : "action"} ${isDropZone ? "empty" : ""}`}
+          className={`node-card ${isConfirmation ? "confirmation" : "action"} ${isDropZone ? "empty" : ""}`}
           onDragOver={canAcceptDrop ? handleDragOver : undefined}
           onDrop={canAcceptDrop ? (e) => handleDrop(e, node.id) : undefined}
         >
           <div className="node-card-header">
-            <span className="node-card-title">
-              {isDropZone
-                ? "Drop action here"
-                : isconfirmation
-                  ? node.optionLabel ?? "Option"
-                  : isDelayNode
-                    ? getDelayLabel(node.actionData)
-                    : isPasteAction
-                      ? node.actionData?.pasteText || "PASTE"
-                      : node.actionTitle ?? "Unassigned"}
-            </span>
-            {!isconfirmation && !isDropZone && isDelayNode && (
+            {isDropZone ? (
+              <span className="node-card-title">Drop action here</span>
+            ) : isConfirmation ? (
+              <span className="node-card-title">
+                {node.optionLabel ?? "Option"}
+              </span>
+            ) : isDelayNode ? (
+              <span className="node-card-title">
+                {getDelayLabel(node.actionData)}
+              </span>
+            ) : isPasteAction ? (
+              <span className="node-card-title">
+                {node.actionData?.pasteText || "PASTE"}
+              </span>
+            ) : isAuthenticationAction ? (
+              <div className="w-full space-y-2">
+                <div className="font-semibold text-sm">
+                  AUTHENTICATION
+                </div>
+
+                <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                  <span className="text-slate-500">Email:</span>{" "}
+                  <span className="font-medium">
+                    {node.actionData?.email || "—"}
+                  </span>
+                </div>
+
+                <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                  <span className="text-slate-500">Password:</span>{" "}
+                  <span className="font-medium">
+                    {node.actionData?.password || "—"}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <span className="node-card-title">
+                {node.actionTitle ?? "Unassigned"}
+              </span>
+            )}
+            {!isConfirmation && !isDropZone && isDelayNode && (
               <button
                 className="edit-button"
                 onClick={() => {
@@ -708,7 +739,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
               </button>
             )}
 
-            {(canAddPath || !isconfirmation) && !isDelayNode && (
+            {(canAddPath || !isConfirmation) && !isDelayNode && (
               <div className="node-card-menu">
                 <button
                   className="menu-trigger"

@@ -15,7 +15,9 @@ export type TestAction = {
     confirmationTimeout?: number | null;
     confirmationOptions?: ConfirmationChoice[];
     actionTimeout: number;
-    pasteText?: string;
+    pasteText?: string | null;
+    email?: string | null;
+    password?: string | null;
 };
 
 const DEFAULT_CONFIRMATION_OPTIONS: ConfirmationChoice[] = [
@@ -43,6 +45,8 @@ export default function ActionDialog({
     const isEditing = Boolean(test?.id);
     const [title, setTitle] = useState(test?.title ?? "");
     const [actionTimeout, setActionTimeout] = useState( test?.actionTimeout?.toString() ?? "5" );
+    const [email, setEmail] = useState( test?.email ?? "" );
+    const [password, setPassword] = useState( test?.password ?? "" );
     const [pasteText, setPasteText] = useState(test?.pasteText ?? "");
     const [hasConfirmation, setHasConfirmation] = useState(test?.hasConfirmation ?? false);
     const [confirmationTimeout, setConfirmationTimeout] = useState( test?.confirmationTimeout?.toString() ?? "5" );
@@ -61,6 +65,8 @@ export default function ActionDialog({
     useEffect(() => {
         setTitle(test?.title ?? "");
         setActionTimeout(test?.actionTimeout?.toString() ?? "5");
+        setEmail(test?.email ?? "");
+        setPassword(test?.password ?? "");
         setPasteText(test?.pasteText ?? "");
         setHasConfirmation(test?.hasConfirmation ?? false);
         setConfirmationTimeout(
@@ -145,6 +151,8 @@ export default function ActionDialog({
             : [],
 
             actionTimeout: Number(actionTimeout),
+            email: email || null,
+            password: password || null,
             ...(isPasteAction ? { pasteText: pasteText.trim() } : {}),
         };
 
@@ -312,6 +320,39 @@ export default function ActionDialog({
                                 </div>
                             </div>
                         )}
+                        {title?.trim().toUpperCase() === "AUTHENTICATION" && (
+                            <div className="space-y-4">
+                                <div>
+                                <label className="block text-sm font-medium mb-1">
+                                    Email
+                                </label>
+                                <input
+                                    type="email"
+                                    value={email ?? ""}
+                                   onChange={(event) =>
+                                            setEmail(event.target.value)
+                                        }
+                                    className="w-full rounded-md border border-slate-300 px-3 py-2"
+                                    placeholder="Enter email"
+                                />
+                                </div>
+
+                                <div>
+                                <label className="block text-sm font-medium mb-1">
+                                    Password
+                                </label>
+                                <input
+                                    type="password"
+                                    value={password ?? ""}
+                                    onChange={(event) =>
+                                            setPassword(event.target.value)
+                                        }
+                                    className="w-full rounded-md border border-slate-300 px-3 py-2"
+                                    placeholder="Enter password"
+                                />
+                                </div>
+                            </div>
+                            )}
 
                     </div>
                 </div>

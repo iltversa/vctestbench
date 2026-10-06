@@ -10,6 +10,8 @@ export type CreateTestActionInput = {
   confirmationOptions: { option: string; isSelected: boolean }[];
   actionTimeout: number;
   pasteText?: string;
+  email?: string;
+  password?: string;
 };
 
 
@@ -30,6 +32,8 @@ export async function createTestActionService(
 
         actionTimeout: input.actionTimeout,
         pasteText: input.pasteText ?? null,
+        email: input.email ?? null,
+        password: input.password ?? null,
       })
       .returning();
 

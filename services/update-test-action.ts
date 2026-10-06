@@ -11,7 +11,9 @@ export type UpdateTestActionInput = {
   confirmationTimeout?: number | null;
   confirmationOptions: { option: string; isSelected: boolean }[];
   actionTimeout: number;
-  pasteText?: string;
+  pasteText?: string | null;
+  email?: string | null;
+  password?: string | null;
 };
 
 export async function updateTestActionService(input: UpdateTestActionInput) {
@@ -24,6 +26,8 @@ export async function updateTestActionService(input: UpdateTestActionInput) {
         confirmationTimeout: input.hasConfirmation ? input.confirmationTimeout ?? null : null,
         actionTimeout: input.actionTimeout,
         pasteText: input.pasteText ?? null,
+        email: input.email ?? null,
+        password: input.password ?? null,
       })
       .where(eq(testActions.id, input.id))
       .returning();

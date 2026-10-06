@@ -9,6 +9,8 @@ export type TestActionDefinition = {
   confirmationTimeout: number | null;
   actionTimeout: number;
   pasteText?: string | null;
+  email?: string | null;
+  password?: string | null;
   confirmationOptions: {
     id: string;
     option: string;
@@ -24,6 +26,8 @@ export async function getActionsService(): Promise<TestActionDefinition[]> {
       hasConfirmation: testActions?.hasConfirmation,
       confirmationTimeout: testActions.confirmationTimeout,
       actionTimeout: testActions.actionTimeout,
+      email: testActions.email,
+      password: testActions.password,
       pasteText: testActions.pasteText,
       confirmationOptionId: confirmationOptions.id,
       confirmationOption: confirmationOptions.option,
@@ -56,6 +60,8 @@ export async function getActionsService(): Promise<TestActionDefinition[]> {
       confirmationTimeout: row.confirmationTimeout ?? null,
       actionTimeout: Number(row.actionTimeout ?? 0),
       pasteText: row.pasteText ?? null,
+      email: row.email ?? null,
+      password: row.password ?? null,
       confirmationOptions: [],
     };
 

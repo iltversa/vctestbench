@@ -9,6 +9,9 @@ export type UpdateTestActionInput = {
   confirmationTimeout?: number | null;
   confirmationOptions: { option: string; isSelected: boolean }[];
   actionTimeout: number;
+  pasteText?: string;
+  email?: string;
+  password?: string;
 };
 
 export async function updateTestActionAction(input: UpdateTestActionInput) {

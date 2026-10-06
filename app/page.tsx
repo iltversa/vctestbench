@@ -141,7 +141,7 @@ export default function Home() {
         loadTests();
     }, []);
     return (
-        <main className="min-h-screen bg-[#f4f6fa] text-slate-900">
+        <main className="flex min-h-screen flex-col bg-[#f4f6fa] text-slate-900">
             <header className="border-b border-slate-200 bg-white/90 backdrop-blur-sm">
                 <div className="mx-auto flex max-w-[1800px] flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:px-8">
                     <div className="flex items-center gap-3">
@@ -191,9 +191,9 @@ export default function Home() {
                 </div>
             </header>
 
-            <div className="mx-auto max-w-[1800px] px-4 py-5 sm:px-6 lg:px-8">
-                <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(360px,0.8fr)]">
-                    <div className="flex min-w-0 flex-col gap-5">
+            <div className="mx-auto flex w-full max-w-[1800px] flex-1 px-4 py-5 sm:px-6 lg:px-8">
+                <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(360px,0.8fr)]">
+                    <div className="flex min-h-0 min-w-0 flex-col gap-5">
                         {connected && (
                             <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm h-[280px]">
                                 <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
@@ -362,8 +362,8 @@ export default function Home() {
                         </section>
                     </div>
 
-                    <section className="h-full">
-                        <div className="h-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <section className="min-h-0 h-full">
+                        <div className="h-full min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                             {connected ? (
                                 <img
                                     src={BRIDGE + "/screen?t=" + imageTick}
