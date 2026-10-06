@@ -6,7 +6,6 @@ import CreateTestButton from "@/app/testCases/page";
 import { SavedTest } from "@/app/page";
 import getActionsAction from "@/actions/get-actions";
 import { TestActionDefinition } from "@/services/get-test-actions";
-import { getTestClassesAction } from "@/actions/get-classes";
 import { createFullTestAction, updateFullTestAction } from "@/actions/create-full-test";
 import { deleteTestActionDefinition } from "@/actions/delete-test-action";
 import { TestAction } from "@/components/ActionDialog";
@@ -31,32 +30,96 @@ const createNode = (): FlowNode => ({
   nodeType: "action",
   paths: [],
 });
+
 const hydrateFlow = (
-  flow: any[],
-  actionList: TestActionDefinition[],
-  parentAction?: TestActionDefinition
-): FlowNode[] =>
-  (flow ?? []).map((n) => {
-    const action = n.actionId
-      ? actionList.find((a) => a.id === n.actionId)
-      : undefined;
-    const isConfirmation = !!n.optionId;
-    const option = isConfirmation
-      ? parentAction?.confirmationOptions.find((o) => o.id === n.optionId)
+  flowNodes: any[],
+  actionList: TestActionDefinition[]
+): FlowNode[] => {
+  return flowNodes.map((savedNode) => {
+    const matchedAction = savedNode.actionId
+      ? actionList.find((action) => action.id === savedNode.actionId)
       : undefined;
 
+    const savedAction = savedNode.actionData;
+
+    const actionData: TestActionDefinition | undefined = savedAction
+      ? {
+          ...savedAction,
+          confirmationOptions:
+            savedAction.confirmationOptions?.map((option: any) => ({
+              ...option,
+              isSelected: Boolean(option.isSelected),
+            })) ?? [],
+        }
+      : matchedAction
+        ? {
+            ...matchedAction,
+            confirmationOptions:
+              matchedAction.confirmationOptions?.map((option) => ({
+                ...option,
+                isSelected: Boolean(option.isSelected),
+              })) ?? [],
+          }
+        : undefined;
+
+    const isConfirmationAction =
+      actionData?.title?.trim().toUpperCase() === "CONFIRMATION";
+
+    /*
+     * If this is a CONFIRMATION action, its paths are the
+     * confirmation option branches.
+     */
+    if (isConfirmationAction) {
+      return {
+        id: savedNode.id ?? crypto.randomUUID(),
+        nodeType: "action" as const,
+        actionId: savedNode.actionId ?? actionData?.id,
+        actionTitle:
+          savedNode.actionTitle ??
+          actionData?.title ??
+          "CONFIRMATION",
+        actionData,
+
+        paths: (savedNode.paths ?? []).map((path: any) => {
+          const option = actionData?.confirmationOptions?.find(
+            (opt) => opt.id === path.optionId
+          );
+
+          return {
+            id: path.id ?? crypto.randomUUID(),
+            nodeType: "confirmation" as const,
+            optionId: path.optionId,
+            optionLabel: option?.option ?? "Option",
+            isSelected:
+              option?.isSelected ??
+              Boolean(path.isSelected),
+
+            paths: path.paths?.length
+              ? hydrateFlow(path.paths, actionList)
+              : [],
+          };
+        }),
+      };
+    }
+
+    /*
+     * Normal action.
+     */
     return {
-      id: n.id,
-      actionId: n.actionId ?? undefined,
-      actionTitle: action?.title,
-      actionData: action,
-      optionId: n.optionId ?? undefined,
-      optionLabel: option?.option,
-      isSelected: n.isSelected,
-      nodeType: isConfirmation ? "confirmation" : "action",
-      paths: hydrateFlow(n.paths, actionList, action),
-    } as FlowNode;
+      id: savedNode.id ?? crypto.randomUUID(),
+      nodeType: "action" as const,
+      actionId: savedNode.actionId ?? actionData?.id,
+      actionTitle:
+        savedNode.actionTitle ??
+        actionData?.title ??
+        matchedAction?.title,
+      actionData,
+      paths: savedNode.paths?.length
+        ? hydrateFlow(savedNode.paths, actionList)
+        : [],
+    };
   });
+};
 
 
 
@@ -73,23 +136,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   const [testDescription, setTestDescription] = useState(initialTest ? "" : "");
   const [saving, setSaving] = useState(false);
 
-  // useEffect(() => {
-  //   if (initialTest) {
-  //     console.log("Populating TestFlowBuilder with initial test:", initialTest);
-  //     setTestTitle(initialTest.title ?? "");
-  //     setTestDescription("");
-  //     // Populate nodes from flow if it exists
-  //     if (initialTest.flow && initialTest.flow.length > 0) {
-  //       setNodes(initialTest.flow);
-  //     } else {
-  //       setNodes([createNode()]);
-  //     }
-  //     // Populate actions from test if they exist
-  //     if (initialTest.actions && initialTest.actions.length > 0) {
-  //       setActions(initialTest.actions as any[]);
-  //     }
-  //   }
-  // }, [initialTest]);
+  
 
   const hydratedRef = useRef(false);
 
@@ -189,27 +236,32 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   ) => {
     event.preventDefault();
 
-    const actionId = event.dataTransfer.getData(
-      "application/action-id"
-    );
+    const actionId = event.dataTransfer.getData("application/action-id");
 
     if (!actionId) {
       setDraggedAction(null);
       return;
     }
 
-    const action = actions.find(
-      (item) => item.id === actionId
-    );
+    const action = actions.find((item) => item.id === actionId);
 
     if (!action) {
       setDraggedAction(null);
       return;
     }
 
-    // Store the target node and open the action editor
+    // IMPORTANT: never give the editor the action object from `actions`
+    const actionCopy: TestActionDefinition = {
+      ...action,
+      confirmationOptions:
+        action.confirmationOptions?.map((option) => ({
+          ...option,
+          isSelected: Boolean(option.isSelected),
+        })) ?? [],
+    };
+
     setPendingNodeId(nodeId);
-    setEditingAction(action);
+    setEditingAction(actionCopy);
     setDraggedAction(null);
   };
 
@@ -279,45 +331,60 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     setEditingAction(testAction as any);
   };
 
-  const openActionEditor = (action: TestActionDefinition) => {
-    const testAction = {
-      id: action.id,
-      title: action.title,
-      hasConfirmation: action.hasConfirmation,
-      confirmationTimeout: action.confirmationTimeout,
-      confirmationOptions: action.confirmationOptions.map((opt) => ({
-        id: opt.id,
-        option: opt.option,
-        isSelected: Boolean(opt.isSelected),
-      })),
-      actionTimeout: action.actionTimeout,
+  const openActionEditor = (
+    action: TestActionDefinition,
+    nodeId?: string
+  ) => {
+    const actionCopy: TestActionDefinition = {
+      ...action,
+      confirmationOptions:
+        action.confirmationOptions?.map((option) => ({
+          ...option,
+          isSelected: Boolean(option.isSelected),
+        })) ?? [],
     };
-    // When opening from a node, no pending node ID
-    setPendingNodeId(null);
-    setEditingAction(testAction as any);
+
+    setPendingNodeId(nodeId ?? null);
+    setEditingAction(actionCopy);
   };
 
   const handleActionSavedToFlow = (configuredAction: TestAction) => {
     if (!pendingNodeId) return;
 
-    // Convert TestAction to a format that can be placed in the node
     const actionDef: TestActionDefinition = {
       id: configuredAction.id || crypto.randomUUID(),
       title: configuredAction.title,
       hasConfirmation: configuredAction.hasConfirmation,
       confirmationTimeout: configuredAction.confirmationTimeout || null,
-      confirmationOptions: (configuredAction.confirmationOptions || []).map((opt) => ({
-        id: opt.id || crypto.randomUUID(),
-        option: opt.option,
-        isSelected: opt.isSelected,
-      })),
+      confirmationOptions: (configuredAction.confirmationOptions || []).map(
+        (opt) => ({
+          id: opt.id || crypto.randomUUID(),
+          option: opt.option,
+          isSelected: Boolean(opt.isSelected),
+        })
+      ),
       actionTimeout: configuredAction.actionTimeout,
-      pasteText: (configuredAction as any).pasteText || null,
+      pasteText: (configuredAction as any).pasteText ??(configuredAction as any).paste_text ??null, 
     };
 
-    // Add the configured action to the pending node
     setNodes((currentNodes) =>
       updateNode(currentNodes, pendingNodeId, (node) => {
+        if (node.actionId) {
+          return {
+            ...node,
+            actionId: actionDef.id,
+            actionTitle: actionDef.title,
+            actionData: {
+              ...actionDef,
+              confirmationOptions: actionDef.confirmationOptions.map((option) => ({
+                ...option,
+              })),
+            },
+          };
+        }
+
+        // ADDING an action to an empty drop-zone:
+        // create its initial children.
         const children = buildChildrenForAction(actionDef);
 
         return {
@@ -325,13 +392,17 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
           actionId: actionDef.id,
           actionTitle: actionDef.title,
           nodeType: "action" as const,
-          actionData: actionDef,
+          actionData: {
+            ...actionDef,
+            confirmationOptions: actionDef.confirmationOptions.map((option) => ({
+              ...option,
+            })),
+          },
           paths: children,
         };
       })
     );
 
-    // Clear the pending state and close editor
     setPendingNodeId(null);
     setEditingAction(null);
   };
@@ -346,27 +417,55 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   };
 
   const extractFlowTree = (flowNodes: FlowNode[]): any[] => {
-  return flowNodes.map(({ id, actionId, optionId, isSelected,paths }) => ({
-    id,
-    actionId: actionId ?? null,
-    optionId: optionId ?? null,
-    isSelected: isSelected ?? null,
-    paths: extractFlowTree(paths),
-  }));
-};
+    return flowNodes.map(({ id, actionId, optionId, isSelected,paths,actionData }) => ({
+      id,
+      actionId: actionId ?? null,
+      optionId: optionId ?? null,
+      isSelected: isSelected ?? null,
+      paths: extractFlowTree(paths),
+      actionData: actionData ?? null,
+    }));
+  };
 
-  const syncActionDataInTree = (
-    flowNodes: FlowNode[],
-    actionList: TestActionDefinition[]
-  ): FlowNode[] =>
+  const syncActionDataInTree = (flowNodes: FlowNode[],  actionList: TestActionDefinition[]  ): FlowNode[] =>
     flowNodes.map((node) => {
+      // For a saved test, actionData from the flow is the test-specific
+      // configuration and must NOT be replaced by the global action definition.
+      if (node.actionData) {
+        return {
+          ...node,
+          actionData: {
+            ...node.actionData,
+            confirmationOptions:
+              node.actionData.confirmationOptions?.map((option) => ({
+                ...option,
+              })) ?? [],
+          },
+          paths: syncActionDataInTree(node.paths, actionList),
+        };
+      }
+
+      // Only fall back to the global action definition when the flow node
+      // doesn't already have actionData.
       const matchedAction = node.actionId
         ? actionList.find((action) => action.id === node.actionId)
         : undefined;
 
       return {
         ...node,
-        actionData: matchedAction ?? node.actionData,
+        actionData: matchedAction
+          ? {
+              ...matchedAction,
+              confirmationOptions:
+                matchedAction.confirmationOptions?.map((option) => ({
+                  ...option,
+                })) ?? [],
+            }
+          : node.actionData,
+        actionTitle:
+          node.actionTitle ??
+          matchedAction?.title ??
+          undefined,
         paths: syncActionDataInTree(node.paths, actionList),
       };
     });
@@ -553,45 +652,48 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   };
 
   const renderNode = (node: FlowNode, level: number = 0): React.ReactNode => {
-    const isConfirmation = node.nodeType === "confirmation";
+    console.log(node.actionData, "node.actionData");
+    const isconfirmation = node.nodeType === "confirmation";
     const isDropZone = node.nodeType === "action" && !node.actionId;
     const isDelayNode = node.nodeType === "action" && isDelayAction(node.actionTitle);
 
-    const hasConfirmationChildren =
+    const hasconfirmationChildren =
       node.nodeType === "action" &&
       node.paths.length > 0 &&
       node.paths.every((p) => p.nodeType === "confirmation");
 
-    const canAddPath = isConfirmation || (!hasConfirmationChildren && !isDropZone);
+    const canAddPath = isconfirmation || (!hasconfirmationChildren && !isDropZone);
     const canAcceptDrop = node.nodeType === "action";
-
+    const isPasteAction =
+      node.nodeType === "action" &&
+      node.actionTitle?.trim().toUpperCase() === "PASTE";
     return (
       <div className="tree-node" key={node.id}>
         <div
-          className={`node-card ${isConfirmation ? "confirmation" : "action"} ${isDropZone ? "empty" : ""}`}
+          className={`node-card ${isconfirmation ? "confirmation" : "action"} ${isDropZone ? "empty" : ""}`}
           onDragOver={canAcceptDrop ? handleDragOver : undefined}
           onDrop={canAcceptDrop ? (e) => handleDrop(e, node.id) : undefined}
-        // style={
-        //   isConfirmation
-        //     ? { minHeight: 80 }
-        //     : undefined
-        // }
         >
           <div className="node-card-header">
             <span className="node-card-title">
               {isDropZone
                 ? "Drop action here"
-                : isConfirmation
+                : isconfirmation
                   ? node.optionLabel ?? "Option"
                   : isDelayNode
                     ? getDelayLabel(node.actionData)
-                    : node.actionTitle ?? "Unassigned"}
+                    : isPasteAction
+                      ? node.actionData?.pasteText || "PASTE"
+                      : node.actionTitle ?? "Unassigned"}
             </span>
-
-            {!isConfirmation && !isDropZone && isDelayNode && (
+            {!isconfirmation && !isDropZone && isDelayNode && (
               <button
                 className="edit-button"
-                onClick={() => node.actionData && openActionEditor(node.actionData)}
+                onClick={() => {
+                  if (node.actionData) {
+                    openActionEditor(node.actionData, node.id);
+                  }
+                }}
                 type="button"
                 title="Edit delay action"
                 style={{
@@ -606,7 +708,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
               </button>
             )}
 
-            {(canAddPath || !isConfirmation) && !isDelayNode && (
+            {(canAddPath || !isconfirmation) && !isDelayNode && (
               <div className="node-card-menu">
                 <button
                   className="menu-trigger"
@@ -664,7 +766,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
             <h2>Test Configuration</h2>
             <p> Select a test class and manage the actions available for your flow. </p>
           </div>
-        </div>
+        </div> 
 
         <div className="actions-section">
           <div className="sidebar-header">

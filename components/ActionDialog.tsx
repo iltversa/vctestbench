@@ -1,6 +1,5 @@
 "use client";
 
-import { getTestClassesAction } from "@/actions/get-classes";
 import { useEffect, useState } from "react";
 
 export type ConfirmationChoice = {
@@ -42,23 +41,11 @@ export default function ActionDialog({
     onSave,
 }: ActionDialogProps) {
     const isEditing = Boolean(test?.id);
-
-    const [classes, setClasses] = useState<TestClass[]>([]);
-    const [loadingClasses, setLoadingClasses] = useState(true);
     const [title, setTitle] = useState(test?.title ?? "");
-    const [actionTimeout, setActionTimeout] = useState(
-        test?.actionTimeout?.toString() ?? "5"
-    );
+    const [actionTimeout, setActionTimeout] = useState( test?.actionTimeout?.toString() ?? "5" );
     const [pasteText, setPasteText] = useState(test?.pasteText ?? "");
-
-    const [hasConfirmation, setHasConfirmation] = useState(
-        test?.hasConfirmation ?? false
-    );
-
-    const [confirmationTimeout, setConfirmationTimeout] = useState(
-        test?.confirmationTimeout?.toString() ?? "5"
-    );
-
+    const [hasConfirmation, setHasConfirmation] = useState(test?.hasConfirmation ?? false);
+    const [confirmationTimeout, setConfirmationTimeout] = useState( test?.confirmationTimeout?.toString() ?? "5" );
     const [confirmationOptions, setConfirmationOptions] = useState<ConfirmationChoice[]>(
         test?.confirmationOptions?.length
             ? test.confirmationOptions.map((option) => ({
