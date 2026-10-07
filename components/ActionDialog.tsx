@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faUser,faPause,faStop,faCheck, faUserSecret,faPaste, faTimes} from "@fortawesome/free-solid-svg-icons";
 export type ConfirmationChoice = {
     option: string;
     isSelected: boolean;
@@ -18,6 +19,8 @@ export type TestAction = {
     pasteText?: string | null;
     email?: string | null;
     password?: string | null;
+    type?: string | null;
+    icon?: string | null;
 };
 
 const DEFAULT_CONFIRMATION_OPTIONS: ConfirmationChoice[] = [
@@ -32,21 +35,23 @@ type TestClass = {
 type ActionDialogProps = {
     test?: TestAction | null;
     onClose: () => void;
-    isDelayNode: boolean;
+    // isDelayNode: boolean;
     onSave?: (action: TestAction) => Promise<void>;
 };
 
 export default function ActionDialog({
     test,
-    isDelayNode,
+    // isDelayNode,
     onClose,
     onSave,
 }: ActionDialogProps) {
-    const isEditing = Boolean(test?.id);
+    // const isEditing = Boolean(test?.id);
+    const isEditingAction= test?.type !== 'isEditingAction';
     const [title, setTitle] = useState(test?.title ?? "");
     const [actionTimeout, setActionTimeout] = useState( test?.actionTimeout?.toString() ?? "5" );
     const [email, setEmail] = useState( test?.email ?? "" );
     const [password, setPassword] = useState( test?.password ?? "" );
+    const [icon, setIcon] = useState( test?.icon ?? "" );
     const [pasteText, setPasteText] = useState(test?.pasteText ?? "");
     const [hasConfirmation, setHasConfirmation] = useState(test?.hasConfirmation ?? false);
     const [confirmationTimeout, setConfirmationTimeout] = useState( test?.confirmationTimeout?.toString() ?? "5" );
@@ -67,6 +72,7 @@ export default function ActionDialog({
         setActionTimeout(test?.actionTimeout?.toString() ?? "5");
         setEmail(test?.email ?? "");
         setPassword(test?.password ?? "");
+        setIcon(test?.icon ?? "");
         setPasteText(test?.pasteText ?? "");
         setHasConfirmation(test?.hasConfirmation ?? false);
         setConfirmationTimeout(
@@ -132,7 +138,6 @@ export default function ActionDialog({
             alert("Please enter the text to paste.");
             return;
         }
-
         const payload: TestAction = {
             ...(test?.id ? { id: test.id } : {}),
             title: title.trim(),
@@ -153,6 +158,7 @@ export default function ActionDialog({
             actionTimeout: Number(actionTimeout),
             email: email || null,
             password: password || null,
+            icon: icon || null,
             ...(isPasteAction ? { pasteText: pasteText.trim() } : {}),
         };
 
@@ -179,11 +185,11 @@ export default function ActionDialog({
                 <div className="flex items-center justify-between border-b px-6 py-4">
                     <div>
                         <h2 className="text-lg font-semibold text-gray-900">
-                            {isEditing ? "Edit Action" : "Create Action"}
+                            {isEditingAction ? "Add Action" : "Edit Action"}
                         </h2>
 
                         <p className="mt-0.5 text-sm text-gray-500">
-                            Configure the action for your test flow.
+                             {isEditingAction ? "Configure the action for your test flow." : "Edit the action details."}
                         </p>
                     </div>
 
@@ -201,24 +207,55 @@ export default function ActionDialog({
                     <div className="space-y-5">
 
                         {/* Title */}
-                           {!isDelayNode && title.trim().toUpperCase() !== "CONFIRMATION" && ( 
-                        <div>
-                            <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                                Action Title
-                            </label>
-                            <input
-                                type="text"
-                                value={title}
-                                onChange={(event) => setTitle(event.target.value)}
-                                placeholder="e.g. Start workout"
-                                disabled={title.trim().toUpperCase() === "PASTE"}
-                                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
-                            />
-                        </div>
-                            )}
+                        { !isEditingAction && (
+                            <>
+                                <div>
+                                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                                        Action Title
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={title}
+                                        onChange={(event) => setTitle(event.target.value)}
+                                        placeholder="e.g. Start workout"
+                                        disabled
+                                        className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">
+                                        Icon
+                                    </label>
+
+                                    <div className="grid grid-cols-6 gap-2 rounded-md border border-slate-300 p-2">
+                                        {[
+                                            { name: "faUser", icon: faUser },
+                                            { name: "faTimes", icon: faTimes },
+                                            { name: "faStop", icon: faStop },
+                                            { name: "faCheck", icon: faCheck },
+                                            { name: "faPaste", icon: faPaste }
+                                        ].map((item) => (
+                                            <button
+                                                key={item.name}
+                                                type="button" 
+                                                onClick={() => setIcon(item.name)}
+                                                title={item.name}
+                                                className={`flex h-10 items-center justify-center rounded-md border transition ${
+                                                    icon === item.name
+                                                        ? "border-blue-500 bg-blue-50 text-blue-600"
+                                                        : "border-slate-200 hover:bg-slate-50"
+                                                }`}
+                                            >
+                                                <FontAwesomeIcon icon={item.icon || icon} />
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </>                                 
+                        )}
 
                         {/* Paste Text */}
-                        {title.trim().toUpperCase() === "PASTE" && (
+                        {isEditingAction && title.trim().toUpperCase() === "PASTE" && (
                             <div>
                                 <label className="mb-1.5 block text-sm font-medium text-gray-700">
                                     Text to Paste
@@ -233,9 +270,8 @@ export default function ActionDialog({
                             </div>
                         )}
 
-
                         {/* Delay */}
-                        {isDelayNode && (
+                        {isEditingAction && title.trim().toUpperCase() === "DELAY" && (
                             <div>
                                 <label className="mb-1.5 block text-sm font-medium text-gray-700">
                                     Delay
@@ -260,7 +296,7 @@ export default function ActionDialog({
                         )}
 
                         {/* Confirmation */}
-                        {title.trim().toUpperCase() === "CONFIRMATION" && (
+                        {isEditingAction && title.trim().toUpperCase() === "CONFIRMATION" && (
                             <div className="rounded-lg border border-gray-200 p-4">
                                 <div>
                                     <div className="mb-2 flex items-center justify-between">
@@ -320,7 +356,7 @@ export default function ActionDialog({
                                 </div>
                             </div>
                         )}
-                        {title?.trim().toUpperCase() === "AUTHENTICATION" && (
+                        {isEditingAction && title?.trim().toUpperCase() === "AUTHENTICATION" && (
                             <div className="space-y-4">
                                 <div>
                                 <label className="block text-sm font-medium mb-1">
@@ -352,7 +388,7 @@ export default function ActionDialog({
                                 />
                                 </div>
                             </div>
-                            )}
+                        )}
 
                     </div>
                 </div>
@@ -376,7 +412,7 @@ export default function ActionDialog({
                     >
                         {saving
                             ? "Saving..."
-                            : isEditing
+                            : isEditingAction
                                 ? "Save Changes"
                                 : "Save Action"}
                     </button>

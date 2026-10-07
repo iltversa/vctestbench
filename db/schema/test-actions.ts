@@ -9,7 +9,6 @@ import {
 
 export const testActions = pgTable("test_actions", {
   id: uuid("id").defaultRandom().primaryKey(),
-
   title: text("title").notNull(),
   hasConfirmation: boolean("has_confirmation").notNull().default(false),
   confirmationTimeout: integer("confirmation_timeout"),
@@ -17,5 +16,6 @@ export const testActions = pgTable("test_actions", {
   pasteText: text("paste_text"),
   email: text("email"),
   password: text("password"),
+  icon: text("icon"),
   sortOrder: integer("sort_order").notNull().default(0),
 });

@@ -14,6 +14,7 @@ export type UpdateTestActionInput = {
   pasteText?: string | null;
   email?: string | null;
   password?: string | null;
+  icon?: string | null;
 };
 
 export async function updateTestActionService(input: UpdateTestActionInput) {
@@ -28,6 +29,7 @@ export async function updateTestActionService(input: UpdateTestActionInput) {
         pasteText: input.pasteText ?? null,
         email: input.email ?? null,
         password: input.password ?? null,
+        icon: input.icon ?? null,
       })
       .where(eq(testActions.id, input.id))
       .returning();

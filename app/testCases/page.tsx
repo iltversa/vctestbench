@@ -9,18 +9,19 @@ import { updateTestActionAction } from "@/actions/update-test-action";
 
 type CreateTestButtonProps = {
   editingAction: SavedTest | TestAction | null;
-  isDelayNode: boolean;
+  // isDelayNode: boolean;
   isFlowPlacement?: boolean;
   onEditClose: () => void;
   onActionSaved?: () => void | Promise<void>;
   onFlowActionSave?: (action: TestAction) => void;
 };
 
-export default function CreateTestButton({ editingAction, onEditClose, isDelayNode, isFlowPlacement, onFlowActionSave, onActionSaved }: CreateTestButtonProps) {
+export default function CreateTestButton({ editingAction, onEditClose, isFlowPlacement, onFlowActionSave, onActionSaved }: CreateTestButtonProps) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
     if (editingAction) {
+      console.log("editingAction changed:", editingAction);
       setOpen(true);
     }
   }, [editingAction]);
@@ -51,8 +52,10 @@ export default function CreateTestButton({ editingAction, onEditClose, isDelayNo
               })
             : [],
           actionTimeout: Number((editingAction as any).actionTimeout ?? 5),
-          email: (editingAction as any).email ?? "",
-          password: (editingAction as any).password ?? "",
+          email: (editingAction as any).email ?? null,
+          password: (editingAction as any).password ?? null,
+          icon: (editingAction as any).icon ?? null,
+          type: (editingAction as any).type ?? null,
         };
       })()
     : null;
@@ -67,7 +70,8 @@ export default function CreateTestButton({ editingAction, onEditClose, isDelayNo
 
     // Otherwise, save to database as normal
     try {
-      const targetId = action.id ?? editingAction?.id;
+      const targetId = action.id;
+        console.log("editingAction:", editingAction);
 
       if (targetId) {
         const result = await updateTestActionAction({
@@ -80,28 +84,16 @@ export default function CreateTestButton({ editingAction, onEditClose, isDelayNo
             isSelected: option.isSelected,
           })),
           actionTimeout: action.actionTimeout,
-          pasteText: action.pasteText ?? undefined,
-          email: action.email ?? undefined,
-          password: action.password ?? undefined,
+          pasteText: action.pasteText ?? null,
+          email: action.email ?? null,
+          password: action.password ?? null,
+          icon: action.icon ?? null,
         });
 
-        console.log("Action updated:", result);
         await onActionSaved?.();
         handleClose();
         return;
       }
-
-      const result = await createTestActionAction({
-        ...action,
-        testId: editingAction?.id || "",
-        confirmationOptions: (action.confirmationOptions || []).map((option) => ({
-          option: option.option,
-          isSelected: option.isSelected,
-        })),
-      });
-      console.log("Action saved:", result);
-      await onActionSaved?.();
-      handleClose();
     } catch (error) {
       console.error("Failed to save action:", error);
       throw error;
@@ -122,7 +114,7 @@ export default function CreateTestButton({ editingAction, onEditClose, isDelayNo
       {open && (
         <ActionDialog
           test={transformedAction}
-          isDelayNode={isDelayNode}
+          // isDelayNode={isDelayNode}
           onClose={handleClose}
           onSave={handleSaveAction}
         />

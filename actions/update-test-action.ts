@@ -9,9 +9,10 @@ export type UpdateTestActionInput = {
   confirmationTimeout?: number | null;
   confirmationOptions: { option: string; isSelected: boolean }[];
   actionTimeout: number;
-  pasteText?: string;
-  email?: string;
-  password?: string;
+  pasteText?: string | null;
+  email?: string | null;
+  password?: string | null;
+  icon?: string | null;
 };
 
 export async function updateTestActionAction(input: UpdateTestActionInput) {

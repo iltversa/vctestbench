@@ -9,6 +9,9 @@ import { TestActionDefinition } from "@/services/get-test-actions";
 import { createFullTestAction, updateFullTestAction } from "@/actions/create-full-test";
 import { deleteTestActionDefinition } from "@/actions/delete-test-action";
 import { TestAction } from "@/components/ActionDialog";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faUser } from "@fortawesome/free-solid-svg-icons/faUser";
+import { faTimes, faStop, faCheck, faPaste } from "@fortawesome/free-solid-svg-icons";
 
 
 export type FlowNode = {
@@ -313,19 +316,14 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     setOpenMenu(null);
   };
 
-  const handleEditAction = (node: TestActionDefinition) => {
+  const handleEditAction = (action: TestActionDefinition) => {
     const testAction = {
-      id: node.id,
-      title: node.title,
-      hasConfirmation: node.hasConfirmation,
-      confirmationTimeout: node.confirmationTimeout,
-      confirmationOptions: node.confirmationOptions.map((opt) => ({
-        id: opt.id,
-        option: opt.option,
-        isSelected: Boolean(opt.isSelected),
-      })),
-      actionTimeout: node.actionTimeout,
+      id: action.id,
+      title: action.title,
+      icon: action.icon,
+      type: 'isEditingAction'
     };
+    
     // When editing an action from sidebar, no pending node ID
     setPendingNodeId(null);
     setEditingAction(testAction as any);
@@ -367,6 +365,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
       pasteText: (configuredAction as any).pasteText ??(configuredAction as any).paste_text ??null, 
       email: (configuredAction as any).email ?? null,
       password: (configuredAction as any).password ?? null,
+      icon: (configuredAction as any).icon ?? null,
     };
 
     setNodes((currentNodes) =>
@@ -408,9 +407,6 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     setPendingNodeId(null);
     setEditingAction(null);
   };
-
-  const isDelayAction = (title?: string) =>
-    title?.trim().toUpperCase() === "DELAY";
 
   const getDelayLabel = (action: TestActionDefinition | undefined) => {
     if (!action) return "0s";
@@ -654,22 +650,16 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   };
 
   const renderNode = (node: FlowNode, level: number = 0): React.ReactNode => {
-    // console.log(node.actionData, "node.actionData");
+    console.log(node.actionData, "node.actionData");
     const isConfirmation = node.nodeType === "confirmation";
     const isDropZone = node.nodeType === "action" && !node.actionId;
-    const isDelayNode = node.nodeType === "action" && isDelayAction(node.actionTitle);
-
-    const hasconfirmationChildren =
-      node.nodeType === "action" &&
-      node.paths.length > 0 &&
-      node.paths.every((p) => p.nodeType === "confirmation");
-
+    const isDelayAction = node.actionTitle === "DELAY";
+    const hasconfirmationChildren =node.nodeType === "action" && node.paths.length > 0 && node.paths.every((p) => p.nodeType === "confirmation");
     const canAddPath = isConfirmation || (!hasconfirmationChildren && !isDropZone);
     const canAcceptDrop = node.nodeType === "action";
     const isPasteAction = node.nodeType === "action" && node.actionTitle?.trim().toUpperCase() === "PASTE";
-    const isAuthenticationAction =
-  node.nodeType === "action" &&
-  node.actionTitle?.trim().toUpperCase() === "AUTHENTICATION";
+    const isAuthenticationAction = node.nodeType === "action" && node.actionTitle?.trim().toUpperCase() === "AUTHENTICATION";
+    
     return (
       <div className="tree-node" key={node.id}>
         <div
@@ -682,20 +672,21 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
               <span className="node-card-title">Drop action here</span>
             ) : isConfirmation ? (
               <span className="node-card-title">
-                {node.optionLabel ?? "Option"}
+                {node.optionLabel ?? "Option"} <FontAwesomeIcon icon={getFaIcon(node.actionData?.icon)} />
               </span>
-            ) : isDelayNode ? (
+            ) : isDelayAction ? (
               <span className="node-card-title">
-                {getDelayLabel(node.actionData)}
+                {getDelayLabel(node.actionData)} <FontAwesomeIcon icon={getFaIcon(node.actionData?.icon)} />
               </span>
             ) : isPasteAction ? (
               <span className="node-card-title">
-                {node.actionData?.pasteText || "PASTE"}
+                {node.actionData?.pasteText || "PASTE"} <FontAwesomeIcon icon={getFaIcon(node.actionData?.icon)} />
               </span>
             ) : isAuthenticationAction ? (
               <div className="w-full space-y-2">
                 <div className="font-semibold text-sm">
-                  AUTHENTICATION
+                  AUTHENTICATION  <FontAwesomeIcon icon={getFaIcon(node.actionData?.icon)} />
+
                 </div>
 
                 <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
@@ -714,10 +705,10 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
               </div>
             ) : (
               <span className="node-card-title">
-                {node.actionTitle ?? "Unassigned"}
+                {node.actionTitle ?? "Unassigned"} <FontAwesomeIcon icon={getFaIcon(node.actionData?.icon)} />
               </span>
             )}
-            {!isConfirmation && !isDropZone && isDelayNode && (
+            {!isConfirmation && !isDropZone && isDelayAction && (
               <button
                 className="edit-button"
                 onClick={() => {
@@ -739,7 +730,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
               </button>
             )}
 
-            {(canAddPath || !isConfirmation) && !isDelayNode && (
+            {(canAddPath || !isConfirmation) && !isDelayAction && (
               <div className="node-card-menu">
                 <button
                   className="menu-trigger"
@@ -787,7 +778,18 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
       </div>
     );
   };
+const ACTION_ICONS = {
+    faUser,
+    faTimes,
+    faStop,
+    faCheck,
+    faPaste,
+} as const;
 
+const getFaIcon = (name?: string | null) =>
+    name && name in ACTION_ICONS
+        ? ACTION_ICONS[name as keyof typeof ACTION_ICONS]
+        : faUser;
   return (
     <div className="flow-builder">
 
@@ -807,7 +809,6 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
             </div>
             <CreateTestButton
               editingAction={editingAction}
-              isDelayNode={isDelayAction(editingAction?.title)}
               isFlowPlacement={pendingNodeId !== null}
               onEditClose={() => {
                 setEditingAction(null);
@@ -823,7 +824,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
             {actions.map((action) => (
               <div
                 key={action.id}
-                draggable
+                draggable data-id={action.id}
                 className={`action-item ${draggedAction?.id === action.id
                   ? "dragging"
                   : ""

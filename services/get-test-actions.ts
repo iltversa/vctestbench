@@ -9,6 +9,7 @@ export type TestActionDefinition = {
   confirmationTimeout: number | null;
   actionTimeout: number;
   pasteText?: string | null;
+  icon?: string | null;
   email?: string | null;
   password?: string | null;
   confirmationOptions: {
@@ -29,6 +30,7 @@ export async function getActionsService(): Promise<TestActionDefinition[]> {
       email: testActions.email,
       password: testActions.password,
       pasteText: testActions.pasteText,
+      icon: testActions.icon,
       confirmationOptionId: confirmationOptions.id,
       confirmationOption: confirmationOptions.option,
       confirmationisSelected: confirmationOptions.isSelected,
@@ -60,6 +62,7 @@ export async function getActionsService(): Promise<TestActionDefinition[]> {
       confirmationTimeout: row.confirmationTimeout ?? null,
       actionTimeout: Number(row.actionTimeout ?? 0),
       pasteText: row.pasteText ?? null,
+      icon: row.icon ?? null,
       email: row.email ?? null,
       password: row.password ?? null,
       confirmationOptions: [],
