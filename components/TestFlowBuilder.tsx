@@ -12,6 +12,7 @@ import { TestAction } from "@/components/ActionDialog";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faUser } from "@fortawesome/free-solid-svg-icons/faUser";
 import { faTimes, faStop, faCheck, faPaste } from "@fortawesome/free-solid-svg-icons";
+import { useRouter } from "next/navigation";
 
 
 export type FlowNode = {
@@ -47,22 +48,22 @@ const hydrateFlow = (
 
     const actionData: TestActionDefinition | undefined = savedAction
       ? {
-          ...savedAction,
+        ...savedAction,
+        confirmationOptions:
+          savedAction.confirmationOptions?.map((option: any) => ({
+            ...option,
+            isSelected: Boolean(option.isSelected),
+          })) ?? [],
+      }
+      : matchedAction
+        ? {
+          ...matchedAction,
           confirmationOptions:
-            savedAction.confirmationOptions?.map((option: any) => ({
+            matchedAction.confirmationOptions?.map((option) => ({
               ...option,
               isSelected: Boolean(option.isSelected),
             })) ?? [],
         }
-      : matchedAction
-        ? {
-            ...matchedAction,
-            confirmationOptions:
-              matchedAction.confirmationOptions?.map((option) => ({
-                ...option,
-                isSelected: Boolean(option.isSelected),
-              })) ?? [],
-          }
         : undefined;
 
     const isConfirmationAction =
@@ -127,7 +128,7 @@ const hydrateFlow = (
 
 
 
-  
+
 export default function TestFlowBuilder({ editingTest: initialTest }: { editingTest?: SavedTest }) {
   const [nodes, setNodes] = useState<FlowNode[]>([createNode()]);
   const [draggedAction, setDraggedAction] = useState<TestActionDefinition | null>(null);
@@ -138,9 +139,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   const [testTitle, setTestTitle] = useState(initialTest?.title ?? "");
   const [testDescription, setTestDescription] = useState(initialTest ? "" : "");
   const [saving, setSaving] = useState(false);
-
-  
-
+  const router = useRouter();
   const hydratedRef = useRef(false);
 
   useEffect(() => {
@@ -323,7 +322,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
       icon: action.icon,
       type: 'isEditingAction'
     };
-    
+
     // When editing an action from sidebar, no pending node ID
     setPendingNodeId(null);
     setEditingAction(testAction as any);
@@ -362,7 +361,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
         })
       ),
       actionTimeout: configuredAction.actionTimeout,
-      pasteText: (configuredAction as any).pasteText ??(configuredAction as any).paste_text ??null, 
+      pasteText: (configuredAction as any).pasteText ?? (configuredAction as any).paste_text ?? null,
       email: (configuredAction as any).email ?? null,
       password: (configuredAction as any).password ?? null,
       icon: (configuredAction as any).icon ?? null,
@@ -415,7 +414,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   };
 
   const extractFlowTree = (flowNodes: FlowNode[]): any[] => {
-    return flowNodes.map(({ id, actionId, optionId, isSelected,paths,actionData }) => ({
+    return flowNodes.map(({ id, actionId, optionId, isSelected, paths, actionData }) => ({
       id,
       actionId: actionId ?? null,
       optionId: optionId ?? null,
@@ -425,7 +424,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     }));
   };
 
-  const syncActionDataInTree = (flowNodes: FlowNode[],  actionList: TestActionDefinition[]  ): FlowNode[] =>
+  const syncActionDataInTree = (flowNodes: FlowNode[], actionList: TestActionDefinition[]): FlowNode[] =>
     flowNodes.map((node) => {
       // For a saved test, actionData from the flow is the test-specific
       // configuration and must NOT be replaced by the global action definition.
@@ -453,12 +452,12 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
         ...node,
         actionData: matchedAction
           ? {
-              ...matchedAction,
-              confirmationOptions:
-                matchedAction.confirmationOptions?.map((option) => ({
-                  ...option,
-                })) ?? [],
-            }
+            ...matchedAction,
+            confirmationOptions:
+              matchedAction.confirmationOptions?.map((option) => ({
+                ...option,
+              })) ?? [],
+          }
           : node.actionData,
         actionTitle:
           node.actionTitle ??
@@ -469,20 +468,20 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     });
 
   const loadActions = async () => {
-      try {
-        const result = await getActionsAction();
+    try {
+      const result = await getActionsAction();
 
-        if (!result.success) {
-          throw new Error(
-            result.message ?? "Failed to fetch test classes"
-          );
-        }
-
-        setActions(result.data);
-        setNodes((currentNodes) => syncActionDataInTree(currentNodes, result.data));
-      } catch (error) {
-        console.error("Failed to load actions:", error);
+      if (!result.success) {
+        throw new Error(
+          result.message ?? "Failed to fetch test classes"
+        );
       }
+
+      setActions(result.data);
+      setNodes((currentNodes) => syncActionDataInTree(currentNodes, result.data));
+    } catch (error) {
+      console.error("Failed to load actions:", error);
+    }
   };
 
   const refreshActions = async () => {
@@ -654,12 +653,12 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     const isConfirmation = node.nodeType === "confirmation";
     const isDropZone = node.nodeType === "action" && !node.actionId;
     const isDelayAction = node.actionTitle === "DELAY";
-    const hasconfirmationChildren =node.nodeType === "action" && node.paths.length > 0 && node.paths.every((p) => p.nodeType === "confirmation");
+    const hasconfirmationChildren = node.nodeType === "action" && node.paths.length > 0 && node.paths.every((p) => p.nodeType === "confirmation");
     const canAddPath = isConfirmation || (!hasconfirmationChildren && !isDropZone);
     const canAcceptDrop = node.nodeType === "action";
     const isPasteAction = node.nodeType === "action" && node.actionTitle?.trim().toUpperCase() === "PASTE";
     const isAuthenticationAction = node.nodeType === "action" && node.actionTitle?.trim().toUpperCase() === "AUTHENTICATION";
-    
+
     return (
       <div className="tree-node" key={node.id}>
         <div
@@ -778,28 +777,104 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
       </div>
     );
   };
-const ACTION_ICONS = {
+  const ACTION_ICONS = {
     faUser,
     faTimes,
     faStop,
     faCheck,
     faPaste,
-} as const;
+  } as const;
 
-const getFaIcon = (name?: string | null) =>
+  const getFaIcon = (name?: string | null) =>
     name && name in ACTION_ICONS
-        ? ACTION_ICONS[name as keyof typeof ACTION_ICONS]
-        : faUser;
+      ? ACTION_ICONS[name as keyof typeof ACTION_ICONS]
+      : faUser;
+  const BRIDGE = "http://localhost:3131";
+
+  const handleRunTest = async (test: SavedTest) => {
+
+    console.log(test);
+    try {
+      const response = await fetch(BRIDGE + "/run-test", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: test.title,
+          actions: test.actions ?? [],
+          flow: test.flow ?? []
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to start test");
+      }else router.push("/")
+
+    } catch (error) {
+      console.error("handleRunTest error:", error);
+    } finally {
+      console.log("happen");
+
+    }
+  };
   return (
     <div className="flow-builder">
 
       <aside className="flow-sidebar">
         <div className="test-configuration" id="test-config-zone">
-          <div className="configuration-header">
-            <h2>Test Configuration</h2>
-            <p> Select a test class and manage the actions available for your flow. </p>
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold tracking-tight text-slate-900">
+              Test Configuration
+            </h2>
+
+            <p className="mt-1 text-sm leading-6 text-slate-500">
+              Select a test class and manage the actions available for your flow.
+            </p>
+
+            <div className="mt-6 space-y-5">
+              {/* Test Title */}
+              <div>
+                <label
+                  htmlFor="test-title"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Test Title
+                </label>
+
+                <input
+                  id="test-title"
+                  type="text"
+                  value={testTitle}
+                  onChange={(event) => setTestTitle(event.target.value)}
+                  placeholder="Enter test title"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label
+                  htmlFor="test-description"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Description
+                </label>
+
+                <textarea
+                  id="test-description"
+                  value={testDescription}
+                  onChange={(event) =>
+                    setTestDescription(event.target.value)
+                  }
+                  placeholder="Describe what this test validates..."
+                  rows={3}
+                  className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm leading-6 text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+                />
+              </div>
+            </div>
           </div>
-        </div> 
+        </div>
 
         <div className="actions-section">
           <div className="sidebar-header">
@@ -875,29 +950,17 @@ const getFaIcon = (name?: string | null) =>
               </div>
             </div>
 
-            <div className="test-details-fields">
 
-              <div className="test-field">
-                <label htmlFor="test-description" className="configuration-label" >Test Title </label>
-                <input id="test-title" type="text" value={testTitle} className="test-title-input"
-                  onChange={(event) => setTestTitle(event.target.value)} placeholder="Enter test title" />
-              </div>
-
-              <div className="test-field">
-                <label htmlFor="test-description" className="configuration-label" >Description </label>
-                <textarea
-                  id="test-description"
-                  value={testDescription}
-                  onChange={(event) =>
-                    setTestDescription(event.target.value)
-                  }
-                  placeholder="Describe what this test validates..."
-                  className="test-title-input" rows={2}
-                />
-              </div>
-            </div>
           </div>
-
+          <div className="flex space-between gap-5">
+          <button
+            className="save-test-button"
+            // disabled={!canRun || starting}
+            onClick={() => handleRunTest(initialTest)}
+            type="button"
+          >
+            Run test
+          </button>
           {/* SAVE TEST */}
           <button
             onClick={handleSaveTest}
@@ -915,6 +978,7 @@ const getFaIcon = (name?: string | null) =>
           >
             {saving ? "Saving..." : "Save Test"}
           </button>
+          </div>
         </div>
 
         <div className="flow-area">

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faUser,faPause,faStop,faCheck, faUserSecret,faPaste, faTimes} from "@fortawesome/free-solid-svg-icons";
+import { faUser, faPause, faStop, faCheck, faUserSecret, faPaste, faTimes } from "@fortawesome/free-solid-svg-icons";
 export type ConfirmationChoice = {
     option: string;
     isSelected: boolean;
@@ -46,22 +46,22 @@ export default function ActionDialog({
     onSave,
 }: ActionDialogProps) {
     // const isEditing = Boolean(test?.id);
-    const isEditingAction= test?.type !== 'isEditingAction';
+    const isEditingAction = test?.type !== 'isEditingAction';
     const [title, setTitle] = useState(test?.title ?? "");
-    const [actionTimeout, setActionTimeout] = useState( test?.actionTimeout?.toString() ?? "5" );
-    const [email, setEmail] = useState( test?.email ?? "" );
-    const [password, setPassword] = useState( test?.password ?? "" );
-    const [icon, setIcon] = useState( test?.icon ?? "" );
+    const [actionTimeout, setActionTimeout] = useState(test?.actionTimeout?.toString() ?? "5");
+    const [email, setEmail] = useState(test?.email ?? "");
+    const [password, setPassword] = useState(test?.password ?? "");
+    const [icon, setIcon] = useState(test?.icon ?? "");
     const [pasteText, setPasteText] = useState(test?.pasteText ?? "");
     const [hasConfirmation, setHasConfirmation] = useState(test?.hasConfirmation ?? false);
-    const [confirmationTimeout, setConfirmationTimeout] = useState( test?.confirmationTimeout?.toString() ?? "5" );
+    const [confirmationTimeout, setConfirmationTimeout] = useState(test?.confirmationTimeout?.toString() ?? "5");
     const [confirmationOptions, setConfirmationOptions] = useState<ConfirmationChoice[]>(
         test?.confirmationOptions?.length
             ? test.confirmationOptions.map((option) => ({
-                  option: option.option,
-                  isSelected: Boolean(option.isSelected),
-                  id: option.id,
-              }))
+                option: option.option,
+                isSelected: Boolean(option.isSelected),
+                id: option.id,
+            }))
             : DEFAULT_CONFIRMATION_OPTIONS
     );
 
@@ -82,10 +82,10 @@ export default function ActionDialog({
         setConfirmationOptions(
             test?.confirmationOptions?.length
                 ? test.confirmationOptions.map((option) => ({
-                      option: option.option,
-                      isSelected: Boolean(option.isSelected),
-                      id: option.id,
-                  }))
+                    option: option.option,
+                    isSelected: Boolean(option.isSelected),
+                    id: option.id,
+                }))
                 : DEFAULT_CONFIRMATION_OPTIONS
         );
     }, [test]);
@@ -111,11 +111,12 @@ export default function ActionDialog({
         );
     };
 
-    const toggleConfirmationOption = (index: number) => {
-        setConfirmationOptions((current) =>
-            current.map((option, optionIndex) =>
-                optionIndex === index ? { ...option, isSelected: !option.isSelected } : option
-            )
+    const toggleConfirmationOption = (selectedIndex: number) => {
+        setConfirmationOptions((prev) =>
+            prev.map((option, index) => ({
+                ...option,
+                isSelected: index === selectedIndex,
+            }))
         );
     };
 
@@ -143,17 +144,17 @@ export default function ActionDialog({
             title: title.trim(),
             hasConfirmation,
             confirmationTimeout: hasConfirmation
-            ? Number(confirmationTimeout)
-            : null,
+                ? Number(confirmationTimeout)
+                : null,
 
             confirmationOptions: hasConfirmation
-            ? confirmationOptions
-                .map((option) => ({
-                    option: option.option.trim(),
-                    isSelected: option.isSelected,
-                }))
-                .filter((option) => option.option)
-            : [],
+                ? confirmationOptions
+                    .map((option) => ({
+                        option: option.option.trim(),
+                        isSelected: option.isSelected,
+                    }))
+                    .filter((option) => option.option)
+                : [],
 
             actionTimeout: Number(actionTimeout),
             email: email || null,
@@ -173,7 +174,7 @@ export default function ActionDialog({
         } finally {
             setSaving(false);
         }
-        };
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
@@ -189,7 +190,7 @@ export default function ActionDialog({
                         </h2>
 
                         <p className="mt-0.5 text-sm text-gray-500">
-                             {isEditingAction ? "Configure the action for your test flow." : "Edit the action details."}
+                            {isEditingAction ? "Configure the action for your test flow." : "Edit the action details."}
                         </p>
                     </div>
 
@@ -207,7 +208,7 @@ export default function ActionDialog({
                     <div className="space-y-5">
 
                         {/* Title */}
-                        { !isEditingAction && (
+                        {!isEditingAction && (
                             <>
                                 <div>
                                     <label className="mb-1.5 block text-sm font-medium text-gray-700">
@@ -237,21 +238,20 @@ export default function ActionDialog({
                                         ].map((item) => (
                                             <button
                                                 key={item.name}
-                                                type="button" 
+                                                type="button"
                                                 onClick={() => setIcon(item.name)}
                                                 title={item.name}
-                                                className={`flex h-10 items-center justify-center rounded-md border transition ${
-                                                    icon === item.name
+                                                className={`flex h-10 items-center justify-center rounded-md border transition ${icon === item.name
                                                         ? "border-blue-500 bg-blue-50 text-blue-600"
                                                         : "border-slate-200 hover:bg-slate-50"
-                                                }`}
+                                                    }`}
                                             >
                                                 <FontAwesomeIcon icon={item.icon || icon} />
                                             </button>
                                         ))}
                                     </div>
                                 </div>
-                            </>                                 
+                            </>
                         )}
 
                         {/* Paste Text */}
@@ -269,7 +269,21 @@ export default function ActionDialog({
                                 />
                             </div>
                         )}
-
+                        {/* Paste Text */}
+                        {isEditingAction && title.trim().toUpperCase() === "CLICK" && (
+                            <div>
+                                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                                    Action to be Clicked
+                                </label>
+                                <input
+                                    type="text"
+                                    value={title}
+                                    onChange={(event) => setTitle(event.target.value)}
+                                    placeholder="e.g. Start workout"
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
+                                />
+                            </div>
+                        )}
                         {/* Delay */}
                         {isEditingAction && title.trim().toUpperCase() === "DELAY" && (
                             <div>
@@ -320,10 +334,11 @@ export default function ActionDialog({
                                                 className="flex items-center gap-2"
                                             >
                                                 <input
-                                                    type="checkbox"
+                                                    type="radio"
+                                                    name="confirmation-option"
                                                     checked={option.isSelected}
                                                     onChange={() => toggleConfirmationOption(index)}
-                                                    className="h-4 w-4 rounded border-gray-300 text-black focus:ring-black"
+                                                    className="h-4 w-4 border-gray-300 text-black focus:ring-black"
                                                 />
 
                                                 <input
@@ -342,9 +357,7 @@ export default function ActionDialog({
                                                 {confirmationOptions.length > 1 && (
                                                     <button
                                                         type="button"
-                                                        onClick={() =>
-                                                            removeConfirmationOption(index)
-                                                        }
+                                                        onClick={() => removeConfirmationOption(index)}
                                                         className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 text-gray-500 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600"
                                                     >
                                                         ×
@@ -359,33 +372,33 @@ export default function ActionDialog({
                         {isEditingAction && title?.trim().toUpperCase() === "AUTHENTICATION" && (
                             <div className="space-y-4">
                                 <div>
-                                <label className="block text-sm font-medium mb-1">
-                                    Email
-                                </label>
-                                <input
-                                    type="email"
-                                    value={email ?? ""}
-                                   onChange={(event) =>
+                                    <label className="block text-sm font-medium mb-1">
+                                        Email
+                                    </label>
+                                    <input
+                                        type="email"
+                                        value={email ?? ""}
+                                        onChange={(event) =>
                                             setEmail(event.target.value)
                                         }
-                                    className="w-full rounded-md border border-slate-300 px-3 py-2"
-                                    placeholder="Enter email"
-                                />
+                                        className="w-full rounded-md border border-slate-300 px-3 py-2"
+                                        placeholder="Enter email"
+                                    />
                                 </div>
 
                                 <div>
-                                <label className="block text-sm font-medium mb-1">
-                                    Password
-                                </label>
-                                <input
-                                    type="password"
-                                    value={password ?? ""}
-                                    onChange={(event) =>
+                                    <label className="block text-sm font-medium mb-1">
+                                        Password
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={password ?? ""}
+                                        onChange={(event) =>
                                             setPassword(event.target.value)
                                         }
-                                    className="w-full rounded-md border border-slate-300 px-3 py-2"
-                                    placeholder="Enter password"
-                                />
+                                        className="w-full rounded-md border border-slate-300 px-3 py-2"
+                                        placeholder="Enter password"
+                                    />
                                 </div>
                             </div>
                         )}

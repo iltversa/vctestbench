@@ -55,7 +55,7 @@ export default function TestConfigPage() {
 
   return (
     <main className="min-h-screen bg-[#f4f6fa] text-slate-900">
-      <header className="border-b border-slate-200 bg-white/90 backdrop-blur-sm">
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur-sm">
         <div className="mx-auto flex max-w-[1800px] flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:px-8">
           <div className="flex items-center gap-3">
             <button

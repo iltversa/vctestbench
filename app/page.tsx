@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { getTestsAction } from "@/actions/get-tests";
 import { deleteTestAction } from "@/actions/delete-test";
 import CreateTestModal from "@/components/CreateTestModal";
+import { FlowNode } from "@/components/TestFlowBuilder";
 type FeedEvent = { id: number; at: string; label: string; detail: string; kind: "info" | "success" | "warning" };
 type TabletState = { connected: boolean; device?: string; model?: string; android?: string; foregroundPackage?: string; sandboxForeground: boolean; route?: string; updatedAt: string; events: FeedEvent[]; test?: { status: "idle" | "running" | "passed" | "failed"; name?: string; step?: string; error?: string } };
 
@@ -21,14 +22,17 @@ export type SavedTestAction = {
   hasConfirmation: boolean;
   confirmationTimeout?: number | null;
   actionTimeout: number;
-
-  confirmationOptions: ConfirmationOption[];
+  confirmationOptions: { option: string; isSelected: boolean }[];
+  pasteText?: string | null;
+  email?: string | null;
+  password?: string | null;
+  icon?: string | null;
 };
 
 export type SavedTest = {
   id: string;
   title: string;
-  flow?: any[];
+  flow?: FlowNode[];
   actions?: SavedTestAction[];
 };
 
