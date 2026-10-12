@@ -100,8 +100,16 @@ completes the flow and nothing runs after it. Only one run can be active.
 
 A report holds the result, start and finish time, the device, a record for each
 step (when it started, how long it waited, how long it took, its error), the
-activity log, and, for a failed run, a screenshot of the tablet at that moment.
-Steps after a failure are listed as *Not run*. **Run again** starts the test as
+activity log, and a **picture of the tablet for every step**, taken when the step
+ended. The pictures appear in a *Screen* column after *Took*; click one to open
+it large, then use the arrow keys to move between steps. The activity log sits
+to the right of the steps, in the order things happened. A failed run also keeps
+a full screenshot of the moment it failed. Steps after a failure are listed as
+*Not run*.
+
+Step pictures are small JPEGs (about 40 KB each, 600px wide) kept in their own
+table, so a run of 20 steps adds under 1 MB. There is no automatic clean-up yet;
+delete rows from `run_step_images` if you need the space back. **Run again** starts the test as
 it is saved now.
 
 The bridge keeps the last 20 runs in memory; whichever page is open copies runs

@@ -22,7 +22,11 @@ import {
   type TabletState,
 } from "@/components/bridge";
 import { getRunPayloadAction } from "@/actions/get-run-payload";
-import { filterUnsavedRunIdsAction, saveRunReportAction } from "@/actions/run-reports";
+import {
+  filterUnsavedRunIdsAction,
+  saveRunReportAction,
+  saveRunStepImagesAction,
+} from "@/actions/run-reports";
 
 const POLL_MS = 1500;
 
@@ -141,14 +145,27 @@ export function BridgeProvider({ children }: { children: ReactNode }) {
           const response = await fetch(BRIDGE + "/runs", { cache: "no-store" });
           if (!response.ok) return;
 
-          const reports = (await response.json()) as { runId: string }[];
+          const reports = (await response.json()) as {
+            runId: string;
+            images?: Record<string, string>;
+          }[];
 
-          for (const report of reports) {
+          for (const { images, ...report } of reports) {
             if (!unsaved.runIds.includes(report.runId)) continue;
 
             const result = await saveRunReportAction(report);
             if (!result.success) return;
             savedAny = true;
+
+            // The step pictures follow in small batches, so no single call is
+            // large; a failure here costs pictures, never the report.
+            const pictures = Object.entries(images ?? {});
+
+            for (let from = 0; from < pictures.length; from += 4) {
+              const batch = Object.fromEntries(pictures.slice(from, from + 4));
+              const stored = await saveRunStepImagesAction({ runId: report.runId, images: batch });
+              if (!stored.success) break;
+            }
           }
         }
 

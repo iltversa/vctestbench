@@ -1,5 +1,6 @@
 import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
+import { runStepImages } from "@/db/schema/run-step-images";
 import { testRuns, type RunLogEntry, type RunStep } from "@/db/schema/test-runs";
 
 // Reports reach the server through the browser, which copied them from the
@@ -7,6 +8,9 @@ import { testRuns, type RunLogEntry, type RunStep } from "@/db/schema/test-runs"
 
 const MAX_STEPS = 500;
 const MAX_LOG = 300;
+// A step picture is about 60 KB as base64; anything far beyond that is not one.
+const MAX_IMAGE_CHARS = 400_000;
+const BASE64 = /^[A-Za-z0-9+/=]+$/;
 const LOG_KINDS = new Set(["info", "success", "warning"]);
 const MAX_TEXT = 2000;
 const MAX_SCREENSHOT = 2_000_000;
@@ -40,6 +44,7 @@ function cleanStep(raw: unknown, position: number): RunStep {
     finishedAt: text(step.finishedAt, 40),
     durationMs: count(step.durationMs),
     waitedMs: count(step.waitedMs) ?? 0,
+    hasImage: step.hasImage === true,
     error: text(step.error),
   };
 }
@@ -108,7 +113,60 @@ export async function saveRunReportService(raw: unknown): Promise<SaveRunReportR
     .onConflictDoNothing({ target: testRuns.runId })
     .returning({ id: testRuns.id });
 
-  return { saved: inserted.length > 0 };
+  const saved = inserted.length > 0;
+
+  // Pictures normally arrive separately, in small batches (see
+  // saveRunStepImagesService); accept them inline too.
+  if (saved && report.images) {
+    await saveRunStepImagesService(runId, report.images);
+  }
+
+  return { saved };
+}
+
+// Stores step pictures for a run that is already saved, and marks the steps
+// that have one. Safe to call again: a picture already stored is kept.
+export async function saveRunStepImagesService(runId: string, raw: unknown): Promise<{ stored: number }> {
+  const entries = raw && typeof raw === "object" ? Object.entries(raw as Record<string, unknown>) : [];
+
+  const rows = entries
+    .map(([index, data]) => ({ stepIndex: Number(index), data }))
+    .filter(
+      (row): row is { stepIndex: number; data: string } =>
+        Number.isInteger(row.stepIndex) &&
+        row.stepIndex > 0 &&
+        row.stepIndex <= MAX_STEPS &&
+        typeof row.data === "string" &&
+        row.data.length > 0 &&
+        row.data.length <= MAX_IMAGE_CHARS &&
+        BASE64.test(row.data)
+    )
+    .map((row) => ({ runId, stepIndex: row.stepIndex, data: row.data }));
+
+  if (rows.length === 0) return { stored: 0 };
+
+  const [run] = await db.select({ steps: testRuns.steps }).from(testRuns).where(eq(testRuns.runId, runId));
+  if (!run) return { stored: 0 };
+
+  await db.insert(runStepImages).values(rows).onConflictDoNothing();
+
+  // A step says it has a picture only because one is stored.
+  const stored = new Set(rows.map((row) => row.stepIndex));
+  const steps = run.steps.map((step) => (stored.has(step.index) ? { ...step, hasImage: true } : step));
+
+  await db.update(testRuns).set({ steps }).where(eq(testRuns.runId, runId));
+
+  return { stored: rows.length };
+}
+
+// Step pictures by step number, as base64 JPEG.
+export async function getRunStepImagesService(runId: string): Promise<Record<number, string>> {
+  const rows = await db
+    .select({ stepIndex: runStepImages.stepIndex, data: runStepImages.data })
+    .from(runStepImages)
+    .where(eq(runStepImages.runId, runId));
+
+  return Object.fromEntries(rows.map((row) => [row.stepIndex, row.data]));
 }
 
 // Which of these bridge run ids are not stored yet.

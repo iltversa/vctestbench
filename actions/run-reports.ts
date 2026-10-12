@@ -3,9 +3,11 @@
 import {
   filterUnsavedRunIdsService,
   getRunService,
+  getRunStepImagesService,
   getRunTrendsService,
   listRunsService,
   saveRunReportService,
+  saveRunStepImagesService,
 } from "@/services/run-reports";
 import { listActivityService } from "@/services/activity";
 import { requireUserIfEnabled } from "@/services/require-user";
@@ -77,6 +79,37 @@ export async function getActivityAction(options?: { limit?: number }) {
     return { success: true as const, items: await listActivityService(options?.limit ?? 40) };
   } catch (error) {
     console.error("getActivityAction error:", error);
+    return FAILED;
+  }
+}
+
+export async function getRunStepImagesAction(input: { runId: string }) {
+  try {
+    await requireUserIfEnabled();
+
+    if (typeof input?.runId !== "string" || !input.runId) {
+      return { success: false as const, message: "Run id is required." };
+    }
+
+    return { success: true as const, images: await getRunStepImagesService(input.runId) };
+  } catch (error) {
+    console.error("getRunStepImagesAction error:", error);
+    return FAILED;
+  }
+}
+
+export async function saveRunStepImagesAction(input: { runId: string; images: unknown }) {
+  try {
+    await requireUserIfEnabled();
+
+    if (typeof input?.runId !== "string" || !input.runId) {
+      return { success: false as const, message: "Run id is required." };
+    }
+
+    const result = await saveRunStepImagesService(input.runId, input.images);
+    return { success: true as const, stored: result.stored };
+  } catch (error) {
+    console.error("saveRunStepImagesAction error:", error);
     return FAILED;
   }
 }

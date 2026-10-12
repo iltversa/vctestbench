@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getRunAction } from "@/actions/run-reports";
+import { getRunAction, getRunStepImagesAction } from "@/actions/run-reports";
 import ActivityFeed from "@/components/ActivityFeed";
 import { useBridge } from "@/components/BridgeProvider";
+import Lightbox, { type LightboxItem } from "@/components/Lightbox";
 import RunStatusBadge from "@/components/RunStatusBadge";
 import {
   explainFailure,
@@ -45,6 +46,10 @@ export default function RunReportPage() {
   const [state, setState] = useState<"loading" | "missing" | "error" | "ready">("loading");
   const [attempt, setAttempt] = useState(0);
   const [rerun, setRerun] = useState<{ kind: "info" | "error"; text: string } | null>(null);
+  // Step pictures by step number, and which one is open in the lightbox.
+  const [images, setImages] = useState<Record<number, string>>({});
+  const [imagesLoaded, setImagesLoaded] = useState(false);
+  const [viewing, setViewing] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,6 +86,27 @@ export default function RunReportPage() {
       if (timer) window.clearTimeout(timer);
     };
   }, [runId, attempt]);
+
+  const hasPictures = Boolean(run?.steps.some((step) => step.hasImage));
+  const imagesLoading = hasPictures && !imagesLoaded;
+
+  useEffect(() => {
+    if (!run || !hasPictures) return;
+
+    let cancelled = false;
+
+    (async () => {
+      const result = await getRunStepImagesAction({ runId: run.runId });
+      if (cancelled) return;
+
+      if (result.success) setImages(result.images);
+      setImagesLoaded(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [run, hasPictures]);
 
   if (state === "loading") {
     return (
@@ -136,6 +162,13 @@ export default function RunReportPage() {
     step: entry.step,
   }));
 
+  const pictured = run.steps.filter((step) => images[step.index]);
+  const lightboxItems: LightboxItem[] = pictured.map((step) => ({
+    src: `data:image/jpeg;base64,${images[step.index]}`,
+    title: `Step ${step.index} · ${step.action} · ${step.status}`,
+    subtitle: `${step.detail}${step.finishedAt ? ` · ${formatClock(step.finishedAt)}` : ""}`,
+  }));
+
   const runAgain = async () => {
     if (!run.testId) return;
 
@@ -160,7 +193,7 @@ export default function RunReportPage() {
   };
 
   return (
-    <main className="mx-auto flex max-w-[1100px] flex-col gap-5 px-4 py-6 sm:px-6">
+    <main className="mx-auto flex max-w-[1500px] flex-col gap-5 px-4 py-6 sm:px-6">
       <nav aria-label="Breadcrumb" className="text-sm print:hidden">
         <Link href="/runs" className="font-medium text-slate-800 underline">Runs</Link>
         <span className="mx-2 text-slate-500" aria-hidden="true">/</span>
@@ -206,6 +239,8 @@ export default function RunReportPage() {
         </p>
       )}
 
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="flex min-w-0 flex-col gap-5">
       <section className="grid grid-cols-2 gap-3 md:grid-cols-4" aria-label="Summary">
         {[
           { label: "Passed", value: `${passed} of ${run.steps.length}` },
@@ -267,7 +302,7 @@ export default function RunReportPage() {
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white" aria-label="Steps">
         <h2 className="border-b border-slate-200 px-4 py-3 text-base font-semibold text-slate-900">Steps</h2>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[34rem] text-left text-sm">
+          <table className="w-full min-w-[40rem] text-left text-sm">
             <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-700">
               <tr>
                 <th className="px-4 py-3">#</th>
@@ -276,6 +311,7 @@ export default function RunReportPage() {
                 <th className="px-4 py-3">Started</th>
                 <th className="px-4 py-3">Waited</th>
                 <th className="px-4 py-3">Took</th>
+                <th className="px-4 py-3">Screen</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -291,11 +327,32 @@ export default function RunReportPage() {
                   <td className="px-4 py-3 align-top text-slate-800">{formatClock(step.startedAt)}</td>
                   <td className="px-4 py-3 align-top text-slate-800">{step.waitedMs > 0 ? formatDuration(step.waitedMs) : "—"}</td>
                   <td className="px-4 py-3 align-top text-slate-800">{formatDuration(step.durationMs)}</td>
+                  <td className="px-4 py-3 align-top">
+                    {images[step.index] ? (
+                      <button
+                        type="button"
+                        onClick={() => setViewing(pictured.findIndex((item) => item.index === step.index))}
+                        aria-label={`Open the screenshot of step ${step.index}`}
+                        className="block overflow-hidden rounded-md border border-slate-300 bg-slate-900 hover:border-slate-900"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={`data:image/jpeg;base64,${images[step.index]}`}
+                          alt=""
+                          className="block h-20 w-auto"
+                        />
+                      </button>
+                    ) : step.hasImage && imagesLoading ? (
+                      <span className="block h-20 w-12 animate-pulse rounded-md bg-slate-200" aria-label="Loading screenshot" />
+                    ) : (
+                      <span className="text-slate-500">—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
               {run.steps.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-slate-700">This run had no steps.</td>
+                  <td colSpan={7} className="px-4 py-6 text-center text-slate-700">This run had no steps.</td>
                 </tr>
               )}
             </tbody>
@@ -303,11 +360,26 @@ export default function RunReportPage() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4" aria-label="Activity log">
-        <h2 className="mb-1 text-base font-semibold text-slate-900">Activity log</h2>
+      </div>
+
+      <aside
+        className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 lg:sticky lg:top-20 lg:h-[calc(100dvh-6.5rem)]"
+        aria-label="Activity log"
+      >
+        <h2 className="text-base font-semibold text-slate-900">Activity log</h2>
         <p className="mb-2 text-sm text-slate-700">Everything the bridge did during this run, in the order it happened.</p>
-        <ActivityFeed events={events} empty="No log was recorded for this run." maxHeight="26rem" />
-      </section>
+        <div className="max-h-[32rem] min-h-0 flex-1 lg:max-h-none">
+          <ActivityFeed events={events} empty="No log was recorded for this run." />
+        </div>
+      </aside>
+      </div>
+
+      <Lightbox
+        items={lightboxItems}
+        index={viewing}
+        onChange={setViewing}
+        onClose={() => setViewing(null)}
+      />
     </main>
   );
 }

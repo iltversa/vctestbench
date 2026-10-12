@@ -5,8 +5,9 @@
 // nothing runs after it.
 
 import { randomUUID } from "node:crypto";
-import { screenshotBase64 } from "./adb.mjs";
-import { MAX_RUNS, STEP_DELAY_SECONDS } from "./config.mjs";
+import { screenshot, screenshotBase64 } from "./adb.mjs";
+import { MAX_RUNS, STEP_DELAY_SECONDS, debug } from "./config.mjs";
+import { toStepImage } from "./image.mjs";
 import { addEvent, sleep, store } from "./state.mjs";
 import { clickSaveButton, clickTextAround, evaluate } from "./webview.mjs";
 
@@ -87,6 +88,7 @@ export function planFlow(nodes, actionMap, out = []) {
       finishedAt: null,
       durationMs: null,
       waitedMs: 0,
+      hasImage: false,
       error: null,
     });
 
@@ -121,6 +123,7 @@ function beginStep(run, node, action) {
       finishedAt: null,
       durationMs: null,
       waitedMs: 0,
+      hasImage: false,
       error: null,
     };
     run.steps.push(step);
@@ -140,6 +143,35 @@ function endStep(step, status, error = null) {
   step.finishedAt = new Date().toISOString();
   step.durationMs = step.startedAt ? Date.now() - new Date(step.startedAt).getTime() : null;
   step.error = error;
+}
+
+// What the tablet showed when the step ended. The capture itself is awaited so
+// it shows this step's result; shrinking it is left to run alongside.
+async function captureStepImage(run, step) {
+  if (!store.connection.connected) return;
+
+  try {
+    const png = await screenshot({ maxAgeMs: 0 });
+    if (!png) return;
+
+    run.imageJobs.push(
+      Promise.resolve().then(() => {
+        try {
+          run.images[step.index] = toStepImage(png).base64;
+          step.hasImage = true;
+        } catch (error) {
+          debug("step image failed:", error?.message || error);
+        }
+      })
+    );
+  } catch (error) {
+    debug("step capture failed:", error?.message || error);
+  }
+}
+
+async function finishStep(run, step, status, error = null) {
+  endStep(step, status, error);
+  await captureStepImage(run, step);
 }
 
 // ---------------------------------------------------------------------
@@ -166,6 +198,9 @@ function createRun(testData, actionMap) {
     steps: planFlow(testData.flow, actionMap),
     log: [],
     screenshot: null,
+    // One small picture per step, by step number, as base64 JPEG.
+    images: {},
+    imageJobs: [],
   };
 }
 
@@ -181,6 +216,9 @@ async function finalizeRun(run, status, error = null) {
 
   // Steps that were never reached stay "pending"; reports show them as not run.
   if (status === "failed") run.screenshot = await screenshotBase64();
+
+  await Promise.allSettled(run.imageJobs);
+  delete run.imageJobs;
 
   store.runs.push(run);
   while (store.runs.length > MAX_RUNS) store.runs.shift();
@@ -311,16 +349,18 @@ async function executeFlowNodes(run, nodes, actionMap) {
       if (name === "CONFIRMATION") {
         // The step is done once the option is tapped; the branch below it
         // records its own steps.
-        await executeConfirmationNode(run, node, action, actionMap, () => endStep(step, "passed"));
+        await executeConfirmationNode(run, node, action, actionMap, () =>
+          finishStep(run, step, "passed")
+        );
 
-        if (step.status === "running") endStep(step, "passed");
+        if (step.status === "running") await finishStep(run, step, "passed");
         continue;
       }
 
-      endStep(step, "passed");
+      await finishStep(run, step, "passed");
     } catch (error) {
       if (step.status === "running" && !(error instanceof RunStopped)) {
-        endStep(step, "failed", error instanceof Error ? error.message : String(error));
+        await finishStep(run, step, "failed", error instanceof Error ? error.message : String(error));
       }
 
       throw error;

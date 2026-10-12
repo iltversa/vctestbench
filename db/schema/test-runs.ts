@@ -19,6 +19,8 @@ export type RunStep = {
   finishedAt: string | null;
   durationMs: number | null;
   waitedMs: number;
+  // A picture of the tablet at the end of the step is stored for this step.
+  hasImage?: boolean;
   error: string | null;
 };
 
