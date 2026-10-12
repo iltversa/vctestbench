@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 import CreateTestButton from "@/app/testCases/page";
 import { SavedTest } from "@/app/page";
 import getActionsAction from "@/actions/get-actions";
+import { getRunPayloadAction } from "@/actions/get-run-payload";
 import { createFullTestAction, updateFullTestAction } from "@/actions/create-full-test";
 import { deleteTestActionDefinition } from "@/actions/delete-test-action";
 import { TestAction } from "@/components/ActionDialog";
@@ -1112,14 +1113,18 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     setRunMessage({ kind: "info", text: `Starting ${test.title}…` });
 
     try {
+      // Stored passwords are encrypted; the server decrypts them for this run only.
+      const payload = await getRunPayloadAction({ id: test.id });
+
+      if (!payload.success) {
+        setRunMessage({ kind: "error", text: payload.message });
+        return;
+      }
+
       const response = await fetch(BRIDGE + "/run-test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: test.title,
-          actions: test.actions ?? [],
-          flow: test.flow ?? [],
-        }),
+        body: JSON.stringify(payload.data),
       });
 
       if (!response.ok) {

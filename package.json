@@ -12,7 +12,8 @@
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
     "test": "npm run build",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "secrets:encrypt": "node --env-file=.env tools/encrypt-secrets.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "7.3.1",

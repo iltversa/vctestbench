@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { testActions } from "@/db/schema/test-actions";
 import { confirmationOptions } from "@/db/schema/confirmation-options";
+import { encryptSecret } from "@/services/secrets.mjs";
 
 export type CreateTestActionInput = {
   id?: string;
@@ -33,7 +34,7 @@ export async function createTestActionService(
         actionTimeout: input.actionTimeout,
         pasteText: input.pasteText ?? null,
         email: input.email ?? null,
-        password: input.password ?? null,
+        password: encryptSecret(input.password),
       })
       .returning();
 

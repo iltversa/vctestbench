@@ -1,98 +1,111 @@
-# vinext-starter
+# VC TestBench
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+A web UI for building automated test flows and running them on a VersaClimber
+tablet. You design a flow (paste text, tap a button, wait, confirm, sign in),
+save it, and the local **bridge** drives the tablet's Sandbox app over `adb`.
 
-## Prerequisites
+```
+browser (this app, :3000)  ──►  bridge (tools/vc-bridge.mjs, :3131)  ──►  adb  ──►  tablet
+        │
+        └──►  Postgres (tests, actions)
+```
 
-- Node.js `>=22.13.0`
+## Requirements
 
-## Quick Start
+- Node.js `>=22.13` (use 22 LTS; Node 20 fails in `vinext`)
+- PostgreSQL 14+
+- `adb` on your PATH (or set `ADB=/path/to/adb`) and a tablet with USB debugging
+
+## Setup
 
 ```bash
 npm install
-npm run dev
-npm run build
 ```
 
-This starter does not use `wrangler.jsonc`.
+Create `.env` (it is gitignored):
 
-## Included Shape
-
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
-
-## Workspace Auth Headers
-
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```bash
+DATABASE_URL=postgres://user:password@localhost:5432/vctestbench
+VC_SECRET_KEY=<output of: openssl rand -base64 32>
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+Apply the migrations in `db/migrations/` in order (`0000` … `0006`). They create
+the tables and seed the built-in actions (PASTE, AUTHENTICATION, CLICK, DELAY,
+CONFIRMATION, SAVE). For example:
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+```bash
+for f in db/migrations/*.sql; do psql "$DATABASE_URL" -f "$f"; done
+```
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+## Run
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
+```bash
+npm run dev      # the web app, http://localhost:3000
+npm run bridge   # in a second terminal, with the tablet connected
+```
 
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
+The Home screen shows a three-step checklist (bridge, USB debugging, Sandbox
+app) and enables **Run** once the tablet is on the Sandbox Home screen.
 
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
+## Building a test
 
-## Useful Commands
+1. **New test** on Home, then add steps in the editor.
+2. Drag an action from the sidebar onto the canvas. While dragging, an
+   **Insert here** gap appears between steps; drop there to insert in the
+   middle. Drag a step onto a gap to move it.
+3. **Delete step** in a step's menu joins its neighbours back together.
+4. **Save and run** saves what is on screen, then runs that exact version.
 
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
+| Action | What it does on the tablet |
+|---|---|
+| CLICK | Taps the element whose text matches "Click on text" |
+| PASTE | Fills the first text field with the given text |
+| AUTHENTICATION | Fills the visible email and password fields and presses the sign-in button |
+| DELAY | Waits the configured number of seconds |
+| CONFIRMATION | Branches on the selected option |
+| SAVE | Presses the save button |
 
-## Learn More
+## Credentials
 
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+AUTHENTICATION passwords are encrypted with AES-256-GCM using `VC_SECRET_KEY`
+before they are stored, in both the action definition and the saved flow. They
+are decrypted only when a run is started, and sent to the local bridge. Test
+lists and the editor only ever see ciphertext.
+
+- **Back up `VC_SECRET_KEY`.** If it is lost or changed, stored passwords cannot
+  be recovered and the actions must be re-entered.
+- Passwords saved before encryption existed keep working. Encrypt them once:
+
+  ```bash
+  npm run secrets:encrypt -- --dry-run   # counts only
+  npm run secrets:encrypt
+  ```
+
+## Security settings
+
+| Variable | Purpose |
+|---|---|
+| `VC_ALLOWED_ORIGINS` | Origins allowed to call the bridge. Default `http://localhost:3000,http://127.0.0.1:3000`. Set it if the UI runs on another port. |
+| `REQUIRE_AUTH=true` | Reject server actions and the create API from callers with no signed-in user. Off by default for local use. |
+| `ADB` | Path to the `adb` binary. |
+
+The bridge listens on `127.0.0.1` only, rejects requests from other origins or
+host names, requires `application/json` for `/run-test`, and caps the body at
+1 MB.
+
+## Scripts
+
+| Command | |
+|---|---|
+| `npm run dev` / `build` / `start` | The web app (vinext) |
+| `npm run bridge` | The tablet bridge |
+| `npm run secrets:encrypt` | Encrypt any plaintext stored passwords |
+| `npm run lint` | ESLint |
+| `npm test` | Builds the app (there is no unit test suite yet) |
+
+## Known gaps
+
+- The bridge is one large file with Sandbox-specific smoke tests mixed in.
+- Run steps are checked by screen text, so a renamed button in the Sandbox app
+  breaks a CLICK step; the run fails with a message naming the step.
+- `db/migrations/meta` has snapshots only for `0000` and `0001`.

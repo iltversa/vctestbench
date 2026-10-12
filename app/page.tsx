@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getTestsAction } from "@/actions/get-tests";
 import { deleteTestAction } from "@/actions/delete-test";
+import { getRunPayloadAction } from "@/actions/get-run-payload";
 import CreateTestModal from "@/components/CreateTestModal";
 import { FlowNode } from "@/components/TestFlowBuilder";
 import { BRIDGE, getRunBlockedReason, type TabletState } from "@/components/bridge";
@@ -106,18 +107,21 @@ export default function Home() {
 
         setStarting(true);
         setLastError("");
-        console.log(test);
         try {
+            // Stored passwords are encrypted; the server decrypts them for this run only.
+            const payload = await getRunPayloadAction({ id: test.id });
+
+            if (!payload.success) {
+                setLastError(payload.message);
+                return;
+            }
+
             const response = await fetch(BRIDGE + "/run-test", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({
-                    title: test.title,
-                    actions: test.actions ?? [],
-                    flow: test.flow ?? []
-                }),
+                body: JSON.stringify(payload.data),
             });
 
             if (!response.ok) {

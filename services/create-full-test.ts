@@ -5,6 +5,7 @@ import { confirmationOptions } from "@/db/schema/confirmation-options";
 import { FlowNode } from "@/components/TestFlowBuilder";
 import { eq } from "drizzle-orm";
 import { UpdateFullTestInput } from "@/actions/create-full-test";
+import { encryptFlowSecrets } from "@/services/secrets.mjs";
 
 export type CreateFullTestInput = {
   title: string;
@@ -19,7 +20,8 @@ export async function createFullTestService(input: CreateFullTestInput) {
       .values({
         title: input.title,
         description: input.description,
-        flow: input.flow ?? [],
+        // Passwords inside action data are stored encrypted.
+        flow: encryptFlowSecrets(input.flow ?? []),
       })
       .returning();
 
@@ -38,7 +40,8 @@ export async function updateFullTestService(input: UpdateFullTestInput) {
       .set({
         title: input.title,
         description: input.description,
-        flow: input.flow ?? [],
+        // Passwords inside action data are stored encrypted.
+        flow: encryptFlowSecrets(input.flow ?? []),
       })
       .where(eq(tests.id, input.id))
       .returning();
