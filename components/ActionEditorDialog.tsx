@@ -1,116 +1,88 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { SavedTest } from "@/app/page";
-import ActionDialog, { TestAction } from "@/components/ActionDialog";
+import { useMemo } from "react";
+import ActionDialog, { type TestAction } from "@/components/ActionDialog";
 import { updateTestActionAction } from "@/actions/update-test-action";
 
-type CreateTestButtonProps = {
-  editingAction: SavedTest | TestAction | null;
-  // isDelayNode: boolean;
+// What the editor can hand over to be edited: a library action, or the saved
+// configuration of a step in the flow. Options may carry ids and a null flag.
+type OptionSource = string | { id?: string; option?: string; isSelected?: boolean | null };
+
+export type ActionSource = Partial<Omit<TestAction, "confirmationOptions">> & {
+  confirmationOptions?: OptionSource[];
+};
+
+type ActionEditorDialogProps = {
+  editingAction: ActionSource | null;
+  // True when the result belongs in the flow rather than the action library.
   isFlowPlacement?: boolean;
   onEditClose: () => void;
   onActionSaved?: () => void | Promise<void>;
   onFlowActionSave?: (action: TestAction) => void;
 };
 
-// Opens the action dialog for the step or action being edited. Actions are added
-// by dragging them into the flow, so there is no button of its own.
-export default function ActionEditorDialog({ editingAction, onEditClose, isFlowPlacement, onFlowActionSave, onActionSaved }: CreateTestButtonProps) {
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (editingAction) {
-      setOpen(true);
-    }
-  }, [editingAction]);
-
-  const handleClose = () => {
-    setOpen(false);
-    onEditClose();
+// Every field the dialog shows has to be passed through here: anything left
+// out opens empty, and saving then blanks it.
+function toTestAction(source: ActionSource): TestAction {
+  return {
+    id: typeof source.id === "string" ? source.id : undefined,
+    title: typeof source.title === "string" ? source.title : "",
+    hasConfirmation: Boolean(source.hasConfirmation),
+    confirmationTimeout: source.confirmationTimeout ?? null,
+    confirmationOptions: (source.confirmationOptions ?? []).map((option) =>
+      typeof option === "string"
+        ? { option, isSelected: true }
+        : {
+            // The id ties an option to its branch in the flow; keep it.
+            id: option.id,
+            option: option.option ?? "",
+            isSelected: Boolean(option.isSelected),
+          }
+    ),
+    actionTimeout: Number(source.actionTimeout ?? 5),
+    pasteText: source.pasteText ?? null,
+    email: source.email ?? null,
+    password: source.password ?? null,
+    icon: source.icon ?? null,
+    type: source.type ?? null,
+    clickOnText: source.clickOnText ?? null,
   };
+}
 
-  const transformedAction: TestAction | null = useMemo(() => editingAction
-    ? (() => {
-        const source = editingAction as Partial<TestAction> & {
-          confirmationOptions?: Array<string | { option?: string; isSelected?: boolean }>;
-        };
+// Opens the action dialog for the step or action being edited. Actions are
+// added by dragging them into the flow, or with the Add buttons, so this has
+// no button of its own: it is shown exactly while something is being edited.
+export default function ActionEditorDialog({
+  editingAction,
+  onEditClose,
+  isFlowPlacement,
+  onFlowActionSave,
+  onActionSaved,
+}: ActionEditorDialogProps) {
+  const action = useMemo(() => (editingAction ? toTestAction(editingAction) : null), [editingAction]);
 
-        return {
-          id: typeof (editingAction as any).id === "string" ? (editingAction as any).id : undefined,
-          title: typeof (editingAction as any).title === "string" ? (editingAction as any).title : "",
-          hasConfirmation: Boolean((editingAction as any).hasConfirmation),
-          confirmationTimeout: (editingAction as any).confirmationTimeout ?? null,
-          confirmationOptions: Array.isArray(source.confirmationOptions)
-            ? source.confirmationOptions.map((opt) => {
-                const value = typeof opt === "string" ? opt : (opt?.option ?? "");
-                return {
-                  option: value,
-                  isSelected: typeof opt === "string" ? true : Boolean(opt?.isSelected),
-                };
-              })
-            : [],
-          actionTimeout: Number((editingAction as any).actionTimeout ?? 5),
-          email: (editingAction as any).email ?? null,
-          password: (editingAction as any).password ?? null,
-          icon: (editingAction as any).icon ?? null,
-          type: (editingAction as any).type ?? null,
-          clickOnText: (editingAction as any).clickOnText ?? null,
-        };
-      })()
-    : null, [editingAction]);
+  if (!action) return null;
 
-  const handleSaveAction = async (action: TestAction) => {
-
-    // If this is for flow placement, just call the callback and don't save to DB
+  const handleSave = async (saved: TestAction) => {
+    // A step in the flow: hand it back, nothing is written to the library.
     if (isFlowPlacement && onFlowActionSave) {
-      onFlowActionSave(action);
-      handleClose();
+      onFlowActionSave(saved);
+      onEditClose();
       return;
     }
 
-    // Otherwise, save to database as normal
-    try {
-      const targetId = action.id;
+    // A library action: only its title and icon can be changed here.
+    if (saved.id) {
+      await updateTestActionAction({
+        id: saved.id,
+        title: saved.title,
+        icon: saved.icon ?? null,
+      });
 
-      if (targetId) {
-        await updateTestActionAction({
-          id: targetId,
-          title: action.title,
-          // hasConfirmation: action.hasConfirmation,
-          // confirmationTimeout: action.confirmationTimeout ?? null,
-          // confirmationOptions: (action.confirmationOptions || []).map((option) => ({
-          //   option: option.option,
-          //   isSelected: option.isSelected,
-          // })),
-          // actionTimeout: action.actionTimeout,
-          // pasteText: action.pasteText ?? null,
-          // email: action.email ?? null,
-          // password: action.password ?? null,
-          // icon: action.icon ?? null,
-          // clickOnText: action.clickOnText ?? null,
-        });
-
-        await onActionSaved?.();
-        handleClose();
-        return;
-      }
-    } catch (error) {
-      console.error("Failed to save action:", error);
-      throw error;
+      await onActionSaved?.();
+      onEditClose();
     }
   };
 
-  return (
-    <>
-      {open && (
-        <ActionDialog
-          test={transformedAction}
-          // isDelayNode={isDelayNode}
-          onClose={handleClose}
-          onSave={handleSaveAction}
-        />
-      )}
-    </>
-  );
+  return <ActionDialog test={action} onClose={onEditClose} onSave={handleSave} />;
 }

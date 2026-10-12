@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faUser, faPause, faStop, faCheck, faUserSecret, faPaste, faTimes } from "@fortawesome/free-solid-svg-icons";
+import { faUser, faStop, faCheck, faPaste, faTimes } from "@fortawesome/free-solid-svg-icons";
 export type ConfirmationChoice = {
     option: string;
     isSelected: boolean;
@@ -27,11 +27,6 @@ export type TestAction = {
 const DEFAULT_CONFIRMATION_OPTIONS: ConfirmationChoice[] = [
     { option: "YES", isSelected: true },
 ];
-
-type TestClass = {
-    id: string;
-    name: string;
-};
 
 type ActionDialogProps = {
     test?: TestAction | null;

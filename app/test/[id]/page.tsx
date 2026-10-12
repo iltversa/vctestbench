@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import TestFlowBuilder from "@/components/TestFlowBuilder";
 import { getTestsAction } from "@/actions/get-tests";
-import { SavedTest } from "@/app/page";
+import type { SavedTest } from "@/components/types";
 
 export default function TestConfigPage() {
   const params = useParams();
@@ -55,7 +55,7 @@ export default function TestConfigPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#f4f6fa]">
+      <div className="flex min-h-[60vh] items-center justify-center">
         <div className="text-slate-500">Loading test...</div>
       </div>
     );
@@ -63,7 +63,7 @@ export default function TestConfigPage() {
 
   if (loadFailed || !test) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-[#f4f6fa] px-6 text-center" role="alert">
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-6 text-center" role="alert">
         <p className="text-base text-slate-900">
           <strong>{loadFailed ? "This test could not be loaded." : "This test no longer exists."}</strong>{" "}
           <span className="text-slate-600">
@@ -92,38 +92,6 @@ export default function TestConfigPage() {
     );
   }
 
-  return (
-    <main className="min-h-screen bg-[#f4f6fa] text-slate-900">
-      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-[1800px] flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:px-8">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.push("/")}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl hover:bg-slate-100 transition"
-              type="button"
-              title="Back to home"
-            >
-              ←
-            </button>
-
-            <div>
-              <p className="text-[10px] font-semibold tracking-[0.2em] text-slate-500">
-                TEST CONFIGURATION
-              </p>
-
-              <h1 className="text-lg font-semibold tracking-tight text-slate-900">
-                {test.title}
-              </h1>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-[1800px] px-4 py-5 sm:px-6 lg:px-8">
-        <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <TestFlowBuilder editingTest={test} />
-        </div>
-      </div>
-    </main>
-  );
+  // The shell above already carries navigation; the editor fills the rest.
+  return <TestFlowBuilder editingTest={test} />;
 }

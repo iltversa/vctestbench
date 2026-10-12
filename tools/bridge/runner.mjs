@@ -66,7 +66,7 @@ const isConfirmation = (title) => String(title).trim().toUpperCase() === "CONFIR
 
 // The steps a run is expected to execute, in order, so a report can show the
 // ones that were never reached after a failure.
-function planFlow(nodes, actionMap, out = []) {
+export function planFlow(nodes, actionMap, out = []) {
   for (const node of Array.isArray(nodes) ? nodes : []) {
     if (!node.actionId) {
       planFlow(node.paths, actionMap, out);

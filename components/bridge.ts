@@ -71,22 +71,28 @@ export type TabletState = {
   };
 };
 
-// The bridge's /state carries a fresh timestamp and event list on every poll.
-// Pages that only care about readiness and run progress compare this instead,
-// so an unchanged tablet does not re-render them every second and a half.
+// The bridge's /state carries a fresh timestamp on every poll. Pages compare
+// this instead of the whole object, so an unchanged tablet does not re-render
+// them every second and a half.
 export function bridgeStateKey(state: TabletState | null): string {
   if (!state) return "";
 
   return JSON.stringify([
     state.connected,
+    state.model,
     state.sandboxForeground,
-    state.test?.status,
-    state.test?.name,
-    state.test?.step,
-    state.test?.error,
+    state.route,
     state.stepDelaySeconds,
     state.runIds,
     state.currentRunId,
+    state.events?.[state.events.length - 1]?.id,
+    state.run && [
+      state.run.runId,
+      state.run.status,
+      state.run.activeStep,
+      state.run.error,
+      state.run.steps.map((step) => [step.status, step.phase, step.error, step.durationMs]),
+    ],
   ]);
 }
 
@@ -97,7 +103,7 @@ export function getRunBlockedReason(
 ): string {
   if (!bridgeOnline) return "Start the bridge to run tests.";
   if (!state?.connected) return "Connect the tablet with USB debugging to run tests.";
-  if (state.test?.status === "running") return "A test is already running.";
+  if (state.currentRunId || state.test?.status === "running") return "A test is already running.";
   if (!state.sandboxForeground) return "Open the Sandbox app on the tablet to run tests.";
   return "";
 }

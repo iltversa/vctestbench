@@ -1,11 +1,13 @@
 import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { testRuns, type RunStep } from "@/db/schema/test-runs";
+import { testRuns, type RunLogEntry, type RunStep } from "@/db/schema/test-runs";
 
 // Reports reach the server through the browser, which copied them from the
 // local bridge, so every field is checked and size-limited before it is stored.
 
 const MAX_STEPS = 500;
+const MAX_LOG = 300;
+const LOG_KINDS = new Set(["info", "success", "warning"]);
 const MAX_TEXT = 2000;
 const MAX_SCREENSHOT = 2_000_000;
 const STATUSES = new Set(["passed", "failed", "stopped"]);
@@ -42,6 +44,18 @@ function cleanStep(raw: unknown, position: number): RunStep {
   };
 }
 
+function cleanLogEntry(raw: unknown): RunLogEntry {
+  const entry = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+
+  return {
+    at: text(entry.at, 40) ?? "",
+    label: text(entry.label, 300) ?? "",
+    detail: text(entry.detail, 500) ?? "",
+    kind: (typeof entry.kind === "string" && LOG_KINDS.has(entry.kind) ? entry.kind : "info") as RunLogEntry["kind"],
+    step: count(entry.step),
+  };
+}
+
 export type SaveRunReportResult = { saved: boolean };
 
 export async function saveRunReportService(raw: unknown): Promise<SaveRunReportResult> {
@@ -61,6 +75,8 @@ export async function saveRunReportService(raw: unknown): Promise<SaveRunReportR
   const steps = (Array.isArray(report.steps) ? report.steps : [])
     .slice(0, MAX_STEPS)
     .map(cleanStep);
+
+  const log = (Array.isArray(report.log) ? report.log : []).slice(-MAX_LOG).map(cleanLogEntry);
 
   const device = (report.device && typeof report.device === "object" ? report.device : {}) as Record<string, unknown>;
   const testId = typeof report.testId === "string" && UUID.test(report.testId) ? report.testId : null;
@@ -86,6 +102,7 @@ export async function saveRunReportService(raw: unknown): Promise<SaveRunReportR
       stepDelaySeconds: count(report.stepDelaySeconds),
       device: { model: text(device.model, 100), android: text(device.android, 50) },
       steps,
+      log,
       screenshot,
     })
     .onConflictDoNothing({ target: testRuns.runId })

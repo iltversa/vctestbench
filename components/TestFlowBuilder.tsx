@@ -1,21 +1,33 @@
 "use client";
 
 import "../app/TestFlowBuilder.css";
-import React, { useEffect, useRef, useState } from "react";
-import ActionEditorDialog from "@/components/ActionEditorDialog";
-import { SavedTest } from "@/app/page";
+import React, { useEffect, useState } from "react";
+import ActionEditorDialog, { type ActionSource } from "@/components/ActionEditorDialog";
+import { countSteps, type SavedTest } from "@/components/types";
 import getActionsAction from "@/actions/get-actions";
-import { getRunPayloadAction } from "@/actions/get-run-payload";
-import { useRunReportSync } from "@/components/useRunReportSync";
 import { createFullTestAction, updateFullTestAction } from "@/actions/create-full-test";
 import { deleteTestActionDefinition } from "@/actions/delete-test-action";
 import { TestAction } from "@/components/ActionDialog";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faUser } from "@fortawesome/free-solid-svg-icons/faUser";
-import { faTimes, faStop, faCheck, faPaste, faPen, faEllipsisVertical } from "@fortawesome/free-solid-svg-icons";
-import { useRouter } from "next/navigation";
-import { useTestFlowStore } from "@/store/testFlowStore";
-import { BRIDGE, bridgeStateKey, getRunBlockedReason, type TabletState } from "@/components/bridge";
+import { faTimes, faStop, faCheck, faPaste, faPen, faEllipsisVertical, faTrash, faPlus } from "@fortawesome/free-solid-svg-icons";
+import {
+  buildChildrenForAction,
+  createNode,
+  extractFlowTree,
+  findAppendSlot,
+  hydrateFlow,
+  syncActionDataInTree,
+  insertBeforeInTree,
+  isConfirmationAction,
+  removeFromTree,
+  updateNode,
+} from "@/components/flow/tree";
+import { useBridge } from "@/components/BridgeProvider";
+import ActivityFeed from "@/components/ActivityFeed";
+import DevicePanel from "@/components/DevicePanel";
+import RunPanel from "@/components/RunPanel";
+import type { StepProgress } from "@/components/bridge";
 export type TestActionDefinition = {
   id: string;
   title: string;
@@ -55,252 +67,27 @@ export type FlowNode = {
   actionData?: TestActionDefinition;
 };
 
-/*  CREATE NODE */
+export default function TestFlowBuilder({ editingTest: initialTest }: { editingTest?: SavedTest }) {
+  // The saved flow is loaded once, when the editor opens. Saved nodes carry
+  // their own action data, so nothing has to wait for the action list.
+  const [initial] = useState(() => {
+    const hydrated = initialTest?.flow?.length ? hydrateFlow(initialTest.flow, []) : [createNode()];
 
-const createNode = (): FlowNode => ({
-  id: crypto.randomUUID(),
-  nodeType: "action",
-  paths: [],
-});
-
-const hydrateFlow = (
-  flowNodes: any[],
-  actionList: TestActionDefinition[]
-): FlowNode[] => {
-  return flowNodes.map((savedNode) => {
-    if (savedNode.nodeType === "confirmation" || savedNode.optionId) {
-      return {
-        id: savedNode.id ?? crypto.randomUUID(),
-        nodeType: "confirmation" as const,
-        optionId: savedNode.optionId,
-        optionLabel: savedNode.optionLabel ?? "Option",
-        isSelected: Boolean(savedNode.isSelected),
-        paths: savedNode.paths?.length ? hydrateFlow(savedNode.paths, actionList) : [],
-      };
-    }
-
-    const matchedAction = savedNode.actionId
-      ? actionList.find((action) => action.id === savedNode.actionId)
-      : undefined;
-
-    const savedAction = savedNode.actionData;
-
-    const actionData: TestActionDefinition | undefined = savedAction
-      ? {
-        ...savedAction,
-        confirmationOptions:
-          savedAction.confirmationOptions?.map((option: any) => ({
-            ...option,
-            isSelected: Boolean(option.isSelected),
-          })) ?? [],
-      }
-      : matchedAction
-        ? {
-          ...matchedAction,
-          confirmationOptions:
-            matchedAction.confirmationOptions?.map((option) => ({
-              ...option,
-              isSelected: Boolean(option.isSelected),
-            })) ?? [],
-        }
-        : undefined;
-
-    const isConfirmationAction =
-      actionData?.title?.trim().toUpperCase() === "CONFIRMATION";
-
-    /*
-     * If this is a CONFIRMATION action, its paths are the
-     * confirmation option branches.
-     */
-    if (isConfirmationAction) {
-      return {
-        id: savedNode.id ?? crypto.randomUUID(),
-        nodeType: "action" as const,
-        actionId: savedNode.actionId ?? actionData?.id,
-        actionTitle:
-          savedNode.actionTitle ??
-          actionData?.title ??
-          "CONFIRMATION",
-        actionData,
-
-        paths: (savedNode.paths ?? []).map((path: any) => {
-          const option = actionData?.confirmationOptions?.find(
-            (opt) => opt.id === path.optionId
-          );
-
-          return {
-            id: path.id ?? crypto.randomUUID(),
-            nodeType: "confirmation" as const,
-            optionId: path.optionId,
-            optionLabel: option?.option ?? "Option",
-            isSelected:
-              option?.isSelected ??
-              Boolean(path.isSelected),
-
-            paths: path.paths?.length
-              ? hydrateFlow(path.paths, actionList)
-              : [],
-          };
-        }),
-      };
-    }
-
-    /*
-     * Normal action.
-     */
     return {
-      id: savedNode.id ?? crypto.randomUUID(),
-      nodeType: "action" as const,
-      actionId: savedNode.actionId ?? actionData?.id,
-      actionTitle:
-        savedNode.actionTitle ??
-        actionData?.title ??
-        matchedAction?.title,
-      actionData,
-      paths: savedNode.paths?.length
-        ? savedNode.paths.map((path: any) => {
-            if (path.nodeType === "confirmation" || path.optionId) {
-              const option = actionData?.confirmationOptions?.find(
-                (item) => item.id === path.optionId
-              );
-              return {
-                id: path.id ?? crypto.randomUUID(),
-                nodeType: "confirmation" as const,
-                optionId: path.optionId,
-                optionLabel: path.optionLabel ?? option?.option ?? "Option",
-                isSelected: path.isSelected ?? Boolean(option?.isSelected),
-                paths: path.paths?.length ? hydrateFlow(path.paths, actionList) : [],
-              };
-            }
-            return hydrateFlow([path], actionList)[0];
-          })
-        : [],
+      nodes: hydrated,
+      snapshot: initialTest
+        ? JSON.stringify([
+            (initialTest.title ?? "").trim(),
+            (initialTest.description ?? "").trim(),
+            extractFlowTree(hydrated),
+          ])
+        : null,
     };
   });
-};
-
-
-
-
-
-
-// ---------------------------------------------------------------------
-// Tree helpers. The flow is a tree: every action keeps its children in
-// `paths`, and a chain always ends in an empty "drop here" slot.
-// ---------------------------------------------------------------------
-
-const isEmptySlot = (node: FlowNode) =>
-  node.nodeType === "action" && !node.actionId && node.paths.length === 0;
-
-const isConfirmationAction = (node: FlowNode) =>
-  node.nodeType === "action" &&
-  node.paths.length > 0 &&
-  node.paths.every((path) => path.nodeType === "confirmation");
-
-// What a removed node leaves behind for its parent to adopt.
-const childrenAfterRemoval = (node: FlowNode): FlowNode[] => {
-  if (!isConfirmationAction(node)) return node.paths;
-
-  // Only the chosen option carries a real branch; the others are empty.
-  const chosen = node.paths.find((path) => path.isSelected) ?? node.paths[0];
-  return chosen?.paths ?? [];
-};
-
-// Removes a node and joins the chain back together: its children move up to
-// its parent. Returns the new tree and the node that was taken out.
-function removeFromTree(
-  list: FlowNode[],
-  nodeId: string
-): { tree: FlowNode[]; removed: FlowNode | null } {
-  let removed: FlowNode | null = null;
-
-  const walk = (items: FlowNode[]): FlowNode[] => {
-    const adopted = new Set<string>();
-
-    const next = items.flatMap((node) => {
-      if (node.id === nodeId) {
-        removed = node;
-        const children = childrenAfterRemoval(node);
-        children.forEach((child) => adopted.add(child.id));
-        return children;
-      }
-
-      const walked = walk(node.paths);
-      // A branch that lost its only child still needs a slot to drop into.
-      const paths = node.paths.length > 0 && walked.length === 0 ? [createNode()] : walked;
-      return [{ ...node, paths }];
-    });
-
-    // An adopted empty slot next to real branches is just noise.
-    const hasReal = next.some((node) => !isEmptySlot(node));
-    return next.length > 1 && hasReal
-      ? next.filter((node) => !(adopted.has(node.id) && isEmptySlot(node)))
-      : next;
-  };
-
-  const tree = walk(list);
-  return { tree: tree.length > 0 ? tree : [createNode()], removed };
-}
-
-// Puts `incoming` between `parentId` and its child `beforeId`; the old child
-// (and everything below it) continues underneath the new node.
-function insertBeforeInTree(
-  list: FlowNode[],
-  parentId: string | null,
-  beforeId: string,
-  incoming: FlowNode
-): FlowNode[] {
-  const attach = (child: FlowNode): FlowNode => {
-    if (isConfirmationAction(incoming)) {
-      const chosen = Math.max(0, incoming.paths.findIndex((path) => path.isSelected));
-      return {
-        ...incoming,
-        paths: incoming.paths.map((path, index) =>
-          index === chosen ? { ...path, paths: [child] } : path
-        ),
-      };
-    }
-
-    return { ...incoming, paths: [child] };
-  };
-
-  if (parentId === null) {
-    return list.map((node) => (node.id === beforeId ? attach(node) : node));
-  }
-
-  return list.map((node) =>
-    node.id === parentId
-      ? { ...node, paths: node.paths.map((child) => (child.id === beforeId ? attach(child) : child)) }
-      : { ...node, paths: insertBeforeInTree(node.paths, parentId, beforeId, incoming) }
-  );
-}
-
-const parentIdOf = (list: FlowNode[], nodeId: string, parent: string | null = null): string | null | undefined => {
-  for (const node of list) {
-    if (node.id === nodeId) return parent;
-    const found = parentIdOf(node.paths, nodeId, node.id);
-    if (found !== undefined) return found;
-  }
-  return undefined;
-};
-
-// Plain data for storage: the editor-only fields are dropped.
-function extractFlowTree(flowNodes: FlowNode[]): FlowNode[] {
-  return flowNodes.map(({ id, actionId, optionId, isSelected, paths, actionData }) => ({
-    id,
-    actionId: actionId ?? null,
-    optionId: optionId ?? null,
-    isSelected: isSelected ?? null,
-    paths: extractFlowTree(paths),
-    actionData: actionData ?? null,
-  })) as unknown as FlowNode[];
-}
-
-export default function TestFlowBuilder({ editingTest: initialTest }: { editingTest?: SavedTest }) {
-  const [nodes, setNodes] = useState<FlowNode[]>([createNode()]);
+  const [nodes, setNodes] = useState<FlowNode[]>(initial.nodes);
   const [draggedAction, setDraggedAction] = useState<TestActionDefinition | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const [editingAction, setEditingAction] = useState<TestActionDefinition | null>(null);
+  const [editingAction, setEditingAction] = useState<ActionSource | null>(null);
   const [pendingNodeId, setPendingNodeId] = useState<string | null>(null);
   const [actions, setActions] = useState<TestActionDefinition[]>([]);
   const [testTitle, setTestTitle] = useState(initialTest?.title ?? "");
@@ -308,68 +95,26 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   const [saving, setSaving] = useState(false);
   // The row as last stored. Run always uses this, never the page's original prop.
   const [savedTest, setSavedTest] = useState<SavedTest | undefined>(initialTest);
-  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(initial.snapshot);
   const [saveMessage, setSaveMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
-  const [runMessage, setRunMessage] = useState<{ kind: "info" | "error"; text: string } | null>(null);
-  const [bridgeOnline, setBridgeOnline] = useState(false);
-  const [bridgeState, setBridgeState] = useState<TabletState | null>(null);
+  const [runError, setRunError] = useState("");
+  // The panel under the canvas: the live run, the device, the activity feed.
+  const [dockTab, setDockTab] = useState<"run" | "device" | "activity">("run");
+  // null: not chosen yet. The dock then opens by itself when this test has a
+  // run to show, and stays out of the way otherwise.
+  const [dockChoice, setDockChoice] = useState<boolean | null>(null);
+  // The empty slot whose "pick an action" menu is open.
+  const [quickAddFor, setQuickAddFor] = useState<string | null>(null);
+  const bridge = useBridge();
   // Drag and drop: a node being moved, the gap an action will be inserted
   // into, and the element currently under the pointer.
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
   const [pendingInsert, setPendingInsert] = useState<{ parentId: string | null; beforeId: string } | null>(null);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
-  const router = useRouter();
-  const hydratedRef = useRef(false);
 
-  useEffect(() => {
-    if (!initialTest || actions.length === 0 || hydratedRef.current) return;
-    hydratedRef.current = true;
-
-    const hydrated = initialTest.flow?.length
-      ? hydrateFlow(initialTest.flow, actions)
-      : [createNode()];
-
-    setTestTitle(initialTest.title ?? "");
-    setTestDescription(initialTest.description ?? "");
-    setNodes(hydrated);
-    setSavedSnapshot(
-      JSON.stringify([
-        (initialTest.title ?? "").trim(),
-        (initialTest.description ?? "").trim(),
-        extractFlowTree(hydrated),
-      ])
-    );
-  }, [initialTest, actions]);
-
-  // Poll the bridge so Run can say why it is unavailable and report the result.
-  useEffect(() => {
-    let stopped = false;
-
-    const poll = async () => {
-      try {
-        const response = await fetch(BRIDGE + "/state", { cache: "no-store" });
-        if (!response.ok) throw new Error();
-        const next = (await response.json()) as TabletState;
-        if (stopped) return;
-        // Keep the same object when nothing relevant changed: no re-render.
-        setBridgeState((previous) => (bridgeStateKey(previous) === bridgeStateKey(next) ? previous : next));
-        setBridgeOnline(true);
-      } catch {
-        if (!stopped) setBridgeOnline(false);
-      }
-    };
-
-    poll();
-    const timer = window.setInterval(poll, 1500);
-
-    return () => {
-      stopped = true;
-      window.clearInterval(timer);
-    };
-  }, []);
 
   const handleDragStart = (
-    event: React.DragEvent<HTMLDivElement>,
+    event: React.DragEvent<HTMLElement>,
     action: TestActionDefinition
   ) => {
     setDraggedAction(action);
@@ -475,72 +220,10 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   };
 };
 
-  const buildChildrenForAction = (
-    action: TestActionDefinition,
-    existingPaths: FlowNode[] = []
-  ): FlowNode[] => {
-    // Only the action literally titled CONFIRMATION renders option branches.
-    // Each option is visible, but only the selected option gets a child drop zone.
-    const isConfirmationAction =
-      action.title?.trim().toUpperCase() === "CONFIRMATION";
-
-    if (isConfirmationAction) {
-      return (action.confirmationOptions ?? []).map((option) => {
-        const existingOption = existingPaths.find(
-          (path) => path.nodeType === "confirmation" && path.optionId === option.id
-        );
-        const selected = Boolean(option.isSelected);
-
-        return {
-          id: existingOption?.id ?? crypto.randomUUID(),
-          optionId: option.id,
-          isSelected: selected,
-          optionLabel: option.option,
-          nodeType: "confirmation" as const,
-          paths: selected
-            ? existingOption?.paths?.length
-              ? existingOption.paths
-              : [{ id: crypto.randomUUID(), nodeType: "action" as const, paths: [] }]
-            : [],
-        };
-      });
-    }
-
-    // Every non-CONFIRMATION action gets exactly one child drop zone.
-    // Preserve the existing child branch when editing the action.
-    const existingChild = existingPaths.find((path) => path.nodeType === "action");
-    return [
-      existingChild ?? {
-        id: crypto.randomUUID(),
-        nodeType: "action" as const,
-        paths: [],
-      },
-    ];
-  };
   // const handleDragEnd = () => {
   //   setDraggedAction(null);
   // };
 
-  const updateNode = (
-    nodes: FlowNode[],
-    nodeId: string,
-    updater: (node: FlowNode) => FlowNode
-  ): FlowNode[] => {
-    return nodes.map((node) => {
-      if (node.id === nodeId) {
-        return updater(node);
-      }
-
-      return {
-        ...node,
-        paths: updateNode(
-          node.paths,
-          nodeId,
-          updater
-        ),
-      };
-    });
-  };
 
   const handleDrop = (
     event: React.DragEvent<HTMLDivElement>,
@@ -602,7 +285,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
 
     // When editing an action from sidebar, no pending node ID
     setPendingNodeId(null);
-    setEditingAction(testAction as any);
+    setEditingAction(testAction);
   };
 
   const openActionEditor = (
@@ -615,8 +298,6 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   setPendingNodeId(nodeId ?? null);
   setEditingAction(actionCopy);
 
-  // Also update the Zustand store if the popup reads from it.
-  useTestFlowStore.getState().setEditingAction(actionCopy);
 };
 
   const handleActionSavedToFlow = (configuredAction: TestAction) => {
@@ -635,11 +316,11 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
         })
       ),
       actionTimeout: configuredAction.actionTimeout,
-      pasteText: (configuredAction as any).pasteText ?? (configuredAction as any).pasteText ?? null,
-      clickOnText: (configuredAction as any).clickOnText ?? (configuredAction as any).clickOnText ?? null,
-      email: (configuredAction as any).email ?? null,
-      password: (configuredAction as any).password ?? null,
-      icon: (configuredAction as any).icon ?? null,
+      pasteText: configuredAction.pasteText ?? null,
+      clickOnText: configuredAction.clickOnText ?? null,
+      email: configuredAction.email ?? null,
+      password: configuredAction.password ?? null,
+      icon: configuredAction.icon ?? null,
     };
 
     if (pendingInsert) {
@@ -699,80 +380,35 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     return `${seconds}s`;
   };
 
-  const syncActionDataInTree = (flowNodes: FlowNode[], actionList: TestActionDefinition[]): FlowNode[] =>
-    flowNodes.map((node) => {
-      // For a saved test, actionData from the flow is the test-specific
-      // configuration and must NOT be replaced by the global action definition.
-      if (node.actionData) {
-        return {
-          ...node,
-          actionData: {
-            ...node.actionData,
-            confirmationOptions:
-              node.actionData.confirmationOptions?.map((option) => ({
-                ...option,
-              })) ?? [],
-          },
-          paths: syncActionDataInTree(node.paths, actionList),
-        };
-      }
 
-      // Only fall back to the global action definition when the flow node
-      // doesn't already have actionData.
-      const matchedAction = node.actionId
-        ? actionList.find((action) => action.id === node.actionId)
-        : undefined;
-
-      return {
-        ...node,
-        actionData: matchedAction
-          ? {
-            ...matchedAction,
-            confirmationOptions:
-              matchedAction.confirmationOptions?.map((option) => ({
-                ...option,
-              })) ?? [],
-          }
-          : node.actionData,
-        actionTitle:
-          node.actionTitle ??
-          matchedAction?.title ??
-          undefined,
-        paths: syncActionDataInTree(node.paths, actionList),
-      };
-    });
-
-  const loadActions = async () => {
-    try {
-      const result = await getActionsAction();
-
-      if (!result.success) {
-        throw new Error(
-          result.message ?? "Failed to fetch test classes"
-        );
-      }
-
-      setActions(result.data);
-      setNodes((currentNodes) => syncActionDataInTree(currentNodes, result.data));
-    } catch (error) {
-      console.error("Failed to load actions:", error);
-    }
+  // Used for the first load and again after the library changes.
+  const applyActions = (list: TestActionDefinition[]) => {
+    setActions(list);
+    setNodes((currentNodes) => syncActionDataInTree(currentNodes, list));
   };
 
   const refreshActions = async () => {
-    await loadActions();
+    try {
+      const result = await getActionsAction();
+
+      if (result.success) applyActions(result.data);
+    } catch (error) {
+      console.error("Failed to refresh actions:", error);
+    }
   };
 
-  const handleDeleteAction = async (actionId: string) => {
-    if (!actionId) return;
-
-    const confirmed = window.confirm("Delete this saved action?");
+  // Removes an action from the library. Steps already in flows keep their own
+  // copy of its configuration, so existing tests are unaffected.
+  const handleDeleteAction = async (action: TestActionDefinition) => {
+    const confirmed = window.confirm(
+      `Remove "${action.title}" from the list of steps you can add? Tests that already use it keep working.`
+    );
     if (!confirmed) return;
 
-    const result = await deleteTestActionDefinition({ id: actionId });
+    const result = await deleteTestActionDefinition({ id: action.id });
 
     if (!result.success) {
-      alert(result.message ?? "Could not delete action");
+      setSaveMessage({ kind: "error", text: result.message ?? "The action could not be removed." });
       return;
     }
 
@@ -780,7 +416,24 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   };
 
   useEffect(() => {
-    loadActions();
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const result = await getActionsAction();
+        if (cancelled) return;
+
+        if (!result.success) throw new Error(result.message ?? "Failed to fetch actions");
+
+        applyActions(result.data);
+      } catch (error) {
+        console.error("Failed to load actions:", error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const currentSnapshot = JSON.stringify([
@@ -799,7 +452,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
 
     setSaving(true);
     setSaveMessage(null);
-    setRunMessage(null);
+    setRunError("");
 
     try {
       const payload = {
@@ -976,6 +629,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     const gapKey = `gap:${node.id}`;
     const subtitle = isConfirmation ? null : nodeSubtitle(node);
     const replaceTarget = dragOverKey === `node:${node.id}` && !isDropZone && Boolean(draggedAction);
+    const runStep = stepByNode.get(node.id);
 
     return (
       <div className="tree-node" key={node.id}>
@@ -997,6 +651,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
             isDropZone ? "empty" : "",
             draggedNodeId === node.id ? "being-moved" : "",
             replaceTarget ? "replace-target" : "",
+            runStep ? `run-${runStep.status}` : "",
           ].join(" ")}
           draggable={canDragNode}
           onDragStart={canDragNode ? (event) => handleNodeDragStart(event, node.id) : undefined}
@@ -1013,7 +668,29 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
           onDrop={canAcceptDrop ? (event) => handleDrop(event, node.id) : undefined}
         >
           {isDropZone ? (
-            <span className="node-card-title">Drop action here</span>
+            <div className="slot">
+              <span className="slot-label">{isDragging ? "Drop here" : "Next step"}</span>
+              <button
+                type="button"
+                className="slot-add"
+                aria-expanded={quickAddFor === node.id}
+                onClick={() => setQuickAddFor(quickAddFor === node.id ? null : node.id)}
+              >
+                <FontAwesomeIcon icon={faPlus} aria-hidden="true" /> Add step
+              </button>
+              {quickAddFor === node.id && (
+                <ul className="quick-add" aria-label="Choose an action to add">
+                  {actions.map((action) => (
+                    <li key={action.id}>
+                      <button type="button" onClick={() => addAction(action, node.id)}>
+                        {action.title}
+                      </button>
+                    </li>
+                  ))}
+                  {actions.length === 0 && <li className="quick-add-empty">No actions available.</li>}
+                </ul>
+              )}
+            </div>
           ) : isConfirmation ? (
             <div className="node-card-header">
               <span className="node-card-title">
@@ -1031,6 +708,15 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
                 {subtitle && <span className="node-subtitle" title={subtitle}>{subtitle}</span>}
                 {node.actionTitle?.trim().toUpperCase() === "AUTHENTICATION" && (
                   <span className="node-subtitle">Password: {node.actionData?.password ? "••••••••" : "not set"}</span>
+                )}
+                {runStep && runStep.status !== "pending" && (
+                  <span className={`node-run-state run-text-${runStep.status}`}>
+                    {runStep.status === "running"
+                      ? runStep.phase === "waiting" ? "Waiting…" : "Running…"
+                      : runStep.status === "passed"
+                        ? `Passed${runStep.durationMs !== null ? ` · ${(runStep.durationMs / 1000).toFixed(1)}s` : ""}`
+                        : runStep.status === "failed" ? "Failed" : "Stopped"}
+                  </span>
                 )}
               </div>
               <button
@@ -1109,232 +795,185 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     name && name in ACTION_ICONS
       ? ACTION_ICONS[name as keyof typeof ACTION_ICONS]
       : faUser;
-  const runBlockedReason = getRunBlockedReason(bridgeOnline, bridgeState);
+  // Press Add (or Add step on the canvas): the same dialog as dropping.
+  const addAction = (action: TestActionDefinition, slotId?: string) => {
+    const target = slotId ?? findAppendSlot(nodes)?.id;
 
-  const startRun = async (test: SavedTest) => {
-    setRunMessage({ kind: "info", text: `Starting ${test.title}…` });
-
-    try {
-      // Stored passwords are encrypted; the server decrypts them for this run only.
-      const payload = await getRunPayloadAction({ id: test.id });
-
-      if (!payload.success) {
-        setRunMessage({ kind: "error", text: payload.message });
-        return;
-      }
-
-      const response = await fetch(BRIDGE + "/run-test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload.data),
-      });
-
-      if (!response.ok) {
-        throw new Error(`The bridge answered ${response.status}.`);
-      }
-
-      setRunMessage({ kind: "info", text: "Test sent to the tablet." });
-    } catch (error) {
-      console.error("startRun error:", error);
-      setRunMessage({
-        kind: "error",
-        text: bridgeOnline
-          ? "The bridge did not accept the test."
-          : "Could not reach the bridge. Start it with npm run bridge.",
-      });
+    if (!target) {
+      setSaveMessage({ kind: "error", text: "There is nowhere to add a step here." });
+      return;
     }
+
+    setQuickAddFor(null);
+    setPendingInsert(null);
+    setPendingNodeId(target);
+    setEditingAction(prepareActionForEditor(action));
   };
 
-  // Run what is on screen: save first when it changed, then run the stored row.
+  // Save what is on screen first when it changed, then run that exact version.
   const handleSaveAndRun = async () => {
+    setRunError("");
+
     const stored = dirty || !savedTest ? await saveTest() : savedTest;
-    if (stored) await startRun(stored);
+    if (!stored) return;
+
+    const result = await bridge.startRun(stored.id);
+
+    if (!result.ok) {
+      setRunError(result.message);
+      return;
+    }
+
+    setDockTab("run");
+    setDockChoice(true);
   };
 
-  // Keep the run history up to date from whichever page is open.
-  useRunReportSync(bridgeState);
+  // The state of each step in the current run of this test, by node id.
+  const runForThisTest =
+    bridge.run && savedTest && bridge.run.testId === savedTest.id ? bridge.run : null;
+  const stepByNode = new Map<string, StepProgress>(
+    (runForThisTest?.steps ?? []).map((step) => [step.nodeId, step])
+  );
 
-  const latestRunId = bridgeState?.runIds?.[bridgeState.runIds.length - 1];
+  const dockOpen = dockChoice ?? Boolean(runForThisTest);
 
-  const runResult = (() => {
-    if (!runMessage) return null;
-    if (runMessage.kind === "error") return runMessage;
+  const runDisabled =
+    saving || !testTitle.trim() || Boolean(bridge.blockedReason) || bridge.starting;
+  const runLabel = saving
+    ? "Saving…"
+    : bridge.starting
+      ? "Starting…"
+      : dirty || !savedTest
+        ? "Save and run"
+        : "Run test";
+  const stepCount = countSteps(nodes);
+  const statusMessage = runError
+    ? { kind: "error" as const, text: runError }
+    : saveMessage;
 
-    const test = bridgeState?.test;
-    if (test?.status === "running") {
-      return { kind: "info" as const, text: `Running: ${test.step ?? test.name ?? "test"}` };
-    }
-    if (test?.status === "passed") {
-      return { kind: "success" as const, text: `${test.name ?? "Test"} passed.`, reportId: latestRunId };
-    }
-    if (test?.status === "failed") {
-      return {
-        kind: "error" as const,
-        text: `${test.name ?? "Test"} failed. ${test.error ?? ""}`.trim(),
-        reportId: latestRunId,
-      };
-    }
-    return runMessage;
-  })();
-
-  const runDisabled = saving || !testTitle.trim() || Boolean(runBlockedReason);
-  const runLabel = saving ? "Saving…" : dirty || !savedTest ? "Save and run" : "Run test";
-  const statusLine: { kind: "info" | "success" | "error"; text: string; reportId?: string } | null =
-    runResult ?? saveMessage;
+  const tabs = [
+    { id: "run" as const, label: bridge.running ? "Run · live" : "Run" },
+    { id: "device" as const, label: "Device" },
+    { id: "activity" as const, label: "Activity" },
+  ];
 
   return (
     <div className="flow-builder">
+      <aside className="flow-sidebar" aria-label="Test setup">
+        <section className="side-section">
+          <h2 className="side-title">Test</h2>
 
-      <aside className="flow-sidebar">
-        <div className="test-configuration" id="test-config-zone">
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold tracking-tight text-slate-900">
-              Test Configuration
-            </h2>
+          <label htmlFor="test-title" className="side-label">Title</label>
+          <input
+            id="test-title"
+            type="text"
+            value={testTitle}
+            onChange={(event) => setTestTitle(event.target.value)}
+            placeholder="e.g. Workout login flow"
+            className="side-input"
+          />
 
-            <p className="mt-1 text-sm leading-6 text-slate-500">
-              Name your test and manage the actions you can add to its flow.
-            </p>
+          <label htmlFor="test-description" className="side-label">What it checks</label>
+          <textarea
+            id="test-description"
+            value={testDescription}
+            onChange={(event) => setTestDescription(event.target.value)}
+            placeholder="Describe what this test validates"
+            rows={3}
+            className="side-input"
+          />
+        </section>
 
-            <div className="mt-6 space-y-5">
-              {/* Test Title */}
-              <div>
-                <label
-                  htmlFor="test-title"
-                  className="mb-2 block text-sm font-medium text-slate-700"
-                >
-                  Test Title
-                </label>
+        <section className="side-section">
+          <h2 className="side-title">Steps you can add</h2>
+          <p className="side-hint">Press Add, or drag a step onto the flow.</p>
 
-                <input
-                  id="test-title"
-                  type="text"
-                  value={testTitle}
-                  onChange={(event) => setTestTitle(event.target.value)}
-                  placeholder="Enter test title"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
-                />
-              </div>
-
-              {/* Description */}
-              <div>
-                <label
-                  htmlFor="test-description"
-                  className="mb-2 block text-sm font-medium text-slate-700"
-                >
-                  Description
-                </label>
-
-                <textarea
-                  id="test-description"
-                  value={testDescription}
-                  onChange={(event) =>
-                    setTestDescription(event.target.value)
-                  }
-                  placeholder="Describe what this test validates..."
-                  rows={3}
-                  className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm leading-6 text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="actions-section">
-          <div className="sidebar-header">
-            <div>
-              <h2>Actions</h2>
-              <p>Drag an action into the flow</p>
-            </div>
-            <ActionEditorDialog
-              editingAction={editingAction}
-              isFlowPlacement={pendingNodeId !== null || pendingInsert !== null}
-              onEditClose={() => {
-                setEditingAction(null);
-                setPendingNodeId(null);
-                setPendingInsert(null);
-              }}
-              onFlowActionSave={handleActionSavedToFlow}
-              onActionSaved={refreshActions}
-            />
-          </div>
-
-          {/* ONLY ACTIONS SCROLL */}
-          <div className="action-list">
+          <ul className="action-list">
             {actions.map((action) => (
-              <div
+              <li
                 key={action.id}
-                draggable data-id={action.id}
-                className={`action-item ${draggedAction?.id === action.id
-                  ? "dragging"
-                  : ""
-                  }`}
-                onDragStart={(event) =>
-                  handleDragStart(event, action)
-                }
+                draggable
+                data-id={action.id}
+                className={`action-item ${draggedAction?.id === action.id ? "dragging" : ""}`}
+                onDragStart={(event) => handleDragStart(event, action)}
                 onDragEnd={handleDragEnd}
               >
-                <button
-                  className="edit-button"
-                  onClick={() => handleEditAction(action)}
-                  type="button"
-                  title="Edit action"
-                >
-                  ✏️
-                </button>
-                <span className="drag-icon">⋮⋮</span>
-                <span className="action-title"> {action.title}</span>
+                <span className="drag-icon" aria-hidden="true">⋮⋮</span>
+                <span className="action-title">{action.title}</span>
 
                 <button
-                  className="edit-button"
-                  onClick={() => handleDeleteAction(action.id)}
                   type="button"
-                  title="Delete action"
-                  aria-label={`Delete ${action.title}`}
-                  style={{ marginLeft: "auto" }}
+                  className="action-add"
+                  onClick={() => addAction(action)}
+                  aria-label={`Add ${action.title} to the flow`}
                 >
-                  🗑️
+                  <FontAwesomeIcon icon={faPlus} aria-hidden="true" /> Add
                 </button>
-              </div>
+                <button
+                  type="button"
+                  className="icon-button"
+                  onClick={() => handleEditAction(action)}
+                  title="Change the title or icon"
+                  aria-label={`Edit ${action.title}`}
+                >
+                  <FontAwesomeIcon icon={faPen} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button danger"
+                  onClick={() => handleDeleteAction(action)}
+                  title="Delete this action"
+                  aria-label={`Delete ${action.title}`}
+                >
+                  <FontAwesomeIcon icon={faTrash} aria-hidden="true" />
+                </button>
+              </li>
             ))}
-          </div>
-        </div>
+            {actions.length === 0 && (
+              <li className="side-hint">No actions yet. Run the database migrations to add the built-in ones.</li>
+            )}
+          </ul>
+        </section>
+
+        <ActionEditorDialog
+          editingAction={editingAction}
+          isFlowPlacement={pendingNodeId !== null || pendingInsert !== null}
+          onEditClose={() => {
+            setEditingAction(null);
+            setPendingNodeId(null);
+            setPendingInsert(null);
+          }}
+          onFlowActionSave={handleActionSavedToFlow}
+          onActionSaved={refreshActions}
+        />
       </aside>
 
       <main className="flow-canvas">
         <div className="canvas-header">
-          <div className="test-details">
-            <div className="test-details-heading">
-              <div>
-                <span className="eyebrow"> TEST DESIGN</span>
-                <h1>Test Flow</h1>
-                <p>
-                  Define your test and build the sequence of
-                  actions that should run on the tablet.
-                </p>
-                <p className="mt-1 text-sm text-slate-600">
-                  Each step waits {bridgeState?.stepDelaySeconds ?? 5} seconds
-                  before it runs. Add a DELAY step to wait longer, for example
-                  after a screen or a dialog that opens slowly.
-                </p>
-              </div>
-            </div>
-
-
+          <div className="canvas-title">
+            <h1>Flow</h1>
+            <p>
+              {stepCount} {stepCount === 1 ? "step" : "steps"}
+              {dirty && !saving ? <span className="unsaved"> · Unsaved changes</span> : null}
+            </p>
+            <p className="canvas-hint">
+              Each step waits {bridge.state?.stepDelaySeconds ?? 5} seconds before it runs. Add a DELAY step to wait longer.
+            </p>
           </div>
-          <div className="flex flex-col items-end gap-2">
-            <div className="flex space-between gap-5">
+
+          <div className="canvas-actions">
+            <div className="canvas-buttons">
               <button
                 onClick={handleSaveTest}
                 disabled={saving || !testTitle.trim() || !dirty}
                 type="button"
-                className="save-test-button"
+                className="btn"
                 title={!testTitle.trim() ? "Enter a test title" : ""}
               >
-                {saving ? "Saving..." : "Save Test"}
+                {saving ? "Saving…" : "Save"}
               </button>
               <button
-                className="save-test-button"
+                className="btn primary"
                 disabled={runDisabled}
                 onClick={handleSaveAndRun}
                 type="button"
@@ -1342,51 +981,71 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
                 {runLabel}
               </button>
             </div>
-            {runBlockedReason && (
-              <p className="text-sm text-slate-600">{runBlockedReason}</p>
-            )}
-            {dirty && !saving && (
-              <p className="text-sm font-medium text-amber-800">Unsaved changes</p>
-            )}
+            {bridge.blockedReason && <p className="canvas-reason">{bridge.blockedReason}</p>}
           </div>
         </div>
 
-        {statusLine && (
+        {statusMessage && (
           <p
-            role={statusLine.kind === "error" ? "alert" : "status"}
-            className={[
-              "border-b px-6 py-3 text-sm",
-              statusLine.kind === "error"
-                ? "border-red-200 bg-red-50 text-red-900"
-                : statusLine.kind === "success"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                  : "border-slate-200 bg-slate-50 text-slate-800",
-            ].join(" ")}
+            role={statusMessage.kind === "error" ? "alert" : "status"}
+            className={`flow-message ${statusMessage.kind}`}
           >
-            {statusLine.text}
-            {statusLine.reportId && (
-              <>
-                {" "}
-                <a href={`/runs/${statusLine.reportId}`} className="font-semibold underline">
-                  View report
-                </a>
-              </>
-            )}
+            {statusMessage.text}
           </p>
         )}
 
         <div className="flow-area">
           <div className="flow-root">
-            {nodes.map((node, index) =>
-              renderNode(node, index, null)
-            )}
+            {nodes.map((node, index) => renderNode(node, index, null))}
           </div>
         </div>
 
+        <section className="flow-dock" aria-label="Run, device and activity">
+          <div className="dock-bar">
+            <div role="tablist" aria-label="Run, device and activity" className="dock-tabs">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  id={`dock-tab-${tab.id}`}
+                  aria-selected={dockOpen && dockTab === tab.id}
+                  aria-controls="dock-panel"
+                  className={dockOpen && dockTab === tab.id ? "active" : ""}
+                  onClick={() => {
+                    setDockTab(tab.id);
+                    setDockChoice(true);
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="dock-toggle"
+              onClick={() => setDockChoice(!dockOpen)}
+              aria-expanded={dockOpen}
+            >
+              {dockOpen ? "Hide" : "Show"}
+            </button>
+          </div>
+
+          {dockOpen && (
+            <div id="dock-panel" role="tabpanel" aria-labelledby={`dock-tab-${dockTab}`} className="dock-body">
+              {dockTab === "run" && <RunPanel testId={savedTest?.id} />}
+              {dockTab === "device" && <DevicePanel />}
+              {dockTab === "activity" && (
+                <ActivityFeed
+                  events={bridge.state?.events ?? []}
+                  empty="Nothing has happened yet."
+                  maxHeight="18rem"
+                />
+              )}
+            </div>
+          )}
+        </section>
       </main>
     </div>
   );
 }
-
-
-
