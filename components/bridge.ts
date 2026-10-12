@@ -21,6 +21,8 @@ export type TabletState = {
   route?: string;
   updatedAt: string;
   events: FeedEvent[];
+  // How long the bridge waits before every step (a DELAY step adds more).
+  stepDelaySeconds?: number;
   test?: {
     status: "idle" | "running" | "passed" | "failed";
     name?: string;

@@ -15,6 +15,9 @@ if (typeof WebSocket === "undefined") {
 import {execFile, execFileSync} from "node:child_process";
 import {promisify} from "node:util";
 const exec=promisify(execFile),PORT=3131;
+// Every step waits this long before it runs, so a modal or a route change from
+// the previous step has time to settle. A DELAY step adds more on top.
+const STEP_DELAY_SECONDS=(()=>{const value=Number(process.env.VC_STEP_DELAY_SECONDS??5);return Number.isFinite(value)&&value>=0?value:5})();
 const ADB = process.env.ADB ?? (() => {
   const candidates = [
     "/opt/homebrew/bin/adb",
@@ -33,7 +36,7 @@ const ADB = process.env.ADB ?? (() => {
 })();
 let screen=null,eventId=0,previous={connected:false,sandboxForeground:false,route:""};
 const events=[];
-let state={connected:false,sandboxForeground:false,updatedAt:new Date().toISOString(),events,test:{status:"idle",name:"Workout smoke test"}};
+let state={connected:false,sandboxForeground:false,updatedAt:new Date().toISOString(),events,test:{status:"idle",name:"Workout smoke test"},stepDelaySeconds:STEP_DELAY_SECONDS};
 let test={status:"idle",name:"Workout smoke test"};
 const adb=async(...args)=>(await exec(ADB,args,{encoding:"utf8",maxBuffer:8_000_000})).stdout.trim();
 const addEvent=(label,detail,kind="info")=>{events.push({id:++eventId,at:new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"}),label,detail,kind});if(events.length>30)events.shift()};
@@ -113,7 +116,7 @@ async function clickText(labels){
 }
 const feetFrom=text=>Number(text?.match(/Current Feet\s+([0-9,]+)/i)?.[1]?.replaceAll(",","")??0);
 async function poll(){
- const next={connected:false,sandboxForeground:false,updatedAt:new Date().toISOString(),events,test};
+ const next={connected:false,sandboxForeground:false,updatedAt:new Date().toISOString(),events,test,stepDelaySeconds:STEP_DELAY_SECONDS};
  try{
   const devices=await adb("devices","-l"),line=devices.split("\n").find(value=>/\sdevice\s/.test(value));if(!line)throw new Error("not connected");
   next.connected=true;next.device=line.trim().split(/\s+/)[0];next.model=await adb("shell","getprop","ro.product.model");next.android=await adb("shell","getprop","ro.build.version.release");
@@ -2656,6 +2659,18 @@ async function executeFlowNodes(nodes, actionMap) {
     test.step = title;
     state.test = test;
 
+    // Default settle time before every step. DELAY is exempt: it is the
+    // explicit way to wait longer.
+    if (normalizedTitle !== "DELAY" && STEP_DELAY_SECONDS > 0) {
+      addEvent(
+        `Waiting ${STEP_DELAY_SECONDS}s before ${title}`,
+        "",
+        "info"
+      );
+
+      await sleep(STEP_DELAY_SECONDS * 1000);
+    }
+
     addEvent(
       `Attempting action: ${title}`,
       "",
@@ -2798,7 +2813,7 @@ async function executeDeviceAction(action) {
       throw new Error("AUTHENTICATION needs both an email and a password.");
     }
 
-    const result = await pageAction(`(() => {
+    const findAndSignIn = () => pageAction(`(() => {
       const email = ${JSON.stringify(email)};
       const password = ${JSON.stringify(password)};
       const visible = (el) => !!(el.offsetWidth || el.offsetHeight);
@@ -2843,6 +2858,21 @@ async function executeDeviceAction(action) {
       return { ok: true, button: label(submit) };
     })()`);
 
+    // The form is often in a modal that is still opening: keep looking for
+    // the fields for up to 10 seconds before giving up.
+    let result = await findAndSignIn();
+    const giveUpAt = Date.now() + 10_000;
+
+    while (
+      result &&
+      result.ok === false &&
+      /No (password|email) field/.test(result.error || "") &&
+      Date.now() < giveUpAt
+    ) {
+      await sleep(500);
+      result = await findAndSignIn();
+    }
+
     if (!result || result.ok !== true) {
       throw new Error(result?.error || "Could not sign in on the tablet.");
     }
@@ -2881,18 +2911,6 @@ async function executeDeviceAction(action) {
     "success"
   );
 
-  // Action timeout happens AFTER clicking.
-  const seconds = Number(action.actionTimeout) || 0;
-
-  if (seconds > 0) {
-    addEvent(
-      `Waiting ${seconds}s after action: ${title}`,
-      "",
-      "info"
-    );
-
-    await sleep(seconds * 1000);
-  }
 }
 async function executeConfirmationNode(
   node,

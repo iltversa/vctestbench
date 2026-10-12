@@ -1300,6 +1300,11 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
                   Define your test and build the sequence of
                   actions that should run on the tablet.
                 </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Each step waits {bridgeState?.stepDelaySeconds ?? 5} seconds
+                  before it runs. Add a DELAY step to wait longer, for example
+                  after a screen or a dialog that opens slowly.
+                </p>
               </div>
             </div>
 

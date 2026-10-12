@@ -61,9 +61,18 @@ app) and enables **Run** once the tablet is connected and the Sandbox app is ope
 | CLICK | Taps the element whose text matches "Click on text" |
 | PASTE | Fills the first text field with the given text |
 | AUTHENTICATION | Fills the visible email and password fields and presses the sign-in button |
-| DELAY | Waits the configured number of seconds |
+| DELAY | Waits the configured number of seconds, on top of the default wait |
 | CONFIRMATION | Branches on the selected option |
 | SAVE | Presses the save button |
+
+## Timing
+
+Every step waits **5 seconds before it runs**, so a dialog or a screen change
+from the previous step has time to settle. Add a **DELAY** step when something
+needs longer (for example a slow modal). DELAY itself does not get the extra
+wait. AUTHENTICATION also keeps looking for the email and password fields for
+up to 10 seconds. Change the default when starting the bridge:
+`VC_STEP_DELAY_SECONDS=3 npm run bridge`.
 
 ## Credentials
 
