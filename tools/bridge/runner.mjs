@@ -226,28 +226,30 @@ async function execute(run, testData, actionMap) {
     await executeFlowNodes(run, testData.flow, actionMap);
 
     const passed = run.steps.filter((step) => step.status === "passed").length;
-    await finalizeRun(run, "passed");
 
+    // Logged while the run is still open, so it is part of the run's own log.
     addEvent(
       `Flow completed: ${run.title}`,
       `${passed} ${passed === 1 ? "step" : "steps"} passed`,
       "success"
     );
+
+    await finalizeRun(run, "passed");
   } catch (error) {
     if (error instanceof RunStopped) {
       // The step that was in progress did not finish; it is stopped, not failed.
       const open = run.steps.find((step) => step.status === "running");
       if (open) endStep(open, "stopped", "Stopped by user");
 
-      await finalizeRun(run, "stopped", "Stopped by user");
       addEvent(`${run.title} stopped`, "Stopped by user", "warning");
+      await finalizeRun(run, "stopped", "Stopped by user");
       return;
     }
 
     const message = error instanceof Error ? error.message : String(error);
 
-    await finalizeRun(run, "failed", message);
     addEvent(`${run.title} failed`, message, "warning");
+    await finalizeRun(run, "failed", message);
   }
 }
 

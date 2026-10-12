@@ -13,8 +13,7 @@ import RunStatusBadge from "@/components/RunStatusBadge";
 import { explainFailure, formatDuration } from "@/components/run-format";
 import type { SavedTest } from "@/components/types";
 
-const panel = "flex min-h-[22rem] min-w-0 flex-col rounded-xl border border-slate-200 bg-white lg:min-h-0";
-const panelTitle = "border-b border-slate-200 px-4 py-3 text-base font-semibold text-slate-900";
+const panel = "flex min-h-[24rem] min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white lg:min-h-0";
 
 // A run, watched: the flow with each step's state, the tablet's screen, and a
 // live feed of what is happening.
@@ -123,91 +122,90 @@ export default function RunViewPage() {
   };
 
   return (
-    <div className="flex flex-col lg:h-[calc(100dvh-64px)]">
-      {/* ------------------------------ Header ------------------------------ */}
-      <header className="border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
+    <div className="p-3 sm:p-4 lg:h-[calc(100dvh-64px)]">
+      <div className="grid gap-4 lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_300px]">
+        {/* ----------------------- Flow: header and chart ----------------------- */}
+        <section className={panel} aria-labelledby="run-title">
+          <header className="border-b border-slate-200 px-4 py-3">
             <nav aria-label="Breadcrumb" className="text-sm">
               <Link href="/" className="font-medium text-slate-800 underline">Test flows</Link>
               <span className="mx-2 text-slate-500" aria-hidden="true">/</span>
               <span className="text-slate-700">Run</span>
             </nav>
-            <h1 className="mt-0.5 flex flex-wrap items-center gap-3 text-lg font-semibold text-slate-900">
-              <span className="truncate">{test.title}</span>
-              {run ? <RunStatusBadge status={run.status} /> : <RunStatusBadge status="pending" />}
-            </h1>
-            <p className="text-sm text-slate-700">
-              {run
-                ? `${passed} of ${total} ${total === 1 ? "step" : "steps"} passed · ${formatDuration(elapsed)}`
-                : "Not run yet"}
-            </p>
-          </div>
 
-          <div className="flex flex-wrap gap-2">
-            {running ? (
-              <button
-                type="button"
-                onClick={() => void bridge.stopRun()}
-                className="min-h-[44px] rounded-lg border border-red-300 bg-white px-4 text-sm font-semibold text-red-900 hover:bg-red-50"
-              >
-                Stop run
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={runAgain}
-                disabled={Boolean(bridge.blockedReason) || bridge.starting}
-                title={bridge.blockedReason || undefined}
-                className="min-h-[44px] rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-700"
-              >
-                {run ? "Run again" : "Run"}
-              </button>
-            )}
-            {run && !running && (
-              <Link
-                href={`/runs/${run.runId}`}
-                className="inline-flex min-h-[44px] items-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-900 hover:bg-slate-50"
-              >
-                Full report
-              </Link>
-            )}
-            <Link
-              href={`/test/${testId}`}
-              className="inline-flex min-h-[44px] items-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-900 hover:bg-slate-50"
+            <div className="mt-1 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+              <div className="min-w-0">
+                <h1 id="run-title" className="flex flex-wrap items-center gap-2 text-lg font-semibold text-slate-900">
+                  <span className="truncate">{test.title}</span>
+                  <RunStatusBadge status={run ? run.status : "pending"} />
+                </h1>
+                <p className="text-sm text-slate-700">
+                  {run
+                    ? `${passed} of ${total} ${total === 1 ? "step" : "steps"} passed · ${formatDuration(elapsed)}`
+                    : "Not run yet"}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {running ? (
+                  <button
+                    type="button"
+                    onClick={() => void bridge.stopRun()}
+                    className="min-h-[44px] rounded-lg border border-red-300 bg-white px-4 text-sm font-semibold text-red-900 hover:bg-red-50"
+                  >
+                    Stop run
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={runAgain}
+                    disabled={Boolean(bridge.blockedReason) || bridge.starting}
+                    title={bridge.blockedReason || undefined}
+                    className="min-h-[44px] rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-700"
+                  >
+                    {run ? "Run again" : "Run"}
+                  </button>
+                )}
+                {run && !running && (
+                  <Link
+                    href={`/runs/${run.runId}`}
+                    className="inline-flex min-h-[44px] items-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-900 hover:bg-slate-50"
+                  >
+                    Full report
+                  </Link>
+                )}
+                <Link
+                  href={`/test/${testId}`}
+                  className="inline-flex min-h-[44px] items-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-900 hover:bg-slate-50"
+                >
+                  Edit flow
+                </Link>
+              </div>
+            </div>
+
+            <div
+              role="progressbar"
+              aria-label="Steps passed"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={percent}
+              className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200"
             >
-              Edit flow
-            </Link>
-          </div>
-        </div>
+              <div
+                className={`h-full transition-all ${
+                  run?.status === "failed" ? "bg-red-600" : run?.status === "stopped" ? "bg-amber-500" : "bg-emerald-600"
+                }`}
+                style={{ width: `${percent}%` }}
+              />
+            </div>
 
-        <div
-          role="progressbar"
-          aria-label="Steps passed"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={percent}
-          className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200"
-        >
-          <div
-            className={`h-full transition-all ${
-              run?.status === "failed" ? "bg-red-600" : run?.status === "stopped" ? "bg-amber-500" : "bg-emerald-600"
-            }`}
-            style={{ width: `${percent}%` }}
-          />
-        </div>
+            {(message || (!running && bridge.blockedReason)) && (
+              <p role={message ? "alert" : "status"} className="mt-2 text-sm text-slate-800">
+                {message || bridge.blockedReason}
+              </p>
+            )}
+          </header>
 
-        {(message || (!running && bridge.blockedReason)) && (
-          <p role={message ? "alert" : "status"} className="mt-2 text-sm text-slate-800">
-            {message || bridge.blockedReason}
-          </p>
-        )}
-      </header>
-
-      {/* --------------------------- The three panels --------------------------- */}
-      <div className="grid flex-1 gap-4 p-4 sm:px-6 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_300px]">
-        <section className={panel} aria-labelledby="chart-title">
-          <h2 id="chart-title" className={panelTitle}>Flow</h2>
           <div className="min-h-0 flex-1 overflow-auto p-4">
             {nodes.length === 0 ? (
               <p className="text-sm text-slate-700">This test flow has no steps.</p>
@@ -217,43 +215,46 @@ export default function RunViewPage() {
           </div>
         </section>
 
-        <section className={panel} aria-labelledby="device-panel-title">
-          <h2 id="device-panel-title" className={panelTitle}>Device</h2>
-          <div className="min-h-0 flex-1 overflow-auto p-4">
-            <DevicePanel bare />
-          </div>
+        {/* ------------------------------ Device ------------------------------ */}
+        <section className={panel} aria-label="Device">
+          <DevicePanel />
         </section>
 
+        {/* -------------------------- Live activity -------------------------- */}
         <section className={panel} aria-labelledby="live-title">
-          <h2 id="live-title" className={panelTitle}>
+          <h2
+            id="live-title"
+            className="border-b border-slate-200 px-4 py-3 text-base font-semibold text-slate-900"
+          >
             Live activity
             {running && <span className="ml-2 text-sm font-normal text-blue-800">· running</span>}
           </h2>
-          <div className="min-h-0 flex-1 overflow-auto p-4">
-            {run?.status === "failed" && (
-              <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-slate-900" role="alert">
-                <p className="font-semibold">
-                  {failedStep ? `Failed at step ${failedStep.index}: ${failedStep.action}` : "The run failed"}
-                </p>
-                {run.error && <p className="mt-1 break-words">{run.error}</p>}
-                {advice && <p className="mt-2"><strong>Likely cause:</strong> {advice}</p>}
-              </div>
-            )}
-            {run?.status === "stopped" && (
-              <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-slate-900">
-                The run was stopped.
-              </p>
-            )}
-            {run?.status === "passed" && (
-              <p className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-slate-900">
-                Flow completed. Every step passed.
-              </p>
-            )}
 
+          {run?.status === "failed" && (
+            <div className="m-3 mb-0 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-slate-900" role="alert">
+              <p className="font-semibold">
+                {failedStep ? `Failed at step ${failedStep.index}: ${failedStep.action}` : "The run failed"}
+              </p>
+              {run.error && <p className="mt-1 break-words">{run.error}</p>}
+              {advice && <p className="mt-2"><strong>Likely cause:</strong> {advice}</p>}
+            </div>
+          )}
+          {run?.status === "stopped" && (
+            <p className="m-3 mb-0 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-slate-900">
+              The run was stopped.
+            </p>
+          )}
+          {run?.status === "passed" && (
+            <p className="m-3 mb-0 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-slate-900">
+              Flow completed. Every step passed.
+            </p>
+          )}
+
+          <div className="min-h-0 flex-1 px-4 pb-2 pt-1">
             <ActivityFeed
               events={events}
+              follow
               empty={run ? "Waiting for the first event…" : "Press Run to start. What happens appears here as it happens."}
-              maxHeight="none"
             />
           </div>
         </section>

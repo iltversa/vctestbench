@@ -305,7 +305,7 @@ export default function RunReportPage() {
 
       <section className="rounded-xl border border-slate-200 bg-white p-4" aria-label="Activity log">
         <h2 className="mb-1 text-base font-semibold text-slate-900">Activity log</h2>
-        <p className="mb-2 text-sm text-slate-700">Everything the bridge did during this run, newest first.</p>
+        <p className="mb-2 text-sm text-slate-700">Everything the bridge did during this run, in the order it happened.</p>
         <ActivityFeed events={events} empty="No log was recorded for this run." maxHeight="26rem" />
       </section>
     </main>

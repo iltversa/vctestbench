@@ -18,7 +18,7 @@ browser (this app, :3000) ──► bridge (tools/bridge, :3131) ──► adb �
 | Need | Where it lives |
 |---|---|
 | **Plan a flow** by drag and drop, or in easy steps | Editor (`/test/<id>`): an **Actions** panel and the editor view. Press **Add**, press **Add step** on the canvas, or drag; insert between steps, move steps, delete a step and the chain joins. |
-| **Run it on the device**, with a log, causes and results | Run view (`/test/<id>/run`), three panels: the **flow chart** (each step lights up as it runs), the **device**, and a 300px **live activity** column with **Stop** and the likely cause of a failure. |
+| **Run it on the device**, with a log, causes and results | Run view (`/test/<id>/run`), three panels: the **flow chart** (each step lights up as it runs), the **device** (at the tablet's real proportions, headed by its model and state), and a 300px **live activity** column that lists events in the order they happen and follows the newest one. **Stop** and the run's header sit in the flow panel. |
 | **Report and insight** | Each flow on the Tests page carries a one-line insight (created, last tested, pass rate). `/runs`: **Test health** and every run; `/runs/<id>`: the full report. |
 | **Realtime feed** | **Activity**: flows created, changed and deleted and every run's result on the Tests page; the live feed of a run on the run view. Real timestamps, tagged with the step. |
 | **Clean, navigable, responsive UI** | One shell with **Tests** and **Runs** and a device status that is always visible; works down to phone width. |

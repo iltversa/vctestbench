@@ -32,16 +32,17 @@ function Step({ number, state, title, children }: { number: number; state: StepS
   );
 }
 
-// A live view of the tablet's screen, or the steps to get one.
-// `bare` drops the card frame so it can sit inside a panel of its own.
-export default function DevicePanel({ bare = false }: { bare?: boolean }) {
+// The tablet: its model and state in the heading, and its screen at the real
+// proportions of the device, as large as the panel allows. When there is no
+// tablet it says why and what to do.
+export default function DevicePanel() {
   const { online, connected, state, openSandbox } = useBridge();
   const [copied, setCopied] = useState(false);
   const [src, setSrc] = useState("");
   const [opening, setOpening] = useState(false);
 
-  // Preview: fetch the next frame in the background and swap it in when it has
-  // loaded, so the picture never flashes. Only while the page is visible.
+  // Fetch the next frame in the background and swap it in once loaded, so the
+  // picture never flashes. Only while the page is visible.
   useEffect(() => {
     if (!connected) return;
 
@@ -67,10 +68,6 @@ export default function DevicePanel({ bare = false }: { bare?: boolean }) {
     };
   }, [connected]);
 
-  // Literal class names, so Tailwind can see them.
-  const frame = (padding: "p-4" | "p-5") =>
-    bare ? "" : `rounded-xl border border-slate-200 bg-white ${padding}`;
-
   const copy = async () => {
     try {
       await navigator.clipboard.writeText("npm run bridge");
@@ -90,55 +87,29 @@ export default function DevicePanel({ bare = false }: { bare?: boolean }) {
     }
   };
 
-  if (!connected) {
-    return (
-      <section id="device" aria-labelledby="device-title" className={frame("p-5")}>
-        <h2 id="device-title" className="text-lg font-semibold text-slate-900">Connect the tablet</h2>
-        <p className="mt-1 text-sm leading-6 text-slate-600">
-          {online
-            ? "The bridge is running. Connect the tablet to see its screen here."
-            : "Three steps, in order. This panel updates as each one completes."}
-        </p>
+  const heading = connected
+    ? `Device - ${state?.model ?? "Tablet"} connected`
+    : online
+      ? "Device - no tablet connected"
+      : "Device - bridge not running";
 
-        <ol className="mt-5 flex flex-col gap-5">
-          <Step number={1} state={online ? "done" : "todo"} title={online ? "Bridge running" : "Start the bridge"}>
-            {!online && (
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <code className="rounded-lg bg-slate-900 px-3 py-2 font-mono text-sm text-slate-100">npm run bridge</code>
-                <button
-                  type="button"
-                  onClick={copy}
-                  className="min-h-[44px] rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-900 hover:bg-slate-50"
-                >
-                  {copied ? "Copied" : "Copy"}
-                </button>
-              </div>
-            )}
-          </Step>
-
-          <Step number={2} state={online ? "todo" : "blocked"} title="Connect with USB debugging">
-            <p className="mt-1 text-sm leading-6 text-slate-600">Plug in the tablet and allow the debugging prompt.</p>
-          </Step>
-
-          <Step number={3} state="blocked" title="Open the Sandbox app">
-            <p className="mt-1 text-sm leading-6 text-slate-600">TestBench can open it for you once the tablet is connected.</p>
-          </Step>
-        </ol>
-      </section>
-    );
-  }
+  const description = connected
+    ? `Android ${state?.android ?? "?"} - ${
+        state?.sandboxForeground ? `Sandbox open on ${state.route || "…"}` : "Sandbox is not in front"
+      }`
+    : online
+      ? "Connect the tablet to see its screen here."
+      : "Three steps, in order. This updates as each one completes.";
 
   return (
-    <section id="device" aria-labelledby="device-title" className={frame("p-4")}>
-      <div className="flex items-start justify-between gap-3">
+    <section id="device" aria-labelledby="device-title" className="flex h-full min-h-0 flex-col">
+      <header className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-200 px-4 py-3">
         <div className="min-w-0">
-          <h2 id="device-title" className="text-lg font-semibold text-slate-900">{state?.model ?? "Tablet"}</h2>
-          <p className="text-sm text-slate-600">
-            Android {state?.android ?? "?"} ·{" "}
-            {state?.sandboxForeground ? `Sandbox open${state.route ? ` on ${state.route}` : ""}` : "Sandbox is not in front"}
-          </p>
+          <h2 id="device-title" className="text-base font-semibold text-slate-900">{heading}</h2>
+          <p className="text-sm text-slate-700">{description}</p>
         </div>
-        {!state?.sandboxForeground && (
+
+        {connected && !state?.sandboxForeground && (
           <button
             type="button"
             onClick={open}
@@ -148,20 +119,51 @@ export default function DevicePanel({ bare = false }: { bare?: boolean }) {
             {opening ? "Opening…" : "Open Sandbox app"}
           </button>
         )}
-      </div>
+      </header>
 
-      <div className="mt-3 flex min-h-[200px] items-center justify-center overflow-hidden rounded-lg bg-slate-900">
-        {src ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={src}
-            alt="Live view of the tablet screen"
-            className="max-h-[min(62vh,640px)] w-auto max-w-full object-contain"
-          />
-        ) : (
-          <p className="p-6 text-sm text-slate-300" role="status">Loading the screen…</p>
-        )}
-      </div>
+      {connected ? (
+        // The picture keeps the device's own width and height: it is scaled
+        // down to fit, never stretched, and the frame hugs it.
+        <div className="flex min-h-0 flex-1 items-center justify-center p-3">
+          {src ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={src}
+              alt="Live view of the tablet screen"
+              className="h-auto max-h-full w-auto max-w-full rounded-md border border-slate-300 bg-slate-900 object-contain"
+            />
+          ) : (
+            <p className="text-sm text-slate-700" role="status">Loading the screen…</p>
+          )}
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-auto p-4">
+          <ol className="flex flex-col gap-5">
+            <Step number={1} state={online ? "done" : "todo"} title={online ? "Bridge running" : "Start the bridge"}>
+              {!online && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <code className="rounded-lg bg-slate-900 px-3 py-2 font-mono text-sm text-slate-100">npm run bridge</code>
+                  <button
+                    type="button"
+                    onClick={copy}
+                    className="min-h-[44px] rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-900 hover:bg-slate-50"
+                  >
+                    {copied ? "Copied" : "Copy"}
+                  </button>
+                </div>
+              )}
+            </Step>
+
+            <Step number={2} state={online ? "todo" : "blocked"} title="Connect with USB debugging">
+              <p className="mt-1 text-sm leading-6 text-slate-700">Plug in the tablet and allow the debugging prompt.</p>
+            </Step>
+
+            <Step number={3} state="blocked" title="Open the Sandbox app">
+              <p className="mt-1 text-sm leading-6 text-slate-700">TestBench can open it for you once the tablet is connected.</p>
+            </Step>
+          </ol>
+        </div>
+      )}
     </section>
   );
 }
