@@ -2599,7 +2599,9 @@ async function executeFlowNodes(nodes, actionMap) {
     // Action node
     // ------------------------------------------------
 
-    const action = actionMap.get(node.actionId);
+    // The editor saves each node's own configuration in actionData and does
+    // not send a separate actions list, so fall back to it.
+    const action = actionMap.get(node.actionId) ?? node.actionData ?? undefined;
   console.log("================================");
 
     console.log("EXECUTING ACTION:", {
