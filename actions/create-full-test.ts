@@ -70,7 +70,9 @@ export async function createFullTestAction(input: CreateFullTestInput) {
       success: false,
       // Raw database errors can carry SQL and parameters; keep them in the log.
       message:
-        error instanceof Error && error.message === "Sign in required"
+        // These two messages are safe to show: they contain no data.
+        error instanceof Error &&
+        (error.message === "Sign in required" || error.message.startsWith("VC_SECRET_KEY"))
           ? error.message
           : "Failed to save test. Check that the database is reachable and try again.",
     };
@@ -102,7 +104,9 @@ export async function updateFullTestAction(input: UpdateFullTestInput) {
       success: false,
       // Raw database errors can carry SQL and parameters; keep them in the log.
       message:
-        error instanceof Error && error.message === "Sign in required"
+        // These two messages are safe to show: they contain no data.
+        error instanceof Error &&
+        (error.message === "Sign in required" || error.message.startsWith("VC_SECRET_KEY"))
           ? error.message
           : "Failed to save test. Check that the database is reachable and try again.",
     };
