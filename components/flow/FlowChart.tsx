@@ -4,7 +4,7 @@ import "../../app/TestFlowBuilder.css";
 import { useEffect, useRef } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Connector, { CHILD_GAP, CHILD_W } from "@/components/flow/Connector";
-import { iconFor, nodeSubtitle } from "@/components/flow/node-info";
+import { iconForAction, nodeSubtitle } from "@/components/flow/node-info";
 import type { FlowNode } from "@/components/TestFlowBuilder";
 import type { StepProgress } from "@/components/bridge";
 
@@ -70,7 +70,7 @@ export default function FlowChart({ nodes, steps = [], activeStep = null }: Prop
           ) : (
             <div className="node-card-header">
               <span className="node-icon" aria-hidden="true">
-                <FontAwesomeIcon icon={iconFor(node.actionData?.icon)} />
+                <FontAwesomeIcon icon={iconForAction(node.actionTitle, node.actionData?.icon)} />
               </span>
               <div className="node-text">
                 <span className="node-card-title">{node.actionTitle ?? "Step"}</span>

@@ -96,13 +96,17 @@ the default when starting the bridge: `VC_STEP_DELAY_SECONDS=3 npm run bridge`.
 A run ends when there is no next step: an empty slot at the end of a chain
 completes the flow and nothing runs after it. Only one run can be active.
 
+Each kind of action has its own icon (tap, paste, key for sign-in, hourglass for
+delay, branch for confirmation, disk for save), on the flow cards, the actions
+panel, the Tests list and the steps of a report.
+
 ### Reports
 
 A report holds the result, start and finish time, the device, a record for each
 step (when it started, how long it waited, how long it took, its error), the
 activity log, and **two pictures of the tablet for every step**: one just before
 the action (after the settle wait, so it shows what the action is about to act
-on) and one when the step ended. They appear in a *Screen* column after *Took*,
+on) and one 2 seconds after the action, so a dialog it opened is on screen. They appear in a *Screen* column after *Took*,
 labelled *Before* and *After*; click one to open it large, then use the arrow
 keys to move through them in order. The activity log sits
 to the right of the steps, in the order things happened. A failed run also keeps
@@ -141,6 +145,7 @@ lists and the editor only ever see ciphertext.
 | `DATABASE_URL` | Postgres connection (web app). |
 | `VC_SECRET_KEY` | 32 random bytes, base64. Encrypts stored passwords. |
 | `VC_STEP_DELAY_SECONDS` | Wait before every step (bridge, default `5`). |
+| `VC_AFTER_SHOT_DELAY_SECONDS` | Wait after an action before its "after" picture (bridge, default `2`). |
 | `VC_ALLOWED_ORIGINS` | Origins allowed to call the bridge. Default `http://localhost:3000,http://127.0.0.1:3000`; set it if the UI runs on another port. |
 | `VC_BRIDGE_PORT` | Port the bridge listens on (default `3131`; the web app expects 3131). |
 | `REQUIRE_AUTH=true` | Reject server actions and the create API from callers with no signed-in user. Off by default for local use. |

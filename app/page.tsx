@@ -10,13 +10,40 @@ import ActivityTimeline from "@/components/ActivityTimeline";
 import { useBridge } from "@/components/BridgeProvider";
 import CreateTestModal from "@/components/CreateTestModal";
 import { formatDate, formatWhen } from "@/components/run-format";
-import { countSteps, type SavedTest } from "@/components/types";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { iconForAction } from "@/components/flow/node-info";
+import { countSteps, flowActionTitles, type SavedTest } from "@/components/types";
 import type { ActivityItem } from "@/services/activity";
 import type { TestTrend } from "@/services/run-reports";
 
 const card = "rounded-xl border border-slate-200 bg-white";
 
 // "Created 12 Oct 2026 · Last tested Today, 14:05 · 67% passed (8 of 12)"
+// The kinds of step in a flow, in order, as small icons.
+function ActionStrip({ titles }: { titles: string[] }) {
+  if (titles.length === 0) return null;
+
+  const shown = titles.slice(0, 10);
+
+  return (
+    <p className="mt-1 flex flex-wrap items-center gap-1" aria-label={`Steps: ${titles.join(", ")}`}>
+      {shown.map((title, index) => (
+        <span
+          key={index}
+          title={title}
+          className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-xs text-slate-800"
+          aria-hidden="true"
+        >
+          <FontAwesomeIcon icon={iconForAction(title)} />
+        </span>
+      ))}
+      {titles.length > shown.length && (
+        <span className="text-xs text-slate-700" aria-hidden="true">+{titles.length - shown.length}</span>
+      )}
+    </p>
+  );
+}
+
 function Insight({ test, trend }: { test: SavedTest; trend?: TestTrend }) {
   const tone =
     !trend ? "" : trend.passRate >= 80 ? "text-emerald-800" : trend.passRate >= 50 ? "text-amber-800" : "text-red-800";
@@ -262,6 +289,7 @@ export default function Home() {
                           {steps} {steps === 1 ? "step" : "steps"}
                         </span>
                       </h2>
+                      <ActionStrip titles={flowActionTitles(test.flow, test.actions)} />
                       <Insight test={test} trend={trends[test.id]} />
                     </div>
 

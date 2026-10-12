@@ -26,7 +26,7 @@ import {
 } from "@/components/flow/tree";
 import { useBridge } from "@/components/BridgeProvider";
 import Connector, { CHILD_GAP, CHILD_W } from "@/components/flow/Connector";
-import { iconFor, nodeSubtitle } from "@/components/flow/node-info";
+import { iconForAction, nodeSubtitle } from "@/components/flow/node-info";
 export type TestActionDefinition = {
   id: string;
   title: string;
@@ -570,7 +570,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
           ) : (
             <div className="node-card-header">
               <span className="node-icon" aria-hidden="true">
-                <FontAwesomeIcon icon={iconFor(node.actionData?.icon)} />
+                <FontAwesomeIcon icon={iconForAction(node.actionTitle, node.actionData?.icon)} />
               </span>
               <div className="node-text">
                 <span className="node-card-title">{node.actionTitle ?? "Unassigned"}</span>
@@ -708,6 +708,9 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
                 onDragEnd={handleDragEnd}
               >
                 <span className="drag-icon" aria-hidden="true">⋮⋮</span>
+                <span className="node-icon" aria-hidden="true">
+                  <FontAwesomeIcon icon={iconForAction(action.title, action.icon)} />
+                </span>
                 <span className="action-title">{action.title}</span>
 
                 <button

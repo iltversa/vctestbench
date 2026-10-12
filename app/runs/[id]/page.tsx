@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getRunAction, getRunStepImagesAction } from "@/actions/run-reports";
@@ -8,6 +9,7 @@ import ActivityFeed from "@/components/ActivityFeed";
 import { useBridge } from "@/components/BridgeProvider";
 import Lightbox, { type LightboxItem } from "@/components/Lightbox";
 import RunStatusBadge from "@/components/RunStatusBadge";
+import { iconForAction } from "@/components/flow/node-info";
 import {
   explainFailure,
   formatClock,
@@ -333,7 +335,15 @@ export default function RunReportPage() {
                 <tr key={`${step.index}-${step.nodeId}`} className={step.status === "failed" ? "bg-red-50/60" : undefined}>
                   <td className="px-4 py-3 align-top text-slate-700">{step.index}</td>
                   <td className="px-4 py-3 align-top">
-                    <div className="font-medium text-slate-900">{step.action}</div>
+                    <div className="flex items-center gap-2 font-medium text-slate-900">
+                      <span
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-800"
+                        aria-hidden="true"
+                      >
+                        <FontAwesomeIcon icon={iconForAction(step.action)} />
+                      </span>
+                      {step.action}
+                    </div>
                     <div className="text-slate-700">{step.detail}</div>
                     {step.error && <div className="mt-1 text-red-900">{step.error}</div>}
                   </td>

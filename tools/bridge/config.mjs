@@ -11,6 +11,13 @@ export const STEP_DELAY_SECONDS = (() => {
   return Number.isFinite(value) && value >= 0 ? value : 5;
 })();
 
+// The "after" picture of a step is taken this long after the action, so a
+// modal or a route change it caused has appeared by then.
+export const AFTER_SHOT_DELAY_SECONDS = (() => {
+  const value = Number(process.env.VC_AFTER_SHOT_DELAY_SECONDS ?? 2);
+  return Number.isFinite(value) && value >= 0 ? value : 2;
+})();
+
 export const SANDBOX_PACKAGE = "com.versaclimber.sandbox";
 export const DEVTOOLS_PORT = 9222;
 export const POLL_INTERVAL_MS = 1500;

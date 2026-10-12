@@ -6,7 +6,7 @@
 
 import { randomUUID } from "node:crypto";
 import { screenshot, screenshotBase64 } from "./adb.mjs";
-import { MAX_RUNS, STEP_DELAY_SECONDS, debug } from "./config.mjs";
+import { AFTER_SHOT_DELAY_SECONDS, MAX_RUNS, STEP_DELAY_SECONDS, debug } from "./config.mjs";
 import { toStepImage } from "./image.mjs";
 import { addEvent, sleep, store } from "./state.mjs";
 import { clickSaveButton, clickTextAround, evaluate } from "./webview.mjs";
@@ -176,7 +176,20 @@ async function captureStepImage(run, step, phase) {
 }
 
 async function finishStep(run, step, status, error = null) {
+  const endedAt = Date.now();
   endStep(step, status, error);
+
+  // Let the screen settle (a modal opening, a route changing) before the
+  // "after" picture. Stop still cuts it short. This time is not part of
+  // the step's duration, which was recorded above.
+  if (status === "passed" && AFTER_SHOT_DELAY_SECONDS > 0 && store.connection.connected) {
+    try {
+      await pause(Math.max(0, AFTER_SHOT_DELAY_SECONDS * 1000 - (Date.now() - endedAt)));
+    } catch {
+      // Stopped: take the picture straight away.
+    }
+  }
+
   await captureStepImage(run, step, "after");
 }
 
