@@ -2,7 +2,7 @@
 
 import "../app/TestFlowBuilder.css";
 import React, { useEffect, useRef, useState } from "react";
-import CreateTestButton from "@/app/testCases/page";
+import ActionEditorDialog from "@/components/ActionEditorDialog";
 import { SavedTest } from "@/app/page";
 import getActionsAction from "@/actions/get-actions";
 import { getRunPayloadAction } from "@/actions/get-run-payload";
@@ -1246,7 +1246,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
               <h2>Actions</h2>
               <p>Drag an action into the flow</p>
             </div>
-            <CreateTestButton
+            <ActionEditorDialog
               editingAction={editingAction}
               isFlowPlacement={pendingNodeId !== null || pendingInsert !== null}
               onEditClose={() => {

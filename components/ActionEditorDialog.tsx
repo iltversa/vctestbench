@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { SavedTest } from "../page";
+import { SavedTest } from "@/app/page";
 import ActionDialog, { TestAction } from "@/components/ActionDialog";
-import { createTestActionAction } from "@/actions/create-test-action";
 import { updateTestActionAction } from "@/actions/update-test-action";
 
 type CreateTestButtonProps = {
@@ -15,7 +14,9 @@ type CreateTestButtonProps = {
   onFlowActionSave?: (action: TestAction) => void;
 };
 
-export default function CreateTestButton({ editingAction, onEditClose, isFlowPlacement, onFlowActionSave, onActionSaved }: CreateTestButtonProps) {
+// Opens the action dialog for the step or action being edited. Actions are added
+// by dragging them into the flow, so there is no button of its own.
+export default function ActionEditorDialog({ editingAction, onEditClose, isFlowPlacement, onFlowActionSave, onActionSaved }: CreateTestButtonProps) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -102,15 +103,6 @@ export default function CreateTestButton({ editingAction, onEditClose, isFlowPla
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
-      >
-        <span className="text-lg leading-none">+</span>
-        New action
-      </button>
-
       {open && (
         <ActionDialog
           test={transformedAction}
