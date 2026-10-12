@@ -578,7 +578,14 @@ async function executeDeviceAction(action, step) {
   }
 
   if (name === "SAVE") {
-    await untilFound(step, () => clickSaveButton());
+    await untilFound(step, async () => {
+      const result = await clickSaveButton();
+
+      // The page answers { success: false, reason } when there is no button.
+      if (!result?.success) {
+        throw new Error(result?.reason || "The save button was not found");
+      }
+    });
     addEvent("Pressed save", "", "success");
     return;
   }

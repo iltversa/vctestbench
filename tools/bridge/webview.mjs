@@ -492,8 +492,7 @@ export async function clickTextAround(targetText) {
     return;
   }
 
-  const runtimeResult =
-    message.result?.result;
+  const result = message.result?.result?.value;
 
   ws.close();
 
