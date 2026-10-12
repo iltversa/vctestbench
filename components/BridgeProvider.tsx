@@ -147,7 +147,7 @@ export function BridgeProvider({ children }: { children: ReactNode }) {
 
           const reports = (await response.json()) as {
             runId: string;
-            images?: Record<string, string>;
+            images?: Record<string, unknown>;
           }[];
 
           for (const { images, ...report } of reports) {
@@ -161,8 +161,8 @@ export function BridgeProvider({ children }: { children: ReactNode }) {
             // large; a failure here costs pictures, never the report.
             const pictures = Object.entries(images ?? {});
 
-            for (let from = 0; from < pictures.length; from += 4) {
-              const batch = Object.fromEntries(pictures.slice(from, from + 4));
+            for (let from = 0; from < pictures.length; from += 3) {
+              const batch = Object.fromEntries(pictures.slice(from, from + 3));
               const stored = await saveRunStepImagesAction({ runId: report.runId, images: batch });
               if (!stored.success) break;
             }

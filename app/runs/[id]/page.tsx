@@ -47,7 +47,7 @@ export default function RunReportPage() {
   const [attempt, setAttempt] = useState(0);
   const [rerun, setRerun] = useState<{ kind: "info" | "error"; text: string } | null>(null);
   // Step pictures by step number, and which one is open in the lightbox.
-  const [images, setImages] = useState<Record<number, string>>({});
+  const [images, setImages] = useState<Record<number, { before?: string; after?: string }>>({});
   const [imagesLoaded, setImagesLoaded] = useState(false);
   const [viewing, setViewing] = useState<number | null>(null);
 
@@ -87,7 +87,7 @@ export default function RunReportPage() {
     };
   }, [runId, attempt]);
 
-  const hasPictures = Boolean(run?.steps.some((step) => step.hasImage));
+  const hasPictures = Boolean(run?.steps.some((step) => step.hasImage || step.hasBefore));
   const imagesLoading = hasPictures && !imagesLoaded;
 
   useEffect(() => {
@@ -162,12 +162,26 @@ export default function RunReportPage() {
     step: entry.step,
   }));
 
-  const pictured = run.steps.filter((step) => images[step.index]);
-  const lightboxItems: LightboxItem[] = pictured.map((step) => ({
-    src: `data:image/jpeg;base64,${images[step.index]}`,
-    title: `Step ${step.index} · ${step.action} · ${step.status}`,
+  // Every picture in the order the run took them: a step's before, then its after.
+  type Shot = { step: RunStep; phase: "before" | "after"; src: string };
+  const shots: Shot[] = run.steps.flatMap((step) => {
+    const found = images[step.index];
+    const list: Shot[] = [];
+
+    if (found?.before) list.push({ step, phase: "before", src: `data:image/jpeg;base64,${found.before}` });
+    if (found?.after) list.push({ step, phase: "after", src: `data:image/jpeg;base64,${found.after}` });
+
+    return list;
+  });
+
+  const lightboxItems: LightboxItem[] = shots.map(({ step, phase, src }) => ({
+    src,
+    title: `Step ${step.index} · ${step.action} · ${phase === "before" ? "before the action" : "after the action"}`,
     subtitle: `${step.detail}${step.finishedAt ? ` · ${formatClock(step.finishedAt)}` : ""}`,
   }));
+
+  const openShot = (index: number, phase: "before" | "after") =>
+    setViewing(shots.findIndex((shot) => shot.step.index === index && shot.phase === phase));
 
   const runAgain = async () => {
     if (!run.testId) return;
@@ -302,7 +316,7 @@ export default function RunReportPage() {
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white" aria-label="Steps">
         <h2 className="border-b border-slate-200 px-4 py-3 text-base font-semibold text-slate-900">Steps</h2>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[40rem] text-left text-sm">
+          <table className="w-full min-w-[44rem] text-left text-sm">
             <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-700">
               <tr>
                 <th className="px-4 py-3">#</th>
@@ -329,21 +343,32 @@ export default function RunReportPage() {
                   <td className="px-4 py-3 align-top text-slate-800">{formatDuration(step.durationMs)}</td>
                   <td className="px-4 py-3 align-top">
                     {images[step.index] ? (
-                      <button
-                        type="button"
-                        onClick={() => setViewing(pictured.findIndex((item) => item.index === step.index))}
-                        aria-label={`Open the screenshot of step ${step.index}`}
-                        className="block overflow-hidden rounded-md border border-slate-300 bg-slate-900 hover:border-slate-900"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={`data:image/jpeg;base64,${images[step.index]}`}
-                          alt=""
-                          className="block h-20 w-auto"
-                        />
-                      </button>
-                    ) : step.hasImage && imagesLoading ? (
-                      <span className="block h-20 w-12 animate-pulse rounded-md bg-slate-200" aria-label="Loading screenshot" />
+                      <div className="flex gap-2">
+                        {(["before", "after"] as const).map((phase) =>
+                          images[step.index]?.[phase] ? (
+                            <figure key={phase} className="m-0 text-center">
+                              <button
+                                type="button"
+                                onClick={() => openShot(step.index, phase)}
+                                aria-label={`Open the screenshot ${phase} the action, step ${step.index}`}
+                                className="block overflow-hidden rounded-md border border-slate-300 bg-slate-900 hover:border-slate-900"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={`data:image/jpeg;base64,${images[step.index]![phase]}`}
+                                  alt=""
+                                  className="block h-20 w-auto"
+                                />
+                              </button>
+                              <figcaption className="mt-0.5 text-xs text-slate-700">
+                                {phase === "before" ? "Before" : "After"}
+                              </figcaption>
+                            </figure>
+                          ) : null
+                        )}
+                      </div>
+                    ) : (step.hasImage || step.hasBefore) && imagesLoading ? (
+                      <span className="block h-20 w-12 animate-pulse rounded-md bg-slate-200" aria-label="Loading screenshots" />
                     ) : (
                       <span className="text-slate-500">—</span>
                     )}

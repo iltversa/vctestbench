@@ -161,10 +161,10 @@ export default function Home() {
   const liveDone = live ? live.steps.filter((step) => step.status === "passed").length : 0;
 
   return (
-    <main className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6">
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+    <main className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:h-[calc(100dvh-64px)]">
+      <div className="grid gap-6 lg:h-full lg:grid-cols-[minmax(0,1fr)_380px]">
         {/* ------------------------------ Tests ------------------------------ */}
-        <section className={`${card} min-w-0 self-start`} aria-labelledby="tests-title">
+        <section className={`${card} flex min-h-0 min-w-0 flex-col`} aria-labelledby="tests-title">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5">
             <div>
               <h1 id="tests-title" className="text-xl font-semibold text-slate-900">Test flows</h1>
@@ -210,6 +210,7 @@ export default function Home() {
             </p>
           )}
 
+          <div className="min-h-0 flex-1 lg:overflow-y-auto">
           {loading ? (
             <p className="px-5 py-8 text-center text-sm text-slate-700" role="status">Loading test flows…</p>
           ) : loadError ? (
@@ -305,10 +306,11 @@ export default function Home() {
               })}
             </ul>
           )}
+          </div>
         </section>
 
         {/* ----------------------------- Activity ----------------------------- */}
-        <aside className={`${card} min-w-0 self-start p-4 lg:sticky lg:top-20`} aria-labelledby="activity-title">
+        <aside className={`${card} flex min-h-0 min-w-0 flex-col p-4`} aria-labelledby="activity-title">
           <h2 id="activity-title" className="text-lg font-semibold text-slate-900">Activity</h2>
           <p className="mb-1 text-sm text-slate-700">
             Test flows created, changed and deleted, and how every run went.
@@ -329,10 +331,12 @@ export default function Home() {
             </Link>
           )}
 
-          <ActivityTimeline
-            items={activity}
-            empty="No activity yet. Create a test flow and run it; everything shows up here."
-          />
+          <div className="min-h-0 flex-1 lg:overflow-y-auto">
+            <ActivityTimeline
+              items={activity}
+              empty="No activity yet. Create a test flow and run it; everything shows up here."
+            />
+          </div>
         </aside>
       </div>
 

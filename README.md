@@ -19,7 +19,7 @@ browser (this app, :3000) ──► bridge (tools/bridge, :3131) ──► adb �
 |---|---|
 | **Plan a flow** by drag and drop, or in easy steps | Editor (`/test/<id>`): an **Actions** panel and the editor view. Press **Add**, press **Add step** on the canvas, or drag; insert between steps, move steps, delete a step and the chain joins. |
 | **Run it on the device**, with a log, causes and results | Run view (`/test/<id>/run`), three panels: the **flow chart** (each step lights up as it runs), the **device** (at the tablet's real proportions, headed by its model and state), and a 300px **live activity** column that lists events in the order they happen and follows the newest one. **Stop** and the run's header sit in the flow panel. |
-| **Report and insight** | Each flow on the Tests page carries a one-line insight (created, last tested, pass rate). `/runs`: **Test health** and every run; `/runs/<id>`: the full report. |
+| **Report and insight** | Each flow on the Tests page carries a one-line insight (created, last tested, pass rate). `/runs`: **Test health** on the left and every run on the right, each scrolling on its own; `/runs/<id>`: the full report. |
 | **Realtime feed** | **Activity**: flows created, changed and deleted and every run's result on the Tests page; the live feed of a run on the run view. Real timestamps, tagged with the step. |
 | **Clean, navigable, responsive UI** | One shell with **Tests** and **Runs** and a device status that is always visible; works down to phone width. |
 | **Device preview, or its connection status** | The **Device** panel on the run view: a live view of the tablet's screen, or the three steps to connect it. |
@@ -100,15 +100,17 @@ completes the flow and nothing runs after it. Only one run can be active.
 
 A report holds the result, start and finish time, the device, a record for each
 step (when it started, how long it waited, how long it took, its error), the
-activity log, and a **picture of the tablet for every step**, taken when the step
-ended. The pictures appear in a *Screen* column after *Took*; click one to open
-it large, then use the arrow keys to move between steps. The activity log sits
+activity log, and **two pictures of the tablet for every step**: one just before
+the action (after the settle wait, so it shows what the action is about to act
+on) and one when the step ended. They appear in a *Screen* column after *Took*,
+labelled *Before* and *After*; click one to open it large, then use the arrow
+keys to move through them in order. The activity log sits
 to the right of the steps, in the order things happened. A failed run also keeps
 a full screenshot of the moment it failed. Steps after a failure are listed as
 *Not run*.
 
 Step pictures are small JPEGs (about 40 KB each, 600px wide) kept in their own
-table, so a run of 20 steps adds under 1 MB. There is no automatic clean-up yet;
+table, so a run of 20 steps adds about 1.6 MB. There is no automatic clean-up yet;
 delete rows from `run_step_images` if you need the space back. **Run again** starts the test as
 it is saved now.
 

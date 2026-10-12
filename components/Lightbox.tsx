@@ -28,6 +28,14 @@ export default function Lightbox({
   const closeButton = useRef<HTMLButtonElement>(null);
   const open = index !== null && index >= 0 && index < items.length;
 
+  // The key handler is registered once, when the lightbox opens, so it reads
+  // the current position from here rather than from the render it was made in.
+  const latest = useRef({ index, count: items.length, onChange, onClose });
+
+  useEffect(() => {
+    latest.current = { index, count: items.length, onChange, onClose };
+  });
+
   // Keyboard: arrows and Escape, and Tab stays inside the dialog.
   useEffect(() => {
     if (!open) return;
@@ -39,15 +47,17 @@ export default function Lightbox({
     document.body.style.overflow = "hidden";
 
     const onKey = (event: KeyboardEvent) => {
+      const { index: current, count, onChange: change, onClose: close } = latest.current;
+
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
-      } else if (event.key === "ArrowLeft" && index! > 0) {
+        close();
+      } else if (event.key === "ArrowLeft" && current !== null && current > 0) {
         event.preventDefault();
-        onChange(index! - 1);
-      } else if (event.key === "ArrowRight" && index! < items.length - 1) {
+        change(current - 1);
+      } else if (event.key === "ArrowRight" && current !== null && current < count - 1) {
         event.preventDefault();
-        onChange(index! + 1);
+        change(current + 1);
       } else if (event.key === "Tab") {
         const focusable = dialog.current?.querySelectorAll<HTMLElement>("button:not([disabled])");
         if (!focusable || focusable.length === 0) return;
@@ -73,7 +83,6 @@ export default function Lightbox({
       opener?.focus?.();
     };
     // Only when it opens or closes: moving between pictures keeps the focus.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   if (!open) return null;

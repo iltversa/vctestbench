@@ -44,6 +44,7 @@ function cleanStep(raw: unknown, position: number): RunStep {
     finishedAt: text(step.finishedAt, 40),
     durationMs: count(step.durationMs),
     waitedMs: count(step.waitedMs) ?? 0,
+    hasBefore: step.hasBefore === true,
     hasImage: step.hasImage === true,
     error: text(step.error),
   };
@@ -125,23 +126,30 @@ export async function saveRunReportService(raw: unknown): Promise<SaveRunReportR
 }
 
 // Stores step pictures for a run that is already saved, and marks the steps
-// that have one. Safe to call again: a picture already stored is kept.
+// that have them. Accepts { "1": { before, after } }, and the older
+// { "1": "<after>" }. Safe to call again: a picture already stored is kept.
 export async function saveRunStepImagesService(runId: string, raw: unknown): Promise<{ stored: number }> {
   const entries = raw && typeof raw === "object" ? Object.entries(raw as Record<string, unknown>) : [];
 
-  const rows = entries
-    .map(([index, data]) => ({ stepIndex: Number(index), data }))
-    .filter(
-      (row): row is { stepIndex: number; data: string } =>
-        Number.isInteger(row.stepIndex) &&
-        row.stepIndex > 0 &&
-        row.stepIndex <= MAX_STEPS &&
-        typeof row.data === "string" &&
-        row.data.length > 0 &&
-        row.data.length <= MAX_IMAGE_CHARS &&
-        BASE64.test(row.data)
-    )
-    .map((row) => ({ runId, stepIndex: row.stepIndex, data: row.data }));
+  const valid = (data: unknown): data is string =>
+    typeof data === "string" && data.length > 0 && data.length <= MAX_IMAGE_CHARS && BASE64.test(data);
+
+  const rows: { runId: string; stepIndex: number; phase: "before" | "after"; data: string }[] = [];
+
+  for (const [key, value] of entries) {
+    const stepIndex = Number(key);
+    if (!Number.isInteger(stepIndex) || stepIndex < 1 || stepIndex > MAX_STEPS) continue;
+
+    const pictures =
+      typeof value === "string"
+        ? { after: value }
+        : value && typeof value === "object"
+          ? (value as { before?: unknown; after?: unknown })
+          : {};
+
+    if (valid(pictures.before)) rows.push({ runId, stepIndex, phase: "before", data: pictures.before });
+    if (valid(pictures.after)) rows.push({ runId, stepIndex, phase: "after", data: pictures.after });
+  }
 
   if (rows.length === 0) return { stored: 0 };
 
@@ -151,22 +159,38 @@ export async function saveRunStepImagesService(runId: string, raw: unknown): Pro
   await db.insert(runStepImages).values(rows).onConflictDoNothing();
 
   // A step says it has a picture only because one is stored.
-  const stored = new Set(rows.map((row) => row.stepIndex));
-  const steps = run.steps.map((step) => (stored.has(step.index) ? { ...step, hasImage: true } : step));
+  const before = new Set(rows.filter((row) => row.phase === "before").map((row) => row.stepIndex));
+  const after = new Set(rows.filter((row) => row.phase === "after").map((row) => row.stepIndex));
+
+  const steps = run.steps.map((step) => ({
+    ...step,
+    hasBefore: step.hasBefore || before.has(step.index),
+    hasImage: step.hasImage || after.has(step.index),
+  }));
 
   await db.update(testRuns).set({ steps }).where(eq(testRuns.runId, runId));
 
   return { stored: rows.length };
 }
 
+export type StepPictures = { before?: string; after?: string };
+
 // Step pictures by step number, as base64 JPEG.
-export async function getRunStepImagesService(runId: string): Promise<Record<number, string>> {
+export async function getRunStepImagesService(runId: string): Promise<Record<number, StepPictures>> {
   const rows = await db
-    .select({ stepIndex: runStepImages.stepIndex, data: runStepImages.data })
+    .select({ stepIndex: runStepImages.stepIndex, phase: runStepImages.phase, data: runStepImages.data })
     .from(runStepImages)
     .where(eq(runStepImages.runId, runId));
 
-  return Object.fromEntries(rows.map((row) => [row.stepIndex, row.data]));
+  const pictures: Record<number, StepPictures> = {};
+
+  for (const row of rows) {
+    const entry = (pictures[row.stepIndex] ??= {});
+    if (row.phase === "before") entry.before = row.data;
+    else entry.after = row.data;
+  }
+
+  return pictures;
 }
 
 // Which of these bridge run ids are not stored yet.

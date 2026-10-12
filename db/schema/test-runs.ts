@@ -19,7 +19,9 @@ export type RunStep = {
   finishedAt: string | null;
   durationMs: number | null;
   waitedMs: number;
-  // A picture of the tablet at the end of the step is stored for this step.
+  // Pictures of the tablet are stored for this step: just before the action,
+  // and when the step ended.
+  hasBefore?: boolean;
   hasImage?: boolean;
   error: string | null;
 };

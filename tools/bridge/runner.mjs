@@ -88,6 +88,7 @@ export function planFlow(nodes, actionMap, out = []) {
       finishedAt: null,
       durationMs: null,
       waitedMs: 0,
+      hasBefore: false,
       hasImage: false,
       error: null,
     });
@@ -123,6 +124,7 @@ function beginStep(run, node, action) {
       finishedAt: null,
       durationMs: null,
       waitedMs: 0,
+      hasBefore: false,
       hasImage: false,
       error: null,
     };
@@ -145,9 +147,10 @@ function endStep(step, status, error = null) {
   step.error = error;
 }
 
-// What the tablet showed when the step ended. The capture itself is awaited so
-// it shows this step's result; shrinking it is left to run alongside.
-async function captureStepImage(run, step) {
+// What the tablet shows at one moment of a step: "before" is just ahead of the
+// action (after the settle wait), "after" is when the step has ended. The
+// capture itself is awaited so it is that moment; shrinking it runs alongside.
+async function captureStepImage(run, step, phase) {
   if (!store.connection.connected) return;
 
   try {
@@ -157,8 +160,11 @@ async function captureStepImage(run, step) {
     run.imageJobs.push(
       Promise.resolve().then(() => {
         try {
-          run.images[step.index] = toStepImage(png).base64;
-          step.hasImage = true;
+          const entry = (run.images[step.index] ??= {});
+          entry[phase] = toStepImage(png).base64;
+
+          if (phase === "before") step.hasBefore = true;
+          else step.hasImage = true;
         } catch (error) {
           debug("step image failed:", error?.message || error);
         }
@@ -171,7 +177,7 @@ async function captureStepImage(run, step) {
 
 async function finishStep(run, step, status, error = null) {
   endStep(step, status, error);
-  await captureStepImage(run, step);
+  await captureStepImage(run, step, "after");
 }
 
 // ---------------------------------------------------------------------
@@ -198,7 +204,7 @@ function createRun(testData, actionMap) {
     steps: planFlow(testData.flow, actionMap),
     log: [],
     screenshot: null,
-    // One small picture per step, by step number, as base64 JPEG.
+    // Small pictures by step number: { before, after } as base64 JPEG.
     images: {},
     imageJobs: [],
   };
@@ -340,6 +346,10 @@ async function executeFlowNodes(run, nodes, actionMap) {
       }
 
       step.phase = "acting";
+
+      // The screen the action is about to act on.
+      await captureStepImage(run, step, "before");
+
       addEvent(`Attempting action: ${title}`, step.detail);
 
       await executeDeviceAction(action);

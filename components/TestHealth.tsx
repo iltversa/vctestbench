@@ -45,13 +45,13 @@ export default function TestHealth({ onlyTestId }: { onlyTestId?: string }) {
   if (trends === null || shown.length === 0) return null;
 
   return (
-    <section className="mb-6" aria-labelledby="test-health">
+    <section aria-labelledby="test-health">
       <h2 id="test-health" className="mb-3 text-lg font-semibold text-slate-900">
         Test health
         <span className="ml-2 text-sm font-normal text-slate-600">newest 20 runs of each test, oldest to newest</span>
       </h2>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3">
         {shown.map((trend) => {
           const healthy = trend.passRate >= 80;
           const colour = healthy ? "text-emerald-800" : trend.passRate >= 50 ? "text-amber-800" : "text-red-800";
