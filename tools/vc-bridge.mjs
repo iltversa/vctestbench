@@ -2779,7 +2779,9 @@ async function executeDeviceAction(action) {
     return;
   }
 //esha
-  await clickTextAround(title);
+  // A CLICK action stores the text to tap in clickOnText; fall back to the
+  // action title for actions that are named after the button itself.
+  await clickTextAround(String(action.clickOnText || "").trim() || title);
 
   addEvent(
     `Clicked action: ${title}`,
