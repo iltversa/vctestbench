@@ -50,7 +50,7 @@ async function pause(ms) {
 // with what was missing. Anything that is not "not there yet" fails at once.
 const NOT_THERE_YET = /was not found|not currently in DOM|No (text|password|email) field|Timeout|WebView|DevTools|No sign-in button/;
 
-async function untilFound(step, attempt) {
+export async function untilFound(step, attempt) {
   const started = Date.now();
   const deadline = started + ACTION_TIMEOUT_SECONDS * 1000;
   let announced = false;

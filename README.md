@@ -47,11 +47,15 @@ VC_SECRET_KEY=<output of: openssl rand -base64 32>
 Apply the SQL files in `db/migrations/` in order:
 
 ```bash
-for f in db/migrations/*.sql; do psql "$DATABASE_URL" -f "$f"; done
+for f in db/migrations/*.sql; do
+  case "$f" in *0009_drop_legacy*) continue ;; esac   # optional and destructive, see below
+  psql "$DATABASE_URL" -f "$f"
+done
 ```
 
 `0006` seeds the built-in actions. **`0009_drop_legacy.sql` is optional and
-destructive**: it deletes tables and columns the app no longer uses (an early
+destructive**, and the loop above skips it (run it by hand with
+`psql "$DATABASE_URL" -f db/migrations/0009_drop_legacy.sql`): it deletes tables and columns the app no longer uses (an early
 "test class" model). Skip it if you want to keep that data; nothing depends on
 it either way.
 
@@ -118,9 +122,10 @@ a full screenshot of the moment it failed. Steps after a failure are listed as
 *Not run*.
 
 Step pictures are small JPEGs (about 40 KB each, 600px wide) kept in their own
-table, so a run of 20 steps adds about 1.6 MB. There is no automatic clean-up yet;
-delete rows from `run_step_images` if you need the space back. **Run again** starts the test as
-it is saved now.
+table, so a run of 20 steps adds about 1.6 MB. Only the pictures of the newest 50
+runs are kept (`VC_KEEP_RUN_PICTURES`); an older run keeps its report, its steps
+and its log, just not the pictures. **Run again** starts the test as it is
+saved now.
 
 The bridge keeps the last 20 runs in memory; whichever page is open copies runs
 the database has not seen yet, so a report is saved even if you were on another
@@ -151,6 +156,7 @@ lists and the editor only ever see ciphertext.
 | `VC_STEP_DELAY_SECONDS` | Short settle before every step (bridge, default `1`). |
 | `VC_ACTION_TIMEOUT_SECONDS` | How long a step looks for its target before failing (bridge, default `15`). |
 | `VC_AFTER_SHOT_DELAY_SECONDS` | Wait after an action before its "after" picture (bridge, default `2`). |
+| `VC_KEEP_RUN_PICTURES` | How many of the newest runs keep their step pictures (web app, default `50`). |
 | `VC_ALLOWED_ORIGINS` | Origins allowed to call the bridge. Default `http://localhost:3000,http://127.0.0.1:3000`; set it if the UI runs on another port. |
 | `VC_BRIDGE_PORT` | Port the bridge listens on (default `3131`; the web app expects 3131). |
 | `REQUIRE_AUTH=true` | Reject server actions and the create API from callers with no signed-in user. Off by default for local use. |
@@ -196,4 +202,5 @@ tests/                  unit tests for the flow tree and the run planner
 - Steps are matched by on-screen text, so a renamed button in the Sandbox app
   breaks a CLICK step; the run fails with a message naming the step.
 - `db/migrations/meta` has snapshots only for `0000` and `0001`.
-- The bridge has pure-logic tests but no end-to-end test against a real tablet.
+- The bridge's search and click code is tested against a fake DevTools socket,
+  not a real tablet.

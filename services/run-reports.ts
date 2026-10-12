@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { runStepImages } from "@/db/schema/run-step-images";
 import { testRuns, type RunLogEntry, type RunStep } from "@/db/schema/test-runs";
@@ -170,7 +170,26 @@ export async function saveRunStepImagesService(runId: string, raw: unknown): Pro
 
   await db.update(testRuns).set({ steps }).where(eq(testRuns.runId, runId));
 
+  await pruneOldRunPictures();
+
   return { stored: rows.length };
+}
+
+// Pictures are the bulk of the database, so only those of the newest runs are
+// kept (VC_KEEP_RUN_PICTURES, default 50). The report of an older run stays;
+// its steps simply show no picture.
+const KEEP_RUN_PICTURES = (() => {
+  const value = Number(process.env.VC_KEEP_RUN_PICTURES ?? 50);
+  return Number.isInteger(value) && value >= 1 ? value : 50;
+})();
+
+async function pruneOldRunPictures(): Promise<void> {
+  await db.execute(sql`
+    DELETE FROM run_step_images
+    WHERE run_id NOT IN (
+      SELECT run_id FROM test_runs ORDER BY started_at DESC LIMIT ${KEEP_RUN_PICTURES}
+    )
+  `);
 }
 
 export type StepPictures = { before?: string; after?: string };
