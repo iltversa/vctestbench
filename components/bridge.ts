@@ -59,6 +59,8 @@ export type TabletState = {
   events: FeedEvent[];
   // How long the bridge waits before every step (a DELAY step adds more).
   stepDelaySeconds?: number;
+  // A flow is being recorded from the tablet.
+  recording?: boolean;
   // Finished runs the bridge still holds in memory, oldest first.
   runIds?: string[];
   currentRunId?: string | null;
@@ -83,6 +85,7 @@ export function bridgeStateKey(state: TabletState | null): string {
     state.sandboxForeground,
     state.route,
     state.stepDelaySeconds,
+    state.recording,
     state.runIds,
     state.currentRunId,
     state.events?.[state.events.length - 1]?.id,
@@ -104,6 +107,7 @@ export function getRunBlockedReason(
   if (!bridgeOnline) return "Start the bridge to run tests.";
   if (!state?.connected) return "Connect the tablet with USB debugging to run tests.";
   if (state.currentRunId || state.test?.status === "running") return "A test is already running.";
+  if (state.recording) return "A flow is being recorded. Stop recording to run tests.";
   if (!state.sandboxForeground) return "Open the Sandbox app on the tablet to run tests.";
   return "";
 }

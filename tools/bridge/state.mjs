@@ -22,6 +22,8 @@ export const store = {
   // a page can show its result straight away.
   currentRun: null,
   lastRun: null,
+  // The flow being recorded from the tablet, or the last one recorded.
+  recording: null,
   // Set by POST /stop; the runner checks it between and inside steps.
   stopRequested: false,
 };

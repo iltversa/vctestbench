@@ -89,6 +89,26 @@ npm run bridge   # in a second terminal, with the tablet connected
 | CONFIRMATION | Branches on the selected option |
 | SAVE | Presses the save button |
 
+### Recording a flow
+
+On a new, empty flow with the tablet connected and the Sandbox app open, the
+editor offers **Start recording**. Then use the tablet yourself: each tap becomes
+a CLICK (with the text you tapped), text you enter becomes a PASTE, the sign-in
+form becomes AUTHENTICATION, and the save button becomes SAVE. The steps appear
+in the flow as you go; press **Stop recording**, check them, name the flow and
+save.
+
+- It reads the Sandbox page through the same DevTools connection runs use. It
+  only watches; nothing is changed on the tablet, and the listener is removed
+  when you stop.
+- **Passwords are never recorded**: open the sign-in step and enter it.
+- A tap on something with no readable text is kept as a CLICK with no text, to
+  be filled in.
+- It records what happens in the Sandbox page. Android's own dialogs (the
+  keyboard, permission prompts) are not part of it.
+- Recording and running cannot happen at the same time, and leaving the editor
+  ends a recording.
+
 ### Timing
 
 A step does not wait a fixed time for the screen. It tries its action straight

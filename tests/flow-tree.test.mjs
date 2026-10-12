@@ -205,3 +205,45 @@ test("a flow that is only an empty slot has no steps", () => {
   assert.equal(countSteps([{ id: "end", actionId: null, paths: [] }]), 0);
   assert.equal(countSteps(undefined), 0);
 });
+
+// --- recording ------------------------------------------------------------
+import { flowFromRecording, recordingTodos } from "../components/flow/record.ts";
+
+test("a recording becomes a chain of steps ending in the empty slot", () => {
+  const library = [{ id: "click-id", title: "CLICK", actionTimeout: 5 }];
+  const flow = flowFromRecording(
+    [
+      { id: 1, action: "CLICK", text: "ADD USER" },
+      { id: 2, action: "PASTE", text: "Ann" },
+    ],
+    library
+  );
+
+  assert.equal(flow.length, 1);
+  assert.equal(flow[0].actionTitle, "CLICK");
+  assert.equal(flow[0].actionId, "click-id", "uses the library action when there is one");
+  assert.equal(flow[0].actionData.clickOnText, "ADD USER");
+
+  const second = flow[0].paths[0];
+  assert.equal(second.actionTitle, "PASTE");
+  assert.equal(second.actionData.pasteText, "Ann");
+  assert.ok(isEmptySlot(second.paths[0]), "the chain ends in an empty slot");
+});
+
+test("an empty recording is just an empty slot", () => {
+  const flow = flowFromRecording([], []);
+  assert.equal(flow.length, 1);
+  assert.ok(isEmptySlot(flow[0]));
+});
+
+test("sign-in is recorded without a password and flagged for the person", () => {
+  const steps = [
+    { id: 1, action: "AUTHENTICATION", email: "me@example.com", hasPassword: true },
+    { id: 2, action: "CLICK", text: "", unlabeled: true },
+  ];
+  const flow = flowFromRecording(steps, []);
+
+  assert.equal(flow[0].actionData.email, "me@example.com");
+  assert.equal(flow[0].actionData.password, "");
+  assert.equal(recordingTodos(steps).length, 2);
+});

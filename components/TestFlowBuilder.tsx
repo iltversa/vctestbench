@@ -1,7 +1,7 @@
 "use client";
 
 import "../app/TestFlowBuilder.css";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ActionEditorDialog, { type ActionSource } from "@/components/ActionEditorDialog";
@@ -25,6 +25,8 @@ import {
   updateNode,
 } from "@/components/flow/tree";
 import { useBridge } from "@/components/BridgeProvider";
+import { flowFromRecording, recordingTodos, type RecordedStep } from "@/components/flow/record";
+import { useRecorder } from "@/components/useRecorder";
 import Connector, { CHILD_GAP, CHILD_W } from "@/components/flow/Connector";
 import { iconForAction, nodeSubtitle } from "@/components/flow/node-info";
 export type TestActionDefinition = {
@@ -101,6 +103,13 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   const [quickAddFor, setQuickAddFor] = useState<string | null>(null);
   const bridge = useBridge();
   const router = useRouter();
+  const flowArea = useRef<HTMLDivElement>(null);
+  // What is left to do by hand after a recording.
+  const [recordingTodo, setRecordingTodo] = useState<string[] | null>(null);
+  // The recorded steps become the flow as they arrive.
+  const recorder = useRecorder((steps: RecordedStep[]) => {
+    setNodes(flowFromRecording(steps, actions));
+  });
   // Drag and drop: a node being moved, the gap an action will be inserted
   // into, and the element currently under the pointer.
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
@@ -645,6 +654,8 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   };
   // Press Add (or Add step on the canvas): the same dialog as dropping.
   const addAction = (action: TestActionDefinition, slotId?: string) => {
+    if (recorder.active) return;
+
     const target = slotId ?? findAppendSlot(nodes)?.id;
 
     if (!target) {
@@ -676,7 +687,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   };
 
   const runDisabled =
-    saving || !testTitle.trim() || Boolean(bridge.blockedReason) || bridge.starting;
+    saving || !testTitle.trim() || Boolean(bridge.blockedReason) || bridge.starting || recorder.active;
   const runLabel = saving
     ? "Saving…"
     : bridge.starting
@@ -685,12 +696,35 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
         ? "Save and run"
         : "Run test";
   const stepCount = countSteps(nodes);
+
+  // Recording is offered on an empty flow with the tablet ready.
+  const canRecord =
+    bridge.connected && Boolean(bridge.state?.sandboxForeground) && !bridge.running && !bridge.starting;
+
+  // Follow the newest recorded step down the canvas.
+  useEffect(() => {
+    if (!recorder.active || recorder.count === 0) return;
+
+    const area = flowArea.current;
+    area?.scrollTo({ top: area.scrollHeight, behavior: "smooth" });
+  }, [recorder.active, recorder.count]);
+
+  const startRecording = async () => {
+    setRecordingTodo(null);
+    setSaveMessage(null);
+    await recorder.start();
+  };
+
+  const stopRecording = async () => {
+    const steps = await recorder.stop();
+    setRecordingTodo(steps.length > 0 ? recordingTodos(steps) : null);
+  };
   const statusMessage = runError
     ? { kind: "error" as const, text: runError }
     : saveMessage;
 
   return (
-    <div className="flow-builder">
+    <div className={`flow-builder ${recorder.active ? "is-recording" : ""}`}>
       {/* ------------------------- Actions panel ------------------------- */}
       <aside className="flow-sidebar" aria-label="Actions">
         <section className="side-section">
@@ -799,7 +833,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
             <div className="canvas-buttons">
               <button
                 onClick={handleSaveTest}
-                disabled={saving || !testTitle.trim() || !dirty}
+                disabled={saving || !testTitle.trim() || !dirty || recorder.active}
                 type="button"
                 className="btn"
                 title={!testTitle.trim() ? "Enter a title" : ""}
@@ -828,7 +862,63 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
           </p>
         )}
 
-        <div className="flow-area">
+        <div className="flow-area" ref={flowArea}>
+          {recorder.active && (
+            <section className="record-banner" role="status" aria-live="polite">
+              <span className="record-dot" aria-hidden="true" />
+              <div className="record-text">
+                <strong>Recording from the tablet</strong>
+                <span>
+                  {recorder.count === 0
+                    ? "Use the tablet as you normally would. Each tap and each text you enter becomes a step."
+                    : `${recorder.count} ${recorder.count === 1 ? "step" : "steps"} so far. Keep going on the tablet.`}
+                </span>
+              </div>
+              <button type="button" className="btn primary" onClick={stopRecording} disabled={recorder.busy}>
+                Stop recording
+              </button>
+            </section>
+          )}
+
+          {!recorder.active && stepCount === 0 && bridge.connected && (
+            <section className="record-card" aria-labelledby="record-title">
+              <h2 id="record-title">Record this flow from the tablet</h2>
+              <p>
+                Press record, then do the steps on the tablet yourself. Each tap and each text you enter
+                becomes a step here. You can adjust them afterwards.
+              </p>
+              <button type="button" className="btn primary" onClick={startRecording} disabled={!canRecord || recorder.busy}>
+                {recorder.busy ? "Starting…" : "Start recording"}
+              </button>
+              {!canRecord && (
+                <p className="record-reason">
+                  {bridge.running
+                    ? "A test is running on the tablet."
+                    : "Open the Sandbox app on the tablet to record."}
+                </p>
+              )}
+              {recorder.error && <p className="record-reason" role="alert">{recorder.error}</p>}
+              <p className="record-or">Or add steps yourself from the Actions panel.</p>
+            </section>
+          )}
+
+          {recordingTodo && !recorder.active && (
+            <section className="record-done" role="status">
+              <strong>Recording finished: {stepCount} {stepCount === 1 ? "step" : "steps"}.</strong>
+              <span>Check them, then name the flow and save.</span>
+              {recordingTodo.length > 0 && (
+                <ul>
+                  {recordingTodo.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              )}
+              <button type="button" className="btn" onClick={() => setRecordingTodo(null)}>
+                Dismiss
+              </button>
+            </section>
+          )}
+
           <div className="flow-root">
             {nodes.map((node, index) => renderNode(node, index, null))}
           </div>

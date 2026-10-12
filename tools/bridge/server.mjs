@@ -6,11 +6,15 @@
 //   POST /run-test    start a run          -> 202 { accepted, runId }
 //   POST /stop        stop the current run
 //   POST /launch-sand bring the Sandbox app to the front
+//   POST /record/start  start recording a flow from what is done on the tablet
+//   GET  /record        the steps recorded so far
+//   POST /record/stop   stop, and return the steps
 
 import http from "node:http";
 import { screenshot } from "./adb.mjs";
 import { ALLOWED_HOSTS, ALLOWED_ORIGINS, MAX_BODY_BYTES, PORT, STEP_DELAY_SECONDS } from "./config.mjs";
 import { launchSandbox } from "./device.mjs";
+import { isRecording, recordingState, startRecording, stopRecording } from "./recorder.mjs";
 import { RunRefused, requestStop, startRun } from "./runner.mjs";
 import { addEvent, store } from "./state.mjs";
 
@@ -59,6 +63,7 @@ function buildState() {
     stepDelaySeconds: STEP_DELAY_SECONDS,
     run: runProgress(run),
     test: legacyTest(run),
+    recording: isRecording(),
     runIds: store.runs.map((item) => item.runId),
     currentRunId: store.currentRun?.runId ?? null,
     events: store.events,
@@ -161,6 +166,26 @@ async function handle(request, response) {
     return;
   }
 
+  if (method === "GET" && path === "/record") {
+    return sendJson(response, 200, recordingState());
+  }
+
+  if (method === "POST" && path === "/record/start") {
+    try {
+      await startRecording();
+      return sendJson(response, 200, recordingState());
+    } catch (error) {
+      if (error instanceof RunRefused) {
+        return sendJson(response, error.status, { accepted: false, error: error.message });
+      }
+      throw error;
+    }
+  }
+
+  if (method === "POST" && path === "/record/stop") {
+    return sendJson(response, 200, await stopRecording());
+  }
+
   if (method === "POST" && path === "/stop") {
     return sendJson(response, 200, { stopping: requestStop() });
   }
@@ -173,6 +198,10 @@ async function handle(request, response) {
     // One run at a time: a second start would drive the same tablet twice.
     if (store.currentRun) {
       return sendJson(response, 409, { accepted: false, error: "A test is already running" });
+    }
+
+    if (isRecording()) {
+      return sendJson(response, 409, { accepted: false, error: "Stop recording before running a test" });
     }
 
     const testData = await readJson(request, response);
