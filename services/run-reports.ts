@@ -8,8 +8,8 @@ import { testRuns, type RunStep } from "@/db/schema/test-runs";
 const MAX_STEPS = 500;
 const MAX_TEXT = 2000;
 const MAX_SCREENSHOT = 2_000_000;
-const STATUSES = new Set(["passed", "failed"]);
-const STEP_STATUSES = new Set(["pending", "running", "passed", "failed"]);
+const STATUSES = new Set(["passed", "failed", "stopped"]);
+const STEP_STATUSES = new Set(["pending", "running", "passed", "failed", "stopped"]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const text = (value: unknown, max = MAX_TEXT): string | null =>

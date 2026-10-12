@@ -5,10 +5,46 @@ export const BRIDGE = "http://localhost:3131";
 
 export type FeedEvent = {
   id: number;
+  // ISO timestamp.
   at: string;
   label: string;
   detail: string;
   kind: "info" | "success" | "warning";
+  // The run this happened during, and the step it belongs to.
+  runId: string | null;
+  step: number | null;
+};
+
+export type StepStatus = "pending" | "running" | "passed" | "failed" | "stopped";
+
+export type StepProgress = {
+  index: number;
+  nodeId: string;
+  action: string;
+  detail: string;
+  status: StepStatus;
+  // While a step is running: waiting out the default delay, or doing the action.
+  phase: "waiting" | "acting" | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  durationMs: number | null;
+  waitedMs: number;
+  error: string | null;
+};
+
+// The run in progress, or the most recent one.
+export type RunProgress = {
+  runId: string;
+  testId: string | null;
+  title: string;
+  status: "running" | "passed" | "failed" | "stopped";
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number | null;
+  error: string | null;
+  failedStep: number | null;
+  activeStep: number | null;
+  steps: StepProgress[];
 };
 
 export type TabletState = {
@@ -26,8 +62,9 @@ export type TabletState = {
   // Finished runs the bridge still holds in memory, oldest first.
   runIds?: string[];
   currentRunId?: string | null;
+  run?: RunProgress | null;
   test?: {
-    status: "idle" | "running" | "passed" | "failed";
+    status: "idle" | "running" | "passed" | "failed" | "stopped";
     name?: string;
     step?: string;
     error?: string;

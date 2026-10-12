@@ -3,6 +3,7 @@ const STYLES: Record<string, string> = {
   failed: "bg-red-50 text-red-900 border-red-200",
   running: "bg-blue-50 text-blue-900 border-blue-200",
   pending: "bg-slate-100 text-slate-700 border-slate-200",
+  stopped: "bg-amber-50 text-amber-900 border-amber-200",
 };
 
 const LABELS: Record<string, string> = {
@@ -10,6 +11,7 @@ const LABELS: Record<string, string> = {
   failed: "Failed",
   running: "Running",
   pending: "Not run",
+  stopped: "Stopped",
 };
 
 export default function RunStatusBadge({ status }: { status: string }) {

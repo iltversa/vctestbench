@@ -14,7 +14,7 @@ export type RunStep = {
   nodeId: string;
   action: string;
   detail: string;
-  status: "pending" | "running" | "passed" | "failed";
+  status: "pending" | "running" | "passed" | "failed" | "stopped";
   startedAt: string | null;
   finishedAt: string | null;
   durationMs: number | null;

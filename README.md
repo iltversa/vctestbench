@@ -5,7 +5,7 @@ tablet. You design a flow (paste text, tap a button, wait, confirm, sign in),
 save it, and the local **bridge** drives the tablet's Sandbox app over `adb`.
 
 ```
-browser (this app, :3000)  ──►  bridge (tools/vc-bridge.mjs, :3131)  ──►  adb  ──►  tablet
+browser (this app, :3000)  ──►  bridge (tools/bridge, :3131)  ──►  adb  ──►  tablet
         │
         └──►  Postgres (tests, actions)
 ```

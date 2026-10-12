@@ -8,7 +8,7 @@ import { getRunPayloadAction } from "@/actions/get-run-payload";
 import { listRunsAction } from "@/actions/run-reports";
 import { useRunReportSync } from "@/components/useRunReportSync";
 import RunStatusBadge from "@/components/RunStatusBadge";
-import { formatDateTime, formatDuration } from "@/components/run-format";
+import { formatClock, formatDateTime, formatDuration } from "@/components/run-format";
 import CreateTestModal from "@/components/CreateTestModal";
 import { FlowNode } from "@/components/TestFlowBuilder";
 import { BRIDGE, getRunBlockedReason, type TabletState } from "@/components/bridge";
@@ -322,7 +322,7 @@ export default function Home() {
                                                             </strong>
 
                                                             <span className="shrink-0 text-[10px] text-slate-500">
-                                                                {event.at}
+                                                                {formatClock(event.at)}
                                                             </span>
                                                         </div>
 
