@@ -75,7 +75,7 @@ export default function Home() {
         return () => window.clearInterval(timer);
     }, [refresh]);
     const connected = bridgeOnline && Boolean(state?.connected), events = state?.events ?? [];
-    const canRun = connected && state?.sandboxForeground && state.route === "/home" && state.test?.status !== "running";
+    const canRun = connected && state?.sandboxForeground && state.test?.status !== "running";
     const runBlockedReason = getRunBlockedReason(bridgeOnline, state);
     const copyBridgeCommand = async () => {
         try {

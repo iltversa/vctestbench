@@ -38,6 +38,5 @@ export function getRunBlockedReason(
   if (!state?.connected) return "Connect the tablet with USB debugging to run tests.";
   if (state.test?.status === "running") return "A test is already running.";
   if (!state.sandboxForeground) return "Open the Sandbox app on the tablet to run tests.";
-  if (state.route !== "/home") return "Go to the Sandbox Home screen on the tablet to run tests.";
   return "";
 }

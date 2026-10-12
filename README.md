@@ -45,7 +45,7 @@ npm run bridge   # in a second terminal, with the tablet connected
 ```
 
 The Home screen shows a three-step checklist (bridge, USB debugging, Sandbox
-app) and enables **Run** once the tablet is on the Sandbox Home screen.
+app) and enables **Run** once the tablet is connected and the Sandbox app is open (any screen).
 
 ## Building a test
 
