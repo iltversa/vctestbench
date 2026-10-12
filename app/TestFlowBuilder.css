@@ -1021,3 +1021,165 @@ body.is-dragging .node-card.empty .node-card-title::before {
   align-items: center;
   /* width is set inline */
 }
+
+/* =========================================================
+   FLOW BUILDER REFRESH: cards, insert gaps, drag states
+========================================================= */
+
+.node-card {
+  width: 240px;
+  min-width: 0;
+  max-width: none;
+  box-sizing: border-box;
+  padding: 10px 12px;
+}
+
+.node-card .node-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.node-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #f2f4f7;
+  color: #344054;
+  font-size: 14px;
+}
+
+.node-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  gap: 1px;
+}
+
+.node-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.node-subtitle {
+  font-size: 12px;
+  line-height: 16px;
+  color: #475467;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+
+.node-card[draggable="true"] {
+  cursor: grab;
+}
+
+.node-card[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.node-action-button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #475467;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.node-action-button:hover,
+.node-action-button:focus-visible {
+  background: #f2f4f7;
+  color: #101828;
+}
+
+.option-badge {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: #ecfdf3;
+  color: #05603a;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.node-card.being-moved {
+  opacity: 0.45;
+}
+
+.node-card.replace-target {
+  border-color: #b42318;
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.14);
+}
+
+.replace-badge {
+  position: absolute;
+  top: -10px;
+  right: 10px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: #b42318;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* The gap above a step that an action can be dropped into. It only appears
+   while something is being dragged, and sits over the connector stub so the
+   layout does not shift. */
+.insert-gap {
+  position: absolute;
+  top: -36px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 180px;
+  height: 28px;
+  border: 1.5px dashed #84a9ff;
+  border-radius: 14px;
+  background: #eff4ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+}
+
+.insert-gap.over {
+  border-style: solid;
+  border-color: #1d4ed8;
+  background: #dbe7ff;
+  transform: translateX(-50%) scale(1.04);
+}
+
+.insert-gap span {
+  pointer-events: none;
+}
+
+/* Give the first step room for its insert gap. */
+.flow-root {
+  padding-top: 40px;
+}
+
+body.is-dragging .node-card.empty {
+  border-color: #1d4ed8;
+  background: #eff4ff;
+}
+
+body.is-dragging .node-card.empty .node-card-title {
+  color: #1d4ed8;
+}

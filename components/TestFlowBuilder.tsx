@@ -10,7 +10,7 @@ import { deleteTestActionDefinition } from "@/actions/delete-test-action";
 import { TestAction } from "@/components/ActionDialog";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faUser } from "@fortawesome/free-solid-svg-icons/faUser";
-import { faTimes, faStop, faCheck, faPaste } from "@fortawesome/free-solid-svg-icons";
+import { faTimes, faStop, faCheck, faPaste, faPen, faEllipsisVertical } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { useTestFlowStore } from "@/store/testFlowStore";
 import { BRIDGE, getRunBlockedReason, type TabletState } from "@/components/bridge";
@@ -181,6 +181,107 @@ const hydrateFlow = (
 
 
 
+
+// ---------------------------------------------------------------------
+// Tree helpers. The flow is a tree: every action keeps its children in
+// `paths`, and a chain always ends in an empty "drop here" slot.
+// ---------------------------------------------------------------------
+
+const isEmptySlot = (node: FlowNode) =>
+  node.nodeType === "action" && !node.actionId && node.paths.length === 0;
+
+const isConfirmationAction = (node: FlowNode) =>
+  node.nodeType === "action" &&
+  node.paths.length > 0 &&
+  node.paths.every((path) => path.nodeType === "confirmation");
+
+// What a removed node leaves behind for its parent to adopt.
+const childrenAfterRemoval = (node: FlowNode): FlowNode[] => {
+  if (!isConfirmationAction(node)) return node.paths;
+
+  // Only the chosen option carries a real branch; the others are empty.
+  const chosen = node.paths.find((path) => path.isSelected) ?? node.paths[0];
+  return chosen?.paths ?? [];
+};
+
+// Removes a node and joins the chain back together: its children move up to
+// its parent. Returns the new tree and the node that was taken out.
+function removeFromTree(
+  list: FlowNode[],
+  nodeId: string
+): { tree: FlowNode[]; removed: FlowNode | null } {
+  let removed: FlowNode | null = null;
+
+  const walk = (items: FlowNode[]): FlowNode[] => {
+    const adopted = new Set<string>();
+
+    const next = items.flatMap((node) => {
+      if (node.id === nodeId) {
+        removed = node;
+        const children = childrenAfterRemoval(node);
+        children.forEach((child) => adopted.add(child.id));
+        return children;
+      }
+
+      const walked = walk(node.paths);
+      // A branch that lost its only child still needs a slot to drop into.
+      const paths = node.paths.length > 0 && walked.length === 0 ? [createNode()] : walked;
+      return [{ ...node, paths }];
+    });
+
+    // An adopted empty slot next to real branches is just noise.
+    const hasReal = next.some((node) => !isEmptySlot(node));
+    return next.length > 1 && hasReal
+      ? next.filter((node) => !(adopted.has(node.id) && isEmptySlot(node)))
+      : next;
+  };
+
+  const tree = walk(list);
+  return { tree: tree.length > 0 ? tree : [createNode()], removed };
+}
+
+// Puts `incoming` between `parentId` and its child `beforeId`; the old child
+// (and everything below it) continues underneath the new node.
+function insertBeforeInTree(
+  list: FlowNode[],
+  parentId: string | null,
+  beforeId: string,
+  incoming: FlowNode
+): FlowNode[] {
+  const attach = (child: FlowNode): FlowNode => {
+    if (isConfirmationAction(incoming)) {
+      const chosen = Math.max(0, incoming.paths.findIndex((path) => path.isSelected));
+      return {
+        ...incoming,
+        paths: incoming.paths.map((path, index) =>
+          index === chosen ? { ...path, paths: [child] } : path
+        ),
+      };
+    }
+
+    return { ...incoming, paths: [child] };
+  };
+
+  if (parentId === null) {
+    return list.map((node) => (node.id === beforeId ? attach(node) : node));
+  }
+
+  return list.map((node) =>
+    node.id === parentId
+      ? { ...node, paths: node.paths.map((child) => (child.id === beforeId ? attach(child) : child)) }
+      : { ...node, paths: insertBeforeInTree(node.paths, parentId, beforeId, incoming) }
+  );
+}
+
+const parentIdOf = (list: FlowNode[], nodeId: string, parent: string | null = null): string | null | undefined => {
+  for (const node of list) {
+    if (node.id === nodeId) return parent;
+    const found = parentIdOf(node.paths, nodeId, node.id);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+};
+
 // Plain data for storage: the editor-only fields are dropped.
 function extractFlowTree(flowNodes: FlowNode[]): FlowNode[] {
   return flowNodes.map(({ id, actionId, optionId, isSelected, paths, actionData }) => ({
@@ -210,6 +311,11 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   const [runMessage, setRunMessage] = useState<{ kind: "info" | "error"; text: string } | null>(null);
   const [bridgeOnline, setBridgeOnline] = useState(false);
   const [bridgeState, setBridgeState] = useState<TabletState | null>(null);
+  // Drag and drop: a node being moved, the gap an action will be inserted
+  // into, and the element currently under the pointer.
+  const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
+  const [pendingInsert, setPendingInsert] = useState<{ parentId: string | null; beforeId: string } | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
   const router = useRouter();
   const hydratedRef = useRef(false);
 
@@ -271,7 +377,68 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
 
   const handleDragEnd = () => {
     setDraggedAction(null);
+    setDraggedNodeId(null);
+    setDragOverKey(null);
     document.body.classList.remove("is-dragging");
+  };
+
+  const handleNodeDragStart = (event: React.DragEvent<HTMLDivElement>, nodeId: string) => {
+    setDraggedNodeId(nodeId);
+    document.body.classList.add("is-dragging");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/node-id", nodeId);
+  };
+
+  const handleGapDragOver = (event: React.DragEvent<HTMLDivElement>, key: string) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = draggedNodeId ? "move" : "copy";
+    if (dragOverKey !== key) setDragOverKey(key);
+  };
+
+  // Drop on the gap above `beforeId`: a sidebar action opens its dialog and is
+  // inserted on save; an existing node is moved there straight away.
+  const handleGapDrop = (
+    event: React.DragEvent<HTMLDivElement>,
+    parentId: string | null,
+    beforeId: string
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const movedNodeId = event.dataTransfer.getData("application/node-id");
+    const actionId = event.dataTransfer.getData("application/action-id");
+
+    if (movedNodeId) {
+      moveNode(movedNodeId, parentId, beforeId);
+      handleDragEnd();
+      return;
+    }
+
+    const action = actions.find((item) => item.id === actionId);
+    if (!action) {
+      handleDragEnd();
+      return;
+    }
+
+    setPendingNodeId(null);
+    setPendingInsert({ parentId, beforeId });
+    setEditingAction(prepareActionForEditor(action));
+    handleDragEnd();
+  };
+
+  const moveNode = (nodeId: string, parentId: string | null, beforeId: string) => {
+    setNodes((current) => {
+      const { tree, removed } = removeFromTree(current, nodeId);
+      if (!removed) return current;
+
+      const definition = removed.actionData;
+      const fresh: FlowNode = {
+        ...removed,
+        paths: definition ? buildChildrenForAction(definition, []) : [createNode()],
+      };
+
+      return insertBeforeInTree(tree, parentId, beforeId, fresh);
+    });
   };
 
   const handleDragOver = (
@@ -418,37 +585,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   };
 
   const removeNode = (nodeId: string) => {
-    const removeNodeRecursive = (
-      nodes: FlowNode[]
-    ): FlowNode[] => {
-      return nodes.flatMap((node) => {
-        // If this is the node being deleted,
-        // promote its children to its parent's level.
-        if (node.id === nodeId) {
-          return node.paths;
-        }
-
-        // Otherwise, continue searching recursively.
-        return [
-          {
-            ...node,
-            paths: removeNodeRecursive(node.paths),
-          },
-        ];
-      });
-    };
-
-    setNodes((currentNodes) => {
-      const updated = removeNodeRecursive(currentNodes);
-
-      // Preserve at least one node if the root becomes empty.
-      if (updated.length === 0) {
-        return [createNode()];
-      }
-
-      return updated;
-    });
-
+    setNodes((current) => removeFromTree(current, nodeId).tree);
     setOpenMenu(null);
   };
 
@@ -480,7 +617,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
 };
 
   const handleActionSavedToFlow = (configuredAction: TestAction) => {
-    if (!pendingNodeId) return;
+    if (!pendingNodeId && !pendingInsert) return;
 
     const actionDef: TestActionDefinition = {
       id: configuredAction.id || crypto.randomUUID(),
@@ -502,8 +639,33 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
       icon: (configuredAction as any).icon ?? null,
     };
 
+    if (pendingInsert) {
+      const inserted: TestActionDefinition = {
+        ...actionDef,
+        confirmationOptions: (actionDef.confirmationOptions ?? []).map((option) => ({
+          ...option,
+          isSelected: Boolean(option.isSelected),
+        })),
+      };
+      const newNode: FlowNode = {
+        id: crypto.randomUUID(),
+        nodeType: "action",
+        actionId: inserted.id,
+        actionTitle: inserted.title,
+        actionData: inserted,
+        paths: buildChildrenForAction(inserted, []),
+      };
+
+      setNodes((currentNodes) =>
+        insertBeforeInTree(currentNodes, pendingInsert.parentId, pendingInsert.beforeId, newNode)
+      );
+      setPendingInsert(null);
+      setEditingAction(null);
+      return;
+    }
+
     setNodes((currentNodes) =>
-      updateNode(currentNodes, pendingNodeId, (node) => {
+      updateNode(currentNodes, pendingNodeId as string, (node) => {
         const configuredData: TestActionDefinition = {
           ...actionDef,
           confirmationOptions: (actionDef.confirmationOptions ?? []).map((option) => ({
@@ -676,7 +838,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   const STEM_H = 24;       // vertical drop before branching
   const CURVE_H = 28;      // height of the bezier curve section
   const STUB_H = 20;       // vertical stub into each child
-  const CHILD_W = 200;     // width of each child column (must match CSS)
+  const CHILD_W = 240;     // width of each child column (must match CSS)
   const CHILD_GAP = 48;    // gap between child columns (must match CSS)
   const DOT_R = 5;
 
@@ -777,125 +939,137 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     );
   };
 
-  const renderNode = (node: FlowNode, level: number = 0): React.ReactNode => {
-    // console.log(node.actionData, "node.actionData");
+  const nodeSubtitle = (node: FlowNode): string | null => {
+    const title = node.actionTitle?.trim().toUpperCase();
+    const data = node.actionData;
+
+    if (title === "DELAY") return `Wait ${getDelayLabel(data)}`;
+    if (title === "PASTE") return data?.pasteText ? `Paste "${data.pasteText}"` : "No text set";
+    if (title === "CLICK") return data?.clickOnText ? `Tap "${data.clickOnText}"` : "No text set";
+    if (title === "AUTHENTICATION") return data?.email ? `Sign in as ${data.email}` : "No email set";
+    if (title === "CONFIRMATION") {
+      const count = data?.confirmationOptions?.length ?? 0;
+      return `${count} ${count === 1 ? "option" : "options"}`;
+    }
+    return null;
+  };
+
+  const renderNode = (
+    node: FlowNode,
+    level: number = 0,
+    parentId: string | null = null
+  ): React.ReactNode => {
     const isConfirmation = node.nodeType === "confirmation";
     const isDropZone = node.nodeType === "action" && !node.actionId;
-    const isDelayAction = node.actionTitle === "DELAY";
-    const hasconfirmationChildren = node.nodeType === "action" && node.paths.length > 0 && node.paths.every((p) => p.nodeType === "confirmation");
-    const canAddPath = !isConfirmation && !hasconfirmationChildren && !isDropZone;
-    const canAcceptDrop = node.nodeType === "action";
-    const isPasteAction = node.nodeType === "action" && node.actionTitle?.trim().toUpperCase() === "PASTE";
-    const isCickOnText = node.nodeType === "action" && node.actionTitle?.trim().toUpperCase() === "CLICK";
-    const isAuthenticationAction = node.nodeType === "action" && node.actionTitle?.trim().toUpperCase() === "AUTHENTICATION";
+    const isDelayAction = node.actionTitle?.trim().toUpperCase() === "DELAY";
+    const hasconfirmationChildren = isConfirmationAction(node);
+    const canAddPath = !isConfirmation && !hasconfirmationChildren && !isDropZone && !isDelayAction;
+    const canAcceptDrop = node.nodeType === "action" && !draggedNodeId;
+    const canDragNode = !isConfirmation && !isDropZone && !hasconfirmationChildren;
+    const isDragging = Boolean(draggedAction || draggedNodeId);
+    const dragIsNearby =
+      draggedNodeId !== null && (node.id === draggedNodeId || parentId === draggedNodeId);
+    const showInsertGap = isDragging && !isConfirmation && !isDropZone && !dragIsNearby;
+    const gapKey = `gap:${node.id}`;
+    const subtitle = isConfirmation ? null : nodeSubtitle(node);
+    const replaceTarget = dragOverKey === `node:${node.id}` && !isDropZone && Boolean(draggedAction);
 
     return (
       <div className="tree-node" key={node.id}>
+        {showInsertGap && (
+          <div
+            className={`insert-gap ${dragOverKey === gapKey ? "over" : ""}`}
+            onDragOver={(event) => handleGapDragOver(event, gapKey)}
+            onDragLeave={() => setDragOverKey((key) => (key === gapKey ? null : key))}
+            onDrop={(event) => handleGapDrop(event, parentId, node.id)}
+          >
+            <span>{draggedNodeId ? "Move here" : "Insert here"}</span>
+          </div>
+        )}
+
         <div
-          className={`node-card ${isConfirmation ? "confirmation" : "action"} ${isDropZone ? "empty" : ""}`}
-          onDragOver={canAcceptDrop ? handleDragOver : undefined}
-          onDrop={canAcceptDrop ? (e) => handleDrop(e, node.id) : undefined}
+          className={[
+            "node-card",
+            isConfirmation ? "confirmation" : "action",
+            isDropZone ? "empty" : "",
+            draggedNodeId === node.id ? "being-moved" : "",
+            replaceTarget ? "replace-target" : "",
+          ].join(" ")}
+          draggable={canDragNode}
+          onDragStart={canDragNode ? (event) => handleNodeDragStart(event, node.id) : undefined}
+          onDragEnd={canDragNode ? handleDragEnd : undefined}
+          onDragOver={
+            canAcceptDrop
+              ? (event) => {
+                  handleDragOver(event);
+                  setDragOverKey(`node:${node.id}`);
+                }
+              : undefined
+          }
+          onDragLeave={() => setDragOverKey((key) => (key === `node:${node.id}` ? null : key))}
+          onDrop={canAcceptDrop ? (event) => handleDrop(event, node.id) : undefined}
         >
-          <div className="node-card-header">
-            {isDropZone ? (
-              <span className="node-card-title">Drop action here</span>
-            ) : isConfirmation ? (
+          {isDropZone ? (
+            <span className="node-card-title">Drop action here</span>
+          ) : isConfirmation ? (
+            <div className="node-card-header">
               <span className="node-card-title">
-                {node.optionLabel ?? "Option"} <FontAwesomeIcon icon={getFaIcon(node.actionData?.icon)} />
+                {node.optionLabel ?? "Option"}
+                {node.isSelected ? <span className="option-badge">Selected</span> : null}
               </span>
-            ) : isDelayAction ? (
-              <span className="node-card-title">
-                {getDelayLabel(node.actionData)} <FontAwesomeIcon icon={getFaIcon(node.actionData?.icon)} />
+            </div>
+          ) : (
+            <div className="node-card-header">
+              <span className="node-icon" aria-hidden="true">
+                <FontAwesomeIcon icon={getFaIcon(node.actionData?.icon)} />
               </span>
-            ) : isPasteAction ? (
-              <span className="node-card-title">
-                {node.actionData?.pasteText || "PASTE"} <FontAwesomeIcon icon={getFaIcon(node.actionData?.icon)} />
-              </span>
-            ): isCickOnText ? (
-              <span className="node-card-title">
-                {node.actionData?.clickOnText || "CLICK"} <FontAwesomeIcon icon={getFaIcon(node.actionData?.icon)} />
-              </span>
-            ) : isAuthenticationAction ? (
-              <div className="w-full space-y-2">
-                <div className="font-semibold text-sm">
-                  AUTHENTICATION  <FontAwesomeIcon icon={getFaIcon(node.actionData?.icon)} />
-
-                </div>
-
-                <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                  <span className="text-slate-500">Email:</span>{" "}
-                  <span className="font-medium">
-                    {node.actionData?.email || "—"}
-                  </span>
-                </div>
-
-                <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                  <span className="text-slate-500">Password:</span>{" "}
-                  <span className="font-medium">
-                    {node.actionData?.password || "—"}
-                  </span>
-                </div>
+              <div className="node-text">
+                <span className="node-card-title">{node.actionTitle ?? "Unassigned"}</span>
+                {subtitle && <span className="node-subtitle" title={subtitle}>{subtitle}</span>}
+                {node.actionTitle?.trim().toUpperCase() === "AUTHENTICATION" && (
+                  <span className="node-subtitle">Password: {node.actionData?.password ? "••••••••" : "not set"}</span>
+                )}
               </div>
-            ) : (
-              <span className="node-card-title">
-                {node.actionTitle ?? "Unassigned"} <FontAwesomeIcon icon={getFaIcon(node.actionData?.icon)} />
-              </span>
-            )}
-            {!isConfirmation && !isDropZone && (
               <button
-                className="edit-button"
+                className="node-action-button"
                 onClick={() => {
                   const actionToEdit =
                     node.actionData ??
                     actions.find((action) => action.id === node.actionId);
 
                   if (actionToEdit) {
-                    openActionEditor(
-                      actionToEdit,
-                      node.id,
-                      node.actionTitle
-                    );
+                    openActionEditor(actionToEdit, node.id, node.actionTitle);
                   }
                 }}
                 type="button"
                 title={`Edit ${node.actionTitle ?? "action"}`}
                 aria-label={`Edit ${node.actionTitle ?? "action"}`}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: "4px 8px",
-                  fontSize: "16px",
-                }}
               >
-                ✏️
+                <FontAwesomeIcon icon={faPen} />
               </button>
-            )}
-
-            {!isConfirmation && !isDelayAction && !isDropZone && (
               <div className="node-card-menu">
                 <button
-                  className="menu-trigger"
-                  onClick={() =>
-                    setOpenMenu(openMenu === node.id ? null : node.id)
-                  }
+                  className="node-action-button"
+                  onClick={() => setOpenMenu(openMenu === node.id ? null : node.id)}
+                  type="button"
+                  aria-label={`More options for ${node.actionTitle ?? "action"}`}
+                  aria-expanded={openMenu === node.id}
                 >
-                  ⋮
+                  <FontAwesomeIcon icon={faEllipsisVertical} />
                 </button>
 
                 {openMenu === node.id && (
                   <div className="menu-dropdown">
                     {canAddPath && (
-                      <button onClick={() => addPath(node.id)}>
-                        Add path
-                      </button>
+                      <button onClick={() => addPath(node.id)} type="button">Add path</button>
                     )}
-                    <button onClick={() => removeNode(node.id)}>Delete</button>
+                    <button onClick={() => removeNode(node.id)} type="button">Delete step</button>
                   </div>
                 )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
+          {replaceTarget && <span className="replace-badge">Replace this step</span>}
         </div>
 
         {node.paths.length > 0 && (
@@ -911,7 +1085,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
                   key={child.id}
                   style={{ width: `${CHILD_W}px` }}
                 >
-                  {renderNode(child, level + 1)}
+                  {renderNode(child, level + 1, node.id)}
                 </div>
               ))}
             </div>
@@ -1057,10 +1231,11 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
             </div>
             <CreateTestButton
               editingAction={editingAction}
-              isFlowPlacement={pendingNodeId !== null}
+              isFlowPlacement={pendingNodeId !== null || pendingInsert !== null}
               onEditClose={() => {
                 setEditingAction(null);
                 setPendingNodeId(null);
+                setPendingInsert(null);
               }}
               onFlowActionSave={handleActionSavedToFlow}
               onActionSaved={refreshActions}
@@ -1148,6 +1323,9 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
             {runBlockedReason && (
               <p className="text-sm text-slate-600">{runBlockedReason}</p>
             )}
+            {dirty && !saving && (
+              <p className="text-sm font-medium text-amber-800">Unsaved changes</p>
+            )}
           </div>
         </div>
 
@@ -1170,7 +1348,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
         <div className="flow-area">
           <div className="flow-root">
             {nodes.map((node, index) =>
-              renderNode(node, index)
+              renderNode(node, index, null)
             )}
           </div>
         </div>
