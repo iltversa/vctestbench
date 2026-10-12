@@ -34,6 +34,25 @@ export type TabletState = {
   };
 };
 
+// The bridge's /state carries a fresh timestamp and event list on every poll.
+// Pages that only care about readiness and run progress compare this instead,
+// so an unchanged tablet does not re-render them every second and a half.
+export function bridgeStateKey(state: TabletState | null): string {
+  if (!state) return "";
+
+  return JSON.stringify([
+    state.connected,
+    state.sandboxForeground,
+    state.test?.status,
+    state.test?.name,
+    state.test?.step,
+    state.test?.error,
+    state.stepDelaySeconds,
+    state.runIds,
+    state.currentRunId,
+  ]);
+}
+
 // Empty string means a run can start.
 export function getRunBlockedReason(
   bridgeOnline: boolean,

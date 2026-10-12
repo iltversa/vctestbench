@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getRunAction } from "@/actions/run-reports";
 import { getRunPayloadAction } from "@/actions/get-run-payload";
-import { BRIDGE, getRunBlockedReason, type TabletState } from "@/components/bridge";
+import { BRIDGE, bridgeStateKey, getRunBlockedReason, type TabletState } from "@/components/bridge";
 import RunStatusBadge from "@/components/RunStatusBadge";
 import {
   explainFailure,
@@ -53,7 +53,7 @@ export default function RunReportPage() {
         if (!response.ok) throw new Error();
         const next = (await response.json()) as TabletState;
         if (stopped) return;
-        setBridgeState(next);
+        setBridgeState((previous) => (bridgeStateKey(previous) === bridgeStateKey(next) ? previous : next));
         setBridgeOnline(true);
       } catch {
         if (!stopped) setBridgeOnline(false);

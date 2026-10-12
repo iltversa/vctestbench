@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faUser, faPause, faStop, faCheck, faUserSecret, faPaste, faTimes } from "@fortawesome/free-solid-svg-icons";
 export type ConfirmationChoice = {
@@ -55,8 +55,8 @@ export default function ActionDialog({
     const [password, setPassword] = useState(test?.password ?? "");
     const [icon, setIcon] = useState(test?.icon ?? "");
     const [pasteText, setPasteText] = useState(test?.pasteText ?? "");
-    const [hasConfirmation, setHasConfirmation] = useState(test?.hasConfirmation ?? false);
-    const [confirmationTimeout, setConfirmationTimeout] = useState(test?.confirmationTimeout?.toString() ?? "5");
+    const [hasConfirmation] = useState(test?.hasConfirmation ?? false);
+    const [confirmationTimeout] = useState(test?.confirmationTimeout?.toString() ?? "5");
     const [confirmationOptions, setConfirmationOptions] = useState<ConfirmationChoice[]>(
         test?.confirmationOptions?.length
             ? test.confirmationOptions.map((option) => ({
@@ -69,29 +69,10 @@ export default function ActionDialog({
 
     const [saving, setSaving] = useState(false);
 
-    useEffect(() => {
-        setTitle(test?.title ?? "");
-        setActionTimeout(test?.actionTimeout?.toString() ?? "5");
-        setEmail(test?.email ?? "");
-        setClickOnText(test?.clickOnText ?? "");
-        setPassword(test?.password ?? "");
-        setIcon(test?.icon ?? "");
-        setPasteText(test?.pasteText ?? "");
-        setHasConfirmation(test?.hasConfirmation ?? false);
-        setConfirmationTimeout(
-            test?.confirmationTimeout?.toString() ?? "5"
-        );
-
-        setConfirmationOptions(
-            test?.confirmationOptions?.length
-                ? test.confirmationOptions.map((option) => ({
-                    option: option.option,
-                    isSelected: Boolean(option.isSelected),
-                    id: option.id,
-                }))
-                : DEFAULT_CONFIRMATION_OPTIONS
-        );
-    }, [test]);
+    // The fields above are initialised from `test` when the dialog opens. They
+    // are deliberately NOT re-synced when the parent re-renders: the editor
+    // re-renders whenever the tablet status changes, and doing so here wiped
+    // whatever the user had typed.
 
     const addConfirmationOption = () => {
         setConfirmationOptions((current) => [...current, { option: "", isSelected: false }]);

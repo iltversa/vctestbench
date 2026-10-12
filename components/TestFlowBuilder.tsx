@@ -15,7 +15,7 @@ import { faUser } from "@fortawesome/free-solid-svg-icons/faUser";
 import { faTimes, faStop, faCheck, faPaste, faPen, faEllipsisVertical } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { useTestFlowStore } from "@/store/testFlowStore";
-import { BRIDGE, getRunBlockedReason, type TabletState } from "@/components/bridge";
+import { BRIDGE, bridgeStateKey, getRunBlockedReason, type TabletState } from "@/components/bridge";
 export type TestActionDefinition = {
   id: string;
   title: string;
@@ -351,7 +351,8 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
         if (!response.ok) throw new Error();
         const next = (await response.json()) as TabletState;
         if (stopped) return;
-        setBridgeState(next);
+        // Keep the same object when nothing relevant changed: no re-render.
+        setBridgeState((previous) => (bridgeStateKey(previous) === bridgeStateKey(next) ? previous : next));
         setBridgeOnline(true);
       } catch {
         if (!stopped) setBridgeOnline(false);

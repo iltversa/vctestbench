@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SavedTest } from "../page";
 import ActionDialog, { TestAction } from "@/components/ActionDialog";
 import { createTestActionAction } from "@/actions/create-test-action";
@@ -21,7 +20,6 @@ export default function CreateTestButton({ editingAction, onEditClose, isFlowPla
 
   useEffect(() => {
     if (editingAction) {
-      console.log("editingAction changed:", editingAction);
       setOpen(true);
     }
   }, [editingAction]);
@@ -31,7 +29,7 @@ export default function CreateTestButton({ editingAction, onEditClose, isFlowPla
     onEditClose();
   };
 
-  const transformedAction: TestAction | null = editingAction
+  const transformedAction: TestAction | null = useMemo(() => editingAction
     ? (() => {
         const source = editingAction as Partial<TestAction> & {
           confirmationOptions?: Array<string | { option?: string; isSelected?: boolean }>;
@@ -59,10 +57,9 @@ export default function CreateTestButton({ editingAction, onEditClose, isFlowPla
           clickOnText: (editingAction as any).clickOnText ?? null,
         };
       })()
-    : null;
+    : null, [editingAction]);
 
   const handleSaveAction = async (action: TestAction) => {
-        console.log("editingAction:", action);
 
     // If this is for flow placement, just call the callback and don't save to DB
     if (isFlowPlacement && onFlowActionSave) {
