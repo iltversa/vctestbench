@@ -1036,8 +1036,8 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
           <div className="flex space-between gap-5">
           <button
             className="save-test-button"
-            // disabled={!canRun || starting}
-            onClick={() => handleRunTest(initialTest)}
+            disabled={!initialTest}
+            onClick={() => initialTest && handleRunTest(initialTest)}
             type="button"
           >
             Run test

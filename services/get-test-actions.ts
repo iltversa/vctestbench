@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { eq, asc } from "drizzle-orm";
 import { confirmationOptions } from "@/db/schema/confirmation-options";
 import { testActions } from "@/db/schema/test-actions";
+
 export type TestActionDefinition = {
   id: string;
   title: string;
@@ -16,7 +17,7 @@ export type TestActionDefinition = {
   confirmationOptions: {
     id: string;
     option: string;
-    isSelected:boolean |null;
+    isSelected: boolean | null;
   }[];
 };
 
@@ -25,66 +26,55 @@ export async function getActionsService(): Promise<TestActionDefinition[]> {
     .select({
       actionId: testActions.id,
       title: testActions.title,
-      // // hasConfirmation: testActions?.hasConfirmation,
-      // // confirmationTimeout: testActions.confirmationTimeout,
-      // actionTimeout: testActions.actionTimeout,
-      // email: testActions.email,
-      // password: testActions.password,
-      // pasteText: testActions.pasteText,
+      hasConfirmation: testActions.hasConfirmation,
+      confirmationTimeout: testActions.confirmationTimeout,
+      actionTimeout: testActions.actionTimeout,
+      email: testActions.email,
+      password: testActions.password,
+      pasteText: testActions.pasteText,
       icon: testActions.icon,
-      // clickOnText: testActions.clickOnText,
-      // confirmationOptionId: confirmationOptions.id,
-      // confirmationOption: confirmationOptions.option,
-      // confirmationisSelected: confirmationOptions.isSelected,
+      clickOnText: testActions.clickOnText,
+      confirmationOptionId: confirmationOptions.id,
+      confirmationOption: confirmationOptions.option,
+      confirmationIsSelected: confirmationOptions.isSelected,
     })
     .from(testActions)
-    // .leftJoin(
-    //   confirmationOptions,
-    //   eq(
-    //     confirmationOptions.testActionId,
-    //     testActions.id
-    //   ) || []
-    // ) 
-    .orderBy(
-      asc(testActions.title),
-      // asc(confirmationOptions.option)
-    );
+    .leftJoin(
+      confirmationOptions,
+      eq(confirmationOptions.testActionId, testActions.id)
+    )
+    .orderBy(asc(testActions.title), asc(confirmationOptions.option));
 
-  const actionsMap = new Map<
-    string,
-    TestActionDefinition
-  >();
+  const actionsMap = new Map<string, TestActionDefinition>();
 
   for (const row of rows) {
     const actionId = String(row.actionId);
-    const action = actionsMap.get(actionId) ?? {
-      id: actionId,
-      title: String(row.title),
-      // hasConfirmation: Boolean(row.hasConfirmation),
-      // confirmationTimeout: row.confirmationTimeout ?? null,
-      // actionTimeout: Number(row.actionTimeout ?? 0),
-      // pasteText: row.pasteText ?? null,
-      icon: row.icon ?? null,
-      // clickOnText: row.clickOnText ?? null,
-      // email: row.email ?? null,
-      // password: row.password ?? null,
-      // confirmationOptions: [],
-    };
+    let action = actionsMap.get(actionId);
 
-    if (!actionsMap.has(actionId)) {
+    if (!action) {
+      action = {
+        id: actionId,
+        title: String(row.title),
+        hasConfirmation: Boolean(row.hasConfirmation),
+        confirmationTimeout: row.confirmationTimeout ?? null,
+        actionTimeout: Number(row.actionTimeout ?? 0),
+        pasteText: row.pasteText ?? null,
+        icon: row.icon ?? null,
+        clickOnText: row.clickOnText ?? null,
+        email: row.email ?? null,
+        password: row.password ?? null,
+        confirmationOptions: [],
+      };
       actionsMap.set(actionId, action);
     }
 
-    // const optionId = row.confirmationOptionId ? String(row.confirmationOptionId) : null;
-    // const optionValue = row.confirmationOption ? String(row.confirmationOption) : null;
-
-    // if (optionId && optionValue) {
-    //   action.confirmationOptions.push({
-    //     id: optionId,
-    //     option: optionValue,
-    //     isSelected: Boolean(row.confirmationisSelected),
-    //   });
-    // }
+    if (row.confirmationOptionId && row.confirmationOption) {
+      action.confirmationOptions.push({
+        id: String(row.confirmationOptionId),
+        option: String(row.confirmationOption),
+        isSelected: Boolean(row.confirmationIsSelected),
+      });
+    }
   }
 
   return Array.from(actionsMap.values());

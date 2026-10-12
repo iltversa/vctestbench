@@ -2,26 +2,11 @@
   "version": "7",
   "dialect": "postgresql",
   "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1789728614942,
-      "tag": "0000_giant_vertigo",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1790241849778,
-      "tag": "0001_watery_the_enforcers",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1759090000000,
-      "tag": "0003_add_test_action_ids",
-      "breakpoints": true
-    }
+    { "idx": 0, "version": "7", "when": 1789728614942, "tag": "0000_giant_vertigo", "breakpoints": true },
+    { "idx": 1, "version": "7", "when": 1790241849778, "tag": "0001_watery_the_enforcers", "breakpoints": true },
+    { "idx": 2, "version": "7", "when": 1790241850778, "tag": "0002_add_predefined_actions", "breakpoints": true },
+    { "idx": 3, "version": "7", "when": 1790241851778, "tag": "0003_add_test_action_ids", "breakpoints": true },
+    { "idx": 4, "version": "7", "when": 1790241852778, "tag": "0004_add_paste_text_field", "breakpoints": true },
+    { "idx": 5, "version": "7", "when": 1790241853778, "tag": "0005_align_schema_with_code", "breakpoints": true }
   ]
 }
