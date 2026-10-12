@@ -1,3 +1,38 @@
+# VC TestBench
+
+Plan, record and run UI tests for the VersaClimber Sandbox app on a
+USB-connected tablet, and get a report of every run.
+
+## How it fits together
+
+```
+browser (web app :3000) ──► bridge (:3131) ──► adb + WebView DevTools ──► tablet
+        └──► PostgreSQL: tests, actions, run reports, pictures
+```
+
+## Technologies
+
+| Part | Used |
+|---|---|
+| Web app | Next.js 16 on vinext (Vite), React 19, TypeScript |
+| Styling | Tailwind CSS 4, Font Awesome icons |
+| Data | PostgreSQL, Drizzle ORM (`postgres` driver), SQL migrations |
+| Bridge | Node.js 22, `adb`, Chrome DevTools Protocol over WebSocket |
+| Pictures | `pngjs` + `jpeg-js`, shrunk to small JPEGs |
+| Security | AES-256-GCM for stored passwords, origin allow-list |
+| Quality | ESLint, `tsc`, `node --test` (`npm run check`) |
+
+## Layout
+
+| Folder | Holds |
+|---|---|
+| `app/` | Pages: tests, editor, run view, runs, report |
+| `components/` | UI, bridge connection, flow editor and chart |
+| `actions/`, `services/` | Server actions and the logic behind them |
+| `db/` | Schema and migrations |
+| `tools/bridge/` | The tablet bridge: runner, recorder, DevTools, adb |
+| `tests/` | Unit tests |
+
 # Features
 
 ## Plan
