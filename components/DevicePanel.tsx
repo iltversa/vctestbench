@@ -33,7 +33,8 @@ function Step({ number, state, title, children }: { number: number; state: StepS
 }
 
 // A live view of the tablet's screen, or the steps to get one.
-export default function DevicePanel() {
+// `bare` drops the card frame so it can sit inside a panel of its own.
+export default function DevicePanel({ bare = false }: { bare?: boolean }) {
   const { online, connected, state, openSandbox } = useBridge();
   const [copied, setCopied] = useState(false);
   const [src, setSrc] = useState("");
@@ -66,6 +67,10 @@ export default function DevicePanel() {
     };
   }, [connected]);
 
+  // Literal class names, so Tailwind can see them.
+  const frame = (padding: "p-4" | "p-5") =>
+    bare ? "" : `rounded-xl border border-slate-200 bg-white ${padding}`;
+
   const copy = async () => {
     try {
       await navigator.clipboard.writeText("npm run bridge");
@@ -87,7 +92,7 @@ export default function DevicePanel() {
 
   if (!connected) {
     return (
-      <section id="device" aria-labelledby="device-title" className="rounded-xl border border-slate-200 bg-white p-5">
+      <section id="device" aria-labelledby="device-title" className={frame("p-5")}>
         <h2 id="device-title" className="text-lg font-semibold text-slate-900">Connect the tablet</h2>
         <p className="mt-1 text-sm leading-6 text-slate-600">
           {online
@@ -124,7 +129,7 @@ export default function DevicePanel() {
   }
 
   return (
-    <section id="device" aria-labelledby="device-title" className="rounded-xl border border-slate-200 bg-white p-4">
+    <section id="device" aria-labelledby="device-title" className={frame("p-4")}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 id="device-title" className="text-lg font-semibold text-slate-900">{state?.model ?? "Tablet"}</h2>

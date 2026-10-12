@@ -2,6 +2,8 @@
 
 import "../app/TestFlowBuilder.css";
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import ActionEditorDialog, { type ActionSource } from "@/components/ActionEditorDialog";
 import { countSteps, type SavedTest } from "@/components/types";
 import getActionsAction from "@/actions/get-actions";
@@ -9,8 +11,7 @@ import { createFullTestAction, updateFullTestAction } from "@/actions/create-ful
 import { deleteTestActionDefinition } from "@/actions/delete-test-action";
 import { TestAction } from "@/components/ActionDialog";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faUser } from "@fortawesome/free-solid-svg-icons/faUser";
-import { faTimes, faStop, faCheck, faPaste, faPen, faEllipsisVertical, faTrash, faPlus } from "@fortawesome/free-solid-svg-icons";
+import { faPen, faEllipsisVertical, faTrash, faPlus } from "@fortawesome/free-solid-svg-icons";
 import {
   buildChildrenForAction,
   createNode,
@@ -24,10 +25,8 @@ import {
   updateNode,
 } from "@/components/flow/tree";
 import { useBridge } from "@/components/BridgeProvider";
-import ActivityFeed from "@/components/ActivityFeed";
-import DevicePanel from "@/components/DevicePanel";
-import RunPanel from "@/components/RunPanel";
-import type { StepProgress } from "@/components/bridge";
+import Connector, { CHILD_GAP, CHILD_W } from "@/components/flow/Connector";
+import { iconFor, nodeSubtitle } from "@/components/flow/node-info";
 export type TestActionDefinition = {
   id: string;
   title: string;
@@ -98,14 +97,10 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(initial.snapshot);
   const [saveMessage, setSaveMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [runError, setRunError] = useState("");
-  // The panel under the canvas: the live run, the device, the activity feed.
-  const [dockTab, setDockTab] = useState<"run" | "device" | "activity">("run");
-  // null: not chosen yet. The dock then opens by itself when this test has a
-  // run to show, and stays out of the way otherwise.
-  const [dockChoice, setDockChoice] = useState<boolean | null>(null);
   // The empty slot whose "pick an action" menu is open.
   const [quickAddFor, setQuickAddFor] = useState<string | null>(null);
   const bridge = useBridge();
+  const router = useRouter();
   // Drag and drop: a node being moved, the gap an action will be inserted
   // into, and the element currently under the pointer.
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
@@ -374,11 +369,6 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     setEditingAction(null);
   };
 
-  const getDelayLabel = (action: TestActionDefinition | undefined) => {
-    if (!action) return "0s";
-    const seconds = Number(action.actionTimeout ?? 0);
-    return `${seconds}s`;
-  };
 
 
   // Used for the first load and again after the library changes.
@@ -491,125 +481,6 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     await saveTest();
   };
 
-  const STEM_H = 24;       // vertical drop before branching
-  const CURVE_H = 28;      // height of the bezier curve section
-  const STUB_H = 20;       // vertical stub into each child
-  const CHILD_W = 240;     // width of each child column (must match CSS)
-  const CHILD_GAP = 48;    // gap between child columns (must match CSS)
-  const DOT_R = 5;
-
-  const renderConnector = (children: FlowNode[]) => {
-    const N = children.length;
-
-    if (N === 0) return null;
-
-    // Single child — just a straight line, no branching
-    if (N === 1) {
-      return (
-        <svg
-          className="connector-svg"
-          width={4}
-          height={STEM_H + CURVE_H + STUB_H}
-          viewBox={`0 0 4 ${STEM_H + CURVE_H + STUB_H}`}
-        >
-          <line
-            x1={2}
-            y1={0}
-            x2={2}
-            y2={STEM_H + CURVE_H + STUB_H}
-            stroke="#d0d5dd"
-            strokeWidth={2}
-          />
-        </svg>
-      );
-    }
-
-    // Multi-child — trunk + bezier branches
-    const totalW = N * CHILD_W + (N - 1) * CHILD_GAP;
-    const totalH = STEM_H + CURVE_H + STUB_H;
-    const cx = totalW / 2;
-
-    const childCx = (i: number) =>
-      CHILD_W / 2 + i * (CHILD_W + CHILD_GAP);
-
-    return (
-      <svg
-        className="connector-svg"
-        width={totalW}
-        height={totalH}
-        viewBox={`0 0 ${totalW} ${totalH}`}
-        style={{ overflow: "visible" }}
-      >
-        {/* Trunk: from parent bottom down to branch point */}
-        <line
-          x1={cx}
-          y1={0}
-          x2={cx}
-          y2={STEM_H}
-          stroke="#d0d5dd"
-          strokeWidth={2}
-        />
-
-        {/* Junction dot at branch point */}
-        <circle cx={cx} cy={STEM_H} r={DOT_R} fill="#14b8a6" />
-
-        {children.map((child, i) => {
-          const x = childCx(i);
-          const y0 = STEM_H;
-          const y1 = STEM_H + CURVE_H;
-
-          // Cubic bezier: leave parent vertically, arrive at child vertically.
-          // Control points sit at (cx, y0 + k) and (x, y1 - k) so both ends
-          // are tangent to vertical, producing the Mailchimp "S" shape.
-          const k = CURVE_H * 0.6;
-          const d = `M ${cx} ${y0}
-                   C ${cx} ${y0 + k},
-                     ${x}  ${y1 - k},
-                     ${x}  ${y1}`;
-
-          return (
-            <g key={child.id}>
-              <path
-                d={d}
-                fill="none"
-                stroke="#d0d5dd"
-                strokeWidth={2}
-              />
-
-              {/* Stub from curve end into child card */}
-              <line
-                x1={x}
-                y1={y1}
-                x2={x}
-                y2={y1 + STUB_H}
-                stroke="#d0d5dd"
-                strokeWidth={2}
-              />
-
-              {/* Entry dot above each child */}
-              <circle cx={x} cy={y1} r={DOT_R - 1} fill="#14b8a6" />
-            </g>
-          );
-        })}
-      </svg>
-    );
-  };
-
-  const nodeSubtitle = (node: FlowNode): string | null => {
-    const title = node.actionTitle?.trim().toUpperCase();
-    const data = node.actionData;
-
-    if (title === "DELAY") return `Wait ${getDelayLabel(data)}`;
-    if (title === "PASTE") return data?.pasteText ? `Paste "${data.pasteText}"` : "No text set";
-    if (title === "CLICK") return data?.clickOnText ? `Tap "${data.clickOnText}"` : "No text set";
-    if (title === "AUTHENTICATION") return data?.email ? `Sign in as ${data.email}` : "No email set";
-    if (title === "CONFIRMATION") {
-      const count = data?.confirmationOptions?.length ?? 0;
-      return `${count} ${count === 1 ? "option" : "options"}`;
-    }
-    return null;
-  };
-
   const renderNode = (
     node: FlowNode,
     level: number = 0,
@@ -629,7 +500,6 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     const gapKey = `gap:${node.id}`;
     const subtitle = isConfirmation ? null : nodeSubtitle(node);
     const replaceTarget = dragOverKey === `node:${node.id}` && !isDropZone && Boolean(draggedAction);
-    const runStep = stepByNode.get(node.id);
 
     return (
       <div className="tree-node" key={node.id}>
@@ -651,7 +521,6 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
             isDropZone ? "empty" : "",
             draggedNodeId === node.id ? "being-moved" : "",
             replaceTarget ? "replace-target" : "",
-            runStep ? `run-${runStep.status}` : "",
           ].join(" ")}
           draggable={canDragNode}
           onDragStart={canDragNode ? (event) => handleNodeDragStart(event, node.id) : undefined}
@@ -701,22 +570,13 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
           ) : (
             <div className="node-card-header">
               <span className="node-icon" aria-hidden="true">
-                <FontAwesomeIcon icon={getFaIcon(node.actionData?.icon)} />
+                <FontAwesomeIcon icon={iconFor(node.actionData?.icon)} />
               </span>
               <div className="node-text">
                 <span className="node-card-title">{node.actionTitle ?? "Unassigned"}</span>
                 {subtitle && <span className="node-subtitle" title={subtitle}>{subtitle}</span>}
                 {node.actionTitle?.trim().toUpperCase() === "AUTHENTICATION" && (
                   <span className="node-subtitle">Password: {node.actionData?.password ? "••••••••" : "not set"}</span>
-                )}
-                {runStep && runStep.status !== "pending" && (
-                  <span className={`node-run-state run-text-${runStep.status}`}>
-                    {runStep.status === "running"
-                      ? runStep.phase === "waiting" ? "Waiting…" : "Running…"
-                      : runStep.status === "passed"
-                        ? `Passed${runStep.durationMs !== null ? ` · ${(runStep.durationMs / 1000).toFixed(1)}s` : ""}`
-                        : runStep.status === "failed" ? "Failed" : "Stopped"}
-                  </span>
                 )}
               </div>
               <button
@@ -763,7 +623,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
 
         {node.paths.length > 0 && (
           <>
-            {renderConnector(node.paths)}
+            <Connector>{node.paths}</Connector>
             <div
               className="children-row"
               style={{ gap: `${CHILD_GAP}px` }}
@@ -783,18 +643,6 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
       </div>
     );
   };
-  const ACTION_ICONS = {
-    faUser,
-    faTimes,
-    faStop,
-    faCheck,
-    faPaste,
-  } as const;
-
-  const getFaIcon = (name?: string | null) =>
-    name && name in ACTION_ICONS
-      ? ACTION_ICONS[name as keyof typeof ACTION_ICONS]
-      : faUser;
   // Press Add (or Add step on the canvas): the same dialog as dropping.
   const addAction = (action: TestActionDefinition, slotId?: string) => {
     const target = slotId ?? findAppendSlot(nodes)?.id;
@@ -824,18 +672,8 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
       return;
     }
 
-    setDockTab("run");
-    setDockChoice(true);
+    router.push(`/test/${stored.id}/run`);
   };
-
-  // The state of each step in the current run of this test, by node id.
-  const runForThisTest =
-    bridge.run && savedTest && bridge.run.testId === savedTest.id ? bridge.run : null;
-  const stepByNode = new Map<string, StepProgress>(
-    (runForThisTest?.steps ?? []).map((step) => [step.nodeId, step])
-  );
-
-  const dockOpen = dockChoice ?? Boolean(runForThisTest);
 
   const runDisabled =
     saving || !testTitle.trim() || Boolean(bridge.blockedReason) || bridge.starting;
@@ -851,42 +689,13 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     ? { kind: "error" as const, text: runError }
     : saveMessage;
 
-  const tabs = [
-    { id: "run" as const, label: bridge.running ? "Run · live" : "Run" },
-    { id: "device" as const, label: "Device" },
-    { id: "activity" as const, label: "Activity" },
-  ];
-
   return (
     <div className="flow-builder">
-      <aside className="flow-sidebar" aria-label="Test setup">
+      {/* ------------------------- Actions panel ------------------------- */}
+      <aside className="flow-sidebar" aria-label="Actions">
         <section className="side-section">
-          <h2 className="side-title">Test</h2>
-
-          <label htmlFor="test-title" className="side-label">Title</label>
-          <input
-            id="test-title"
-            type="text"
-            value={testTitle}
-            onChange={(event) => setTestTitle(event.target.value)}
-            placeholder="e.g. Workout login flow"
-            className="side-input"
-          />
-
-          <label htmlFor="test-description" className="side-label">What it checks</label>
-          <textarea
-            id="test-description"
-            value={testDescription}
-            onChange={(event) => setTestDescription(event.target.value)}
-            placeholder="Describe what this test validates"
-            rows={3}
-            className="side-input"
-          />
-        </section>
-
-        <section className="side-section">
-          <h2 className="side-title">Steps you can add</h2>
-          <p className="side-hint">Press Add, or drag a step onto the flow.</p>
+          <h2 className="side-title">Actions</h2>
+          <p className="side-hint">Press Add, or drag an action onto the flow.</p>
 
           <ul className="action-list">
             {actions.map((action) => (
@@ -922,7 +731,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
                   type="button"
                   className="icon-button danger"
                   onClick={() => handleDeleteAction(action)}
-                  title="Delete this action"
+                  title="Remove this action from the list"
                   aria-label={`Delete ${action.title}`}
                 >
                   <FontAwesomeIcon icon={faTrash} aria-hidden="true" />
@@ -948,17 +757,39 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
         />
       </aside>
 
+      {/* --------------------------- Editor view --------------------------- */}
       <main className="flow-canvas">
         <div className="canvas-header">
-          <div className="canvas-title">
-            <h1>Flow</h1>
-            <p>
-              {stepCount} {stepCount === 1 ? "step" : "steps"}
-              {dirty && !saving ? <span className="unsaved"> · Unsaved changes</span> : null}
-            </p>
-            <p className="canvas-hint">
-              Each step waits {bridge.state?.stepDelaySeconds ?? 5} seconds before it runs. Add a DELAY step to wait longer.
-            </p>
+          <div className="canvas-fields">
+            <nav aria-label="Breadcrumb" className="canvas-crumb">
+              <Link href="/">Test flows</Link>
+              <span aria-hidden="true">/</span>
+              <span>{savedTest ? "Edit" : "New"}</span>
+              <span className="canvas-count">
+                · {stepCount} {stepCount === 1 ? "step" : "steps"}
+                {dirty && !saving ? <span className="unsaved"> · Unsaved changes</span> : null}
+              </span>
+            </nav>
+
+            <label htmlFor="test-title" className="sr-only">Title</label>
+            <input
+              id="test-title"
+              type="text"
+              value={testTitle}
+              onChange={(event) => setTestTitle(event.target.value)}
+              placeholder="Name this test flow"
+              className="title-input"
+            />
+
+            <label htmlFor="test-description" className="sr-only">What it checks</label>
+            <input
+              id="test-description"
+              type="text"
+              value={testDescription}
+              onChange={(event) => setTestDescription(event.target.value)}
+              placeholder="What does it check? (optional)"
+              className="description-input"
+            />
           </div>
 
           <div className="canvas-actions">
@@ -968,7 +799,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
                 disabled={saving || !testTitle.trim() || !dirty}
                 type="button"
                 className="btn"
-                title={!testTitle.trim() ? "Enter a test title" : ""}
+                title={!testTitle.trim() ? "Enter a title" : ""}
               >
                 {saving ? "Saving…" : "Save"}
               </button>
@@ -999,52 +830,6 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
             {nodes.map((node, index) => renderNode(node, index, null))}
           </div>
         </div>
-
-        <section className="flow-dock" aria-label="Run, device and activity">
-          <div className="dock-bar">
-            <div role="tablist" aria-label="Run, device and activity" className="dock-tabs">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  role="tab"
-                  id={`dock-tab-${tab.id}`}
-                  aria-selected={dockOpen && dockTab === tab.id}
-                  aria-controls="dock-panel"
-                  className={dockOpen && dockTab === tab.id ? "active" : ""}
-                  onClick={() => {
-                    setDockTab(tab.id);
-                    setDockChoice(true);
-                  }}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              className="dock-toggle"
-              onClick={() => setDockChoice(!dockOpen)}
-              aria-expanded={dockOpen}
-            >
-              {dockOpen ? "Hide" : "Show"}
-            </button>
-          </div>
-
-          {dockOpen && (
-            <div id="dock-panel" role="tabpanel" aria-labelledby={`dock-tab-${dockTab}`} className="dock-body">
-              {dockTab === "run" && <RunPanel testId={savedTest?.id} />}
-              {dockTab === "device" && <DevicePanel />}
-              {dockTab === "activity" && (
-                <ActivityFeed
-                  events={bridge.state?.events ?? []}
-                  empty="Nothing has happened yet."
-                  maxHeight="18rem"
-                />
-              )}
-            </div>
-          )}
-        </section>
       </main>
     </div>
   );

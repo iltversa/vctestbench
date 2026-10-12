@@ -17,12 +17,12 @@ browser (this app, :3000) ──► bridge (tools/bridge, :3131) ──► adb �
 
 | Need | Where it lives |
 |---|---|
-| **Plan a flow** by drag and drop, or in easy steps | Test editor (`/test/<id>`): press **Add** on a step, press **Add step** on the canvas, or drag. Insert between steps, move steps, delete a step and the chain joins. |
-| **Run it on the device**, with a log, causes and results | The **Run** tab under the canvas, and **Running now** on Home: every step with its state, a progress bar, the activity log, **Stop**, and the likely cause of a failure. |
-| **Report and insight** | `/runs`: **Test health** (pass rate, recent results, most common failing step) and every run. `/runs/<id>`: the full report. |
-| **Realtime feed** | **Activity**: what the tablet and the run are doing, newest first, with real timestamps and the step each entry belongs to. |
+| **Plan a flow** by drag and drop, or in easy steps | Editor (`/test/<id>`): an **Actions** panel and the editor view. Press **Add**, press **Add step** on the canvas, or drag; insert between steps, move steps, delete a step and the chain joins. |
+| **Run it on the device**, with a log, causes and results | Run view (`/test/<id>/run`), three panels: the **flow chart** (each step lights up as it runs), the **device**, and a 300px **live activity** column with **Stop** and the likely cause of a failure. |
+| **Report and insight** | Each flow on the Tests page carries a one-line insight (created, last tested, pass rate). `/runs`: **Test health** and every run; `/runs/<id>`: the full report. |
+| **Realtime feed** | **Activity**: flows created, changed and deleted and every run's result on the Tests page; the live feed of a run on the run view. Real timestamps, tagged with the step. |
 | **Clean, navigable, responsive UI** | One shell with **Tests** and **Runs** and a device status that is always visible; works down to phone width. |
-| **Device preview, or its connection status** | **Device** panel: a live view of the tablet's screen, or the three steps to connect it. |
+| **Device preview, or its connection status** | The **Device** panel on the run view: a live view of the tablet's screen, or the three steps to connect it. |
 
 ## Requirements
 
@@ -64,14 +64,17 @@ npm run bridge   # in a second terminal, with the tablet connected
 
 ## Using it
 
-1. **New test** on Home, give it a title.
-2. Add steps. Press **Add** next to an action, or **Add step** where the flow
-   ends, or drag an action onto the flow; while dragging, an **Insert here** gap
-   appears between steps. Drag a step to move it. **Delete step** joins its
-   neighbours.
-3. **Save and run** saves what is on screen, then runs that exact version.
-4. Watch it in the **Run** tab (steps light up on the canvas as they run), stop it
-   if you need to, and open the **Full report** when it is done.
+1. **New test flow** on the Tests page, give it a title. Each flow shows when it
+   was created, when it was last tested and its pass rate on one line; **Edit**
+   and **Delete** (press twice to confirm) sit beside **Run**.
+2. In the editor, add steps. Press **Add** next to an action, or **Add step**
+   where the flow ends, or drag an action onto the flow; while dragging, an
+   **Insert here** gap appears between steps. Drag a step to move it. **Delete
+   step** joins its neighbours.
+3. **Save and run** saves what is on screen, then runs that exact version and
+   opens the run view.
+4. Watch the flow chart, the device and the live activity; stop the run if you
+   need to, and open the **Full report** when it is done.
 
 | Action | What it does on the tablet |
 |---|---|
@@ -141,14 +144,16 @@ host names, requires `application/json` for `/run-test`, and caps the body at
 ## How it is organised
 
 ```
-app/                    pages: / (tests), /test/[id] (editor), /runs, /runs/[id]
+app/                    pages: / (tests), /test/[id] (editor), /test/[id]/run, /runs, /runs/[id]
 components/
   BridgeProvider.tsx    the one connection to the bridge; saves finished runs
   AppShell.tsx          header, navigation, device status
   DevicePanel.tsx       live screen preview, or the steps to connect
-  RunPanel.tsx          a run as it happens, and its result
-  ActivityFeed.tsx      the timestamped feed
+  ActivityTimeline.tsx  flow changes and run results, for the Tests page
+  ActivityFeed.tsx      the live, timestamped feed of a run
   TestFlowBuilder.tsx   the editor
+  flow/FlowChart.tsx    the read-only chart used by the run view
+  flow/Connector.tsx    the lines between steps (shared with the editor)
   flow/tree.ts          pure flow-tree logic (insert, remove, move, load, store)
 actions/  services/     server actions and the code behind them
 db/                     schema and SQL migrations

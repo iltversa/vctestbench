@@ -153,12 +153,12 @@
    pointer, and always on touch screens. */
 @media (hover: hover) {
   .action-item .icon-button {
-    opacity: 0;
+    display: none;
   }
 
   .action-item:hover .icon-button,
   .action-item:focus-within .icon-button {
-    opacity: 1;
+    display: grid;
   }
 }
 
@@ -187,20 +187,67 @@
   border-bottom: 1px solid #e2e8f0;
 }
 
-.canvas-title h1 {
-  margin: 0;
-  font-size: 18px;
+.canvas-fields {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: min(100%, 18rem);
+}
+
+.canvas-crumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 14px;
+  color: #475569;
+}
+
+.canvas-crumb a {
+  font-weight: 500;
+  color: #0f172a;
+  text-decoration: underline;
+}
+
+.canvas-count {
+  color: #475569;
+}
+
+/* Title and description are edited in place: they read as text until used. */
+.title-input,
+.description-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 10px;
+  margin-left: -10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  color: #0f172a;
+}
+
+.title-input {
+  font-size: 20px;
   font-weight: 600;
 }
 
-.canvas-title p {
-  margin: 2px 0 0;
+.description-input {
+  min-height: 36px;
   font-size: 14px;
   color: #334155;
 }
 
-.canvas-hint {
-  color: #475569;
+.title-input:hover,
+.description-input:hover {
+  border-color: #e2e8f0;
+}
+
+.title-input:focus,
+.description-input:focus {
+  border-color: #0f172a;
+  background: #fff;
+  outline: none;
 }
 
 .unsaved {
@@ -298,54 +345,6 @@
   /* room for the first step's insert gap */
   padding-top: 40px;
   min-width: max-content;
-}
-
-/* ---------- Dock: run, device, activity ---------- */
-
-.flow-dock {
-  display: flex;
-  flex-direction: column;
-  max-height: 42%;
-  background: #fff;
-  border-top: 1px solid #cbd5e1;
-}
-
-.dock-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 12px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.dock-tabs {
-  display: flex;
-  gap: 4px;
-}
-
-.dock-tabs button,
-.dock-toggle {
-  min-height: 44px;
-  padding: 0 14px;
-  border: 0;
-  border-bottom: 3px solid transparent;
-  background: transparent;
-  color: #334155;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.dock-tabs button.active {
-  border-bottom-color: #0f172a;
-  color: #0f172a;
-}
-
-.dock-body {
-  overflow: auto;
-  padding: 16px;
 }
 
 /* ---------- Tree ---------- */
@@ -744,7 +743,18 @@ body.is-dragging .node-card.empty .slot-label {
     text-align: left;
   }
 
-  .flow-dock {
-    max-height: none;
-  }
+}
+
+/* ---------- Read-only chart (run view) ---------- */
+
+.flow-chart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: max-content;
+  padding: 8px 0 32px;
+}
+
+.flow-chart .node-card {
+  cursor: default;
 }

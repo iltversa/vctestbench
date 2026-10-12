@@ -7,6 +7,7 @@ import {
   listRunsService,
   saveRunReportService,
 } from "@/services/run-reports";
+import { listActivityService } from "@/services/activity";
 import { requireUserIfEnabled } from "@/services/require-user";
 
 const FAILED = { success: false as const, message: "Could not reach the database." };
@@ -66,6 +67,16 @@ export async function getRunTrendsAction() {
     return { success: true as const, trends: await getRunTrendsService() };
   } catch (error) {
     console.error("getRunTrendsAction error:", error);
+    return FAILED;
+  }
+}
+
+export async function getActivityAction(options?: { limit?: number }) {
+  try {
+    await requireUserIfEnabled();
+    return { success: true as const, items: await listActivityService(options?.limit ?? 40) };
+  } catch (error) {
+    console.error("getActivityAction error:", error);
     return FAILED;
   }
 }

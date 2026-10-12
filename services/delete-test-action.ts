@@ -1,5 +1,3 @@
-"use server";
-
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { confirmationOptions } from "@/db/schema/confirmation-options";

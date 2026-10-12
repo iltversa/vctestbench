@@ -20,6 +20,7 @@ export type SavedTest = {
   id: string;
   title: string;
   description?: string;
+  createdAt?: string | Date;
   flow?: FlowNode[];
   actions?: SavedTestAction[];
 };
