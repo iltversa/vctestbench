@@ -1,9 +1,11 @@
 "use server";
 
 import { deleteTestService } from "@/services/delete-test";
+import { requireUserIfEnabled } from "@/services/require-user";
 
 export async function deleteTestAction(input: { id: string }) {
   try {
+    await requireUserIfEnabled();
     const deleted = await deleteTestService(input);
 
     return {

@@ -1,6 +1,7 @@
 "use server";
 
 import { updateTestActionService } from "@/services/update-test-action";
+import { requireUserIfEnabled } from "@/services/require-user";
 
 export type UpdateTestActionInput = {
   id: string;
@@ -10,6 +11,7 @@ export type UpdateTestActionInput = {
 
 export async function updateTestActionAction(input: UpdateTestActionInput) {
   try {
+    await requireUserIfEnabled();
     const action = await updateTestActionService(input);
 
     return {
