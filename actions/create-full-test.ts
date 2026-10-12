@@ -68,8 +68,11 @@ export async function createFullTestAction(input: CreateFullTestInput) {
 
     return {
       success: false,
+      // Raw database errors can carry SQL and parameters; keep them in the log.
       message:
-        error instanceof Error ? error.message : "Failed to save test.",
+        error instanceof Error && error.message === "Sign in required"
+          ? error.message
+          : "Failed to save test. Check that the database is reachable and try again.",
     };
   }
 }
@@ -97,8 +100,11 @@ export async function updateFullTestAction(input: UpdateFullTestInput) {
 
     return {
       success: false,
+      // Raw database errors can carry SQL and parameters; keep them in the log.
       message:
-        error instanceof Error ? error.message : "Failed to save test.",
+        error instanceof Error && error.message === "Sign in required"
+          ? error.message
+          : "Failed to save test. Check that the database is reachable and try again.",
     };
   }
 }

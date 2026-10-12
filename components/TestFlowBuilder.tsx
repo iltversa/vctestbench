@@ -13,6 +13,7 @@ import { faUser } from "@fortawesome/free-solid-svg-icons/faUser";
 import { faTimes, faStop, faCheck, faPaste } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { useTestFlowStore } from "@/store/testFlowStore";
+import { BRIDGE, getRunBlockedReason, type TabletState } from "@/components/bridge";
 export type TestActionDefinition = {
   id: string;
   title: string;
@@ -180,6 +181,18 @@ const hydrateFlow = (
 
 
 
+// Plain data for storage: the editor-only fields are dropped.
+function extractFlowTree(flowNodes: FlowNode[]): FlowNode[] {
+  return flowNodes.map(({ id, actionId, optionId, isSelected, paths, actionData }) => ({
+    id,
+    actionId: actionId ?? null,
+    optionId: optionId ?? null,
+    isSelected: isSelected ?? null,
+    paths: extractFlowTree(paths),
+    actionData: actionData ?? null,
+  })) as unknown as FlowNode[];
+}
+
 export default function TestFlowBuilder({ editingTest: initialTest }: { editingTest?: SavedTest }) {
   const [nodes, setNodes] = useState<FlowNode[]>([createNode()]);
   const [draggedAction, setDraggedAction] = useState<TestActionDefinition | null>(null);
@@ -188,8 +201,15 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   const [pendingNodeId, setPendingNodeId] = useState<string | null>(null);
   const [actions, setActions] = useState<TestActionDefinition[]>([]);
   const [testTitle, setTestTitle] = useState(initialTest?.title ?? "");
-  const [testDescription, setTestDescription] = useState(initialTest ? "" : "");
+  const [testDescription, setTestDescription] = useState(initialTest?.description ?? "");
   const [saving, setSaving] = useState(false);
+  // The row as last stored. Run always uses this, never the page's original prop.
+  const [savedTest, setSavedTest] = useState<SavedTest | undefined>(initialTest);
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const [runMessage, setRunMessage] = useState<{ kind: "info" | "error"; text: string } | null>(null);
+  const [bridgeOnline, setBridgeOnline] = useState(false);
+  const [bridgeState, setBridgeState] = useState<TabletState | null>(null);
   const router = useRouter();
   const hydratedRef = useRef(false);
 
@@ -197,13 +217,47 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     if (!initialTest || actions.length === 0 || hydratedRef.current) return;
     hydratedRef.current = true;
 
+    const hydrated = initialTest.flow?.length
+      ? hydrateFlow(initialTest.flow, actions)
+      : [createNode()];
+
     setTestTitle(initialTest.title ?? "");
-    setNodes(
-      initialTest.flow?.length
-        ? hydrateFlow(initialTest.flow, actions)
-        : [createNode()]
+    setTestDescription(initialTest.description ?? "");
+    setNodes(hydrated);
+    setSavedSnapshot(
+      JSON.stringify([
+        (initialTest.title ?? "").trim(),
+        (initialTest.description ?? "").trim(),
+        extractFlowTree(hydrated),
+      ])
     );
   }, [initialTest, actions]);
+
+  // Poll the bridge so Run can say why it is unavailable and report the result.
+  useEffect(() => {
+    let stopped = false;
+
+    const poll = async () => {
+      try {
+        const response = await fetch(BRIDGE + "/state", { cache: "no-store" });
+        if (!response.ok) throw new Error();
+        const next = (await response.json()) as TabletState;
+        if (stopped) return;
+        setBridgeState(next);
+        setBridgeOnline(true);
+      } catch {
+        if (!stopped) setBridgeOnline(false);
+      }
+    };
+
+    poll();
+    const timer = window.setInterval(poll, 1500);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   const handleDragStart = (
     event: React.DragEvent<HTMLDivElement>,
@@ -480,17 +534,6 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     return `${seconds}s`;
   };
 
-  const extractFlowTree = (flowNodes: FlowNode[]): any[] => {
-    return flowNodes.map(({ id, actionId, optionId, isSelected, paths, actionData }) => ({
-      id,
-      actionId: actionId ?? null,
-      optionId: optionId ?? null,
-      isSelected: isSelected ?? null,
-      paths: extractFlowTree(paths),
-      actionData: actionData ?? null,
-    }));
-  };
-
   const syncActionDataInTree = (flowNodes: FlowNode[], actionList: TestActionDefinition[]): FlowNode[] =>
     flowNodes.map((node) => {
       // For a saved test, actionData from the flow is the test-specific
@@ -575,40 +618,59 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     loadActions();
   }, []);
 
-  const handleSaveTest = async () => {
+  const currentSnapshot = JSON.stringify([
+    testTitle.trim(),
+    testDescription.trim(),
+    extractFlowTree(nodes),
+  ]);
+  const dirty = currentSnapshot !== savedSnapshot;
+
+  // Saves the open test and returns the stored row, or null when it failed.
+  const saveTest = async (): Promise<SavedTest | null> => {
     if (!testTitle.trim()) {
-      alert("Please enter a test title");
-      return;
+      setSaveMessage({ kind: "error", text: "Enter a test title before saving." });
+      return null;
     }
 
-    const flowTree = extractFlowTree(nodes);
-
     setSaving(true);
+    setSaveMessage(null);
+    setRunMessage(null);
+
     try {
       const payload = {
         title: testTitle.trim(),
         description: testDescription.trim(),
-        flow: flowTree,
+        flow: extractFlowTree(nodes),
       };
 
-      const result = initialTest
-        ? await updateFullTestAction({ id: initialTest.id, ...payload })
+      const result = savedTest
+        ? await updateFullTestAction({ id: savedTest.id, ...payload })
         : await createFullTestAction(payload);
 
-      if (result.success) {
-        alert("Test saved successfully!");
-        if (!initialTest) {
-          setTestTitle("");
-          setTestDescription("");
-          setNodes([createNode()]);
-        }
+      if (!result.success || !("data" in result) || !result.data) {
+        setSaveMessage({
+          kind: "error",
+          text: result.message || "Could not save the test.",
+        });
+        return null;
       }
+
+      const stored = result.data as unknown as SavedTest;
+      setSavedTest(stored);
+      setSavedSnapshot(currentSnapshot);
+      setSaveMessage({ kind: "success", text: "Saved." });
+      return stored;
     } catch (error) {
       console.error("Failed to save test:", error);
-      alert("Failed to save test");
+      setSaveMessage({ kind: "error", text: "Could not save: the server could not be reached." });
+      return null;
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSaveTest = async () => {
+    await saveTest();
   };
 
   const STEM_H = 24;       // vertical drop before branching
@@ -870,35 +932,65 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     name && name in ACTION_ICONS
       ? ACTION_ICONS[name as keyof typeof ACTION_ICONS]
       : faUser;
-  const BRIDGE = "http://localhost:3131";
+  const runBlockedReason = getRunBlockedReason(bridgeOnline, bridgeState);
 
-  const handleRunTest = async (test: SavedTest) => {
+  const startRun = async (test: SavedTest) => {
+    setRunMessage({ kind: "info", text: `Starting ${test.title}…` });
 
-    // console.log(test);
     try {
       const response = await fetch(BRIDGE + "/run-test", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: test.title,
           actions: test.actions ?? [],
-          flow: test.flow ?? []
+          flow: test.flow ?? [],
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to start test");
-      }else router.push("/")
+        throw new Error(`The bridge answered ${response.status}.`);
+      }
 
+      setRunMessage({ kind: "info", text: "Test sent to the tablet." });
     } catch (error) {
-      console.error("handleRunTest error:", error);
-    } finally {
-      console.log("happen");
-
+      console.error("startRun error:", error);
+      setRunMessage({
+        kind: "error",
+        text: bridgeOnline
+          ? "The bridge did not accept the test."
+          : "Could not reach the bridge. Start it with npm run bridge.",
+      });
     }
   };
+
+  // Run what is on screen: save first when it changed, then run the stored row.
+  const handleSaveAndRun = async () => {
+    const stored = dirty || !savedTest ? await saveTest() : savedTest;
+    if (stored) await startRun(stored);
+  };
+
+  const runResult = (() => {
+    if (!runMessage) return null;
+    if (runMessage.kind === "error") return runMessage;
+
+    const test = bridgeState?.test;
+    if (test?.status === "running") {
+      return { kind: "info" as const, text: `Running: ${test.step ?? test.name ?? "test"}` };
+    }
+    if (test?.status === "passed") {
+      return { kind: "success" as const, text: `${test.name ?? "Test"} passed.` };
+    }
+    if (test?.status === "failed") {
+      return { kind: "error" as const, text: `${test.name ?? "Test"} failed. ${test.error ?? ""}`.trim() };
+    }
+    return runMessage;
+  })();
+
+  const runDisabled = saving || !testTitle.trim() || Boolean(runBlockedReason);
+  const runLabel = saving ? "Saving…" : dirty || !savedTest ? "Save and run" : "Run test";
+  const statusLine = runResult ?? saveMessage;
+
   return (
     <div className="flow-builder">
 
@@ -910,7 +1002,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
             </h2>
 
             <p className="mt-1 text-sm leading-6 text-slate-500">
-              Select a test class and manage the actions available for your flow.
+              Name your test and manage the actions you can add to its flow.
             </p>
 
             <div className="mt-6 space-y-5">
@@ -1033,34 +1125,47 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
 
 
           </div>
-          <div className="flex space-between gap-5">
-          <button
-            className="save-test-button"
-            disabled={!initialTest}
-            onClick={() => initialTest && handleRunTest(initialTest)}
-            type="button"
-          >
-            Run test
-          </button>
-          {/* SAVE TEST */}
-          <button
-            onClick={handleSaveTest}
-            disabled={
-              saving ||
-              !testTitle.trim()
-            }
-            type="button"
-            className="save-test-button"
-            title={
-              !testTitle.trim()
-                ? "Enter a test title"
-                : ""
-            }
-          >
-            {saving ? "Saving..." : "Save Test"}
-          </button>
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex space-between gap-5">
+              <button
+                onClick={handleSaveTest}
+                disabled={saving || !testTitle.trim() || !dirty}
+                type="button"
+                className="save-test-button"
+                title={!testTitle.trim() ? "Enter a test title" : ""}
+              >
+                {saving ? "Saving..." : "Save Test"}
+              </button>
+              <button
+                className="save-test-button"
+                disabled={runDisabled}
+                onClick={handleSaveAndRun}
+                type="button"
+              >
+                {runLabel}
+              </button>
+            </div>
+            {runBlockedReason && (
+              <p className="text-sm text-slate-600">{runBlockedReason}</p>
+            )}
           </div>
         </div>
+
+        {statusLine && (
+          <p
+            role={statusLine.kind === "error" ? "alert" : "status"}
+            className={[
+              "border-b px-6 py-3 text-sm",
+              statusLine.kind === "error"
+                ? "border-red-200 bg-red-50 text-red-900"
+                : statusLine.kind === "success"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                  : "border-slate-200 bg-slate-50 text-slate-800",
+            ].join(" ")}
+          >
+            {statusLine.text}
+          </p>
+        )}
 
         <div className="flow-area">
           <div className="flow-root">

@@ -5,10 +5,7 @@ import { getTestsAction } from "@/actions/get-tests";
 import { deleteTestAction } from "@/actions/delete-test";
 import CreateTestModal from "@/components/CreateTestModal";
 import { FlowNode } from "@/components/TestFlowBuilder";
-type FeedEvent = { id: number; at: string; label: string; detail: string; kind: "info" | "success" | "warning" };
-type TabletState = { connected: boolean; device?: string; model?: string; android?: string; foregroundPackage?: string; sandboxForeground: boolean; route?: string; updatedAt: string; events: FeedEvent[]; test?: { status: "idle" | "running" | "passed" | "failed"; name?: string; step?: string; error?: string } };
-
-const BRIDGE = "http://localhost:3131";
+import { BRIDGE, getRunBlockedReason, type TabletState } from "@/components/bridge";
 export type ConfirmationOption = {
   id: string;
   testActionId: string;
@@ -78,17 +75,7 @@ export default function Home() {
     }, [refresh]);
     const connected = bridgeOnline && Boolean(state?.connected), events = state?.events ?? [];
     const canRun = connected && state?.sandboxForeground && state.route === "/home" && state.test?.status !== "running";
-    const runBlockedReason = !bridgeOnline
-        ? "Start the bridge to run tests."
-        : !state?.connected
-            ? "Connect the tablet with USB debugging to run tests."
-            : state.test?.status === "running"
-                ? "A test is already running."
-                : !state.sandboxForeground
-                    ? "Open the Sandbox app on the tablet to run tests."
-                    : state.route !== "/home"
-                        ? "Go to the Sandbox Home screen on the tablet to run tests."
-                        : "";
+    const runBlockedReason = getRunBlockedReason(bridgeOnline, state);
     const copyBridgeCommand = async () => {
         try {
             await navigator.clipboard.writeText("npm run bridge");

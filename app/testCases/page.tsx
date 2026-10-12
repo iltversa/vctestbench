@@ -111,7 +111,7 @@ export default function CreateTestButton({ editingAction, onEditClose, isFlowPla
         className="inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
       >
         <span className="text-lg leading-none">+</span>
-        Create Action
+        New action
       </button>
 
       {open && (
