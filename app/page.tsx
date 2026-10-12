@@ -33,9 +33,17 @@ export type SavedTestAction = {
 export type SavedTest = {
   id: string;
   title: string;
+  description?: string;
   flow?: FlowNode[];
   actions?: SavedTestAction[];
 };
+
+const countSteps = (nodes: FlowNode[] = []): number =>
+  nodes.reduce(
+    (total, node) =>
+      total + (node.nodeType === "action" && node.actionId ? 1 : 0) + countSteps(node.paths),
+    0
+  );
 
 export default function Home() {
     const router = useRouter();
@@ -45,7 +53,11 @@ export default function Home() {
     [imageTick, setImageTick] = useState(0),
     [starting, setStarting] = useState(false),
     [launching, setLaunching] = useState(false),
-    [createModalOpen, setCreateModalOpen] = useState(false);
+    [createModalOpen, setCreateModalOpen] = useState(false),
+    [testsLoading, setTestsLoading] = useState(true),
+    [testsError, setTestsError] = useState(""),
+    [testsReload, setTestsReload] = useState(0),
+    [copied, setCopied] = useState(false);
     const refresh = useCallback(async () => {
         try {
             const response = await fetch(BRIDGE + "/state", { cache: "no-store" });
@@ -57,7 +69,6 @@ export default function Home() {
             if (next.connected) setImageTick(Date.now());
         } catch {
             setBridgeOnline(false);
-            setLastError("Local tablet monitor is not running");
         }
     }, []);
     useEffect(() => {
@@ -67,6 +78,26 @@ export default function Home() {
     }, [refresh]);
     const connected = bridgeOnline && Boolean(state?.connected), events = state?.events ?? [];
     const canRun = connected && state?.sandboxForeground && state.route === "/home" && state.test?.status !== "running";
+    const runBlockedReason = !bridgeOnline
+        ? "Start the bridge to run tests."
+        : !state?.connected
+            ? "Connect the tablet with USB debugging to run tests."
+            : state.test?.status === "running"
+                ? "A test is already running."
+                : !state.sandboxForeground
+                    ? "Open the Sandbox app on the tablet to run tests."
+                    : state.route !== "/home"
+                        ? "Go to the Sandbox Home screen on the tablet to run tests."
+                        : "";
+    const copyBridgeCommand = async () => {
+        try {
+            await navigator.clipboard.writeText("npm run bridge");
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1500);
+        } catch {
+            setCopied(false);
+        }
+    };
     // const runWorkout = async () => { setStarting(true); try { const response = await fetch(BRIDGE + "/run-workout", { method: "POST" }); if (!response.ok) throw new Error(); await refresh() } catch { setLastError("Could not start the workout test") } finally { setStarting(false) } };
     // const runVideoClass = async () => { setStarting(true); try { const response = await fetch(BRIDGE + "/run-video-class", { method: "POST" }); if (!response.ok) throw new Error(); await refresh() } catch { setLastError("Could not start the video class test") } finally { setStarting(false) } };
     // const runMonument = async () => { setStarting(true); try { const response = await fetch(BRIDGE + "/run-monument", { method: "POST" }); if (!response.ok) throw new Error(); await refresh() } catch { setLastError("Could not start the Monument test") } finally { setStarting(false) } };
@@ -115,36 +146,58 @@ export default function Home() {
         }
     };
 
-    const handleDeleteTest = async (testId: string) => {
-        if (!testId) return;
+    const handleDeleteTest = async (test: SavedTest) => {
+        if (!test.id) return;
 
-        const confirmed = window.confirm("Delete this saved test?");
+        const confirmed = window.confirm(`Delete "${test.title}"? This cannot be undone.`);
         if (!confirmed) return;
 
-        const result = await deleteTestAction({ id: testId });
+        const result = await deleteTestAction({ id: test.id });
 
         if (!result.success) {
             setLastError(result.message ?? "Could not delete test");
             return;
         }
 
-        setSavedTests((current) => current.filter((test) => test.id !== testId));
+        setSavedTests((current) => current.filter((item) => item.id !== test.id));
+    };
+
+    const retryLoadTests = () => {
+        setTestsLoading(true);
+        setTestsError("");
+        setTestsReload((count) => count + 1);
     };
 
     useEffect(() => {
+        let cancelled = false;
+
         const loadTests = async () => {
-            const result = await getTestsAction();
+            try {
+                const result = await getTestsAction();
+                if (cancelled) return;
 
-            if (!result.success) {
-                console.error(result.error);
-                return;
+                if (!result.success) {
+                    console.error(result.error);
+                    setTestsError("The database did not respond.");
+                    return;
+                }
+
+                setSavedTests((result.data ?? []) as SavedTest[]);
+            } catch (error) {
+                if (cancelled) return;
+                console.error("loadTests error:", error);
+                setTestsError("The server could not be reached.");
+            } finally {
+                if (!cancelled) setTestsLoading(false);
             }
-
-            setSavedTests((result.data) as []);
         };
 
         loadTests();
-    }, []);
+
+        return () => {
+            cancelled = true;
+        };
+    }, [testsReload]);
     return (
         <main className="flex min-h-screen flex-col bg-[#f4f6fa] text-slate-900">
             <header className="border-b border-slate-200 bg-white/90 backdrop-blur-sm">
@@ -155,7 +208,7 @@ export default function Home() {
                         </div>
 
                         <div>
-                            <p className="text-[10px] font-semibold tracking-[0.2em] text-slate-500">
+                            <p className="text-[13px] font-semibold tracking-[0.12em] text-slate-600">
                                 VERSACLIMBER AUTOMATION
                             </p>
 
@@ -167,17 +220,17 @@ export default function Home() {
 
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:ml-auto">
                         <button
-                            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="min-h-[44px] rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                             disabled={!connected || launching}
                             onClick={launchSand}
                             type="button"
                         >
-                            {launching ? "Launching…" : "Launch Sand"}
+                            {launching ? "Opening…" : "Open Sandbox app"}
                         </button>
 
                         <div
                             className={[
-                                "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
+                                "flex min-h-[44px] items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium",
                                 connected
                                     ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                                     : "border-red-200 bg-red-50 text-red-700",
@@ -190,7 +243,7 @@ export default function Home() {
                                 ].join(" ")}
                             />
 
-                            {connected ? "Lenovo tablet connected" : "Tablet disconnected"}
+                            {connected ? "Lenovo tablet connected" : bridgeOnline ? "Tablet offline" : "Bridge not running"}
                         </div>
                     </div>
                 </div>
@@ -203,7 +256,7 @@ export default function Home() {
                             <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm h-[280px]">
                                 <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                                     <div>
-                                        <p className="text-[10px] font-semibold tracking-[0.2em] text-slate-500">
+                                        <p className="text-[13px] font-semibold tracking-[0.12em] text-slate-600">
                                             REALTIME FEED
                                         </p>
 
@@ -267,104 +320,151 @@ export default function Home() {
                         <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm flex-1">
                             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                                 <div>
-                                    <p className="text-[10px] font-semibold tracking-[0.2em] text-slate-500">
+                                    <p className="text-[13px] font-semibold tracking-[0.12em] text-slate-600">
                                         TEST CASES
                                     </p>
 
-                                    <h3 className="mt-1 text-sm font-semibold text-slate-900">Saved tests</h3>
+                                    <h2 className="mt-1 text-lg font-semibold text-slate-900">
+                                        Saved tests
+                                        {!testsLoading && !testsError && (
+                                            <span className="ml-2 text-sm font-normal text-slate-600">
+                                                {savedTests.length} {savedTests.length === 1 ? "test" : "tests"}
+                                            </span>
+                                        )}
+                                    </h2>
                                 </div>
 
                                 <button
                                     type="button"
                                     onClick={handleCreateTestClick}
-                                    className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-700"
+                                    className="min-h-[44px] rounded-lg bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
                                 >
-                                    Create test
+                                    New test
                                 </button>
                             </div>
 
-                            <div className="h-[calc(100%-56px)] overflow-y-auto">
-                                {savedTests.length === 0 ? (
-                                    <div className="px-5 py-8 text-center text-xs text-slate-500">
-                                        No tests yet. Create one to get started.
+                            {runBlockedReason && savedTests.length > 0 && (
+                                <p className="border-b border-slate-200 bg-slate-50 px-5 py-3 text-sm text-slate-700" role="status">
+                                    Run is unavailable. {runBlockedReason}
+                                </p>
+                            )}
+
+                            <div className="h-[calc(100%-72px)] overflow-y-auto">
+                                {testsLoading ? (
+                                    <div className="px-5 py-8 text-center text-sm text-slate-600" role="status">
+                                        Loading tests…
+                                    </div>
+                                ) : testsError ? (
+                                    <div className="m-5 flex flex-col items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-5" role="alert">
+                                        <p className="text-sm leading-6 text-slate-900">
+                                            <strong>Tests could not be loaded.</strong> {testsError}
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={retryLoadTests}
+                                            className="min-h-[44px] rounded-lg bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
+                                        >
+                                            Retry
+                                        </button>
+                                    </div>
+                                ) : savedTests.length === 0 ? (
+                                    <div className="px-5 py-8 text-center text-sm text-slate-600">
+                                        No tests yet. Choose New test to create your first one.
                                     </div>
                                 ) : (
-                                    <ul className="divide-y divide-slate-200">
-                                        {savedTests.map((test) => (
-                                            <li key={test.id} className="flex items-center justify-between gap-3 px-5 py-3">
-                                                <span className="min-w-0 truncate text-sm text-slate-700">{test.title}</span>
+                                    <ul className="flex flex-col gap-3 p-4">
+                                        {savedTests.map((test) => {
+                                            const steps = countSteps(test.flow);
 
-                                                <div className="flex items-center gap-2">
-                                                    <button
-                                                        className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
-                                                        onClick={() => handleEditTest(test.id)}
-                                                        type="button"
-                                                    >
-                                                        Edit
-                                                    </button>
+                                            return (
+                                                <li
+                                                    key={test.id}
+                                                    className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+                                                >
+                                                    <div className="min-w-0">
+                                                        <h3 className="truncate text-base font-semibold text-slate-900">{test.title}</h3>
+                                                        {test.description && (
+                                                            <p className="mt-0.5 truncate text-sm text-slate-600">{test.description}</p>
+                                                        )}
+                                                        <p className="mt-0.5 text-sm text-slate-600">
+                                                            {steps} {steps === 1 ? "step" : "steps"}
+                                                        </p>
+                                                    </div>
 
-                                                    <button
-                                                        className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
-                                                        disabled={!canRun || starting}
-                                                        onClick={() => handleRunTest(test)}
-                                                        type="button"
-                                                    >
-                                                        {activeTest === test.title ? "Running…" : "Run"}
-                                                    </button>
+                                                    <div className="flex shrink-0 items-center gap-2">
+                                                        <button
+                                                            className="min-h-[44px] rounded-lg bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+                                                            disabled={!canRun || starting}
+                                                            onClick={() => handleRunTest(test)}
+                                                            title={runBlockedReason || undefined}
+                                                            type="button"
+                                                        >
+                                                            {activeTest === test.title ? "Running…" : "Run"}
+                                                        </button>
 
-                                                    <button
-                                                        className="shrink-0 rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-100"
-                                                        onClick={() => handleDeleteTest(test.id)}
-                                                        type="button"
-                                                        aria-label={`Delete ${test.title}`}
-                                                        title="Delete test"
-                                                    >
-                                                        Delete
-                                                    </button>
-                                                </div>
-                                            </li>
-                                        ))}
+                                                        <button
+                                                            className="min-h-[44px] rounded-lg border border-slate-300 bg-white px-5 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
+                                                            onClick={() => handleEditTest(test.id)}
+                                                            type="button"
+                                                        >
+                                                            Edit
+                                                        </button>
+
+                                                        <button
+                                                            className="min-h-[44px] rounded-lg px-3 py-2 text-sm font-medium text-red-800 transition hover:bg-red-50"
+                                                            onClick={() => handleDeleteTest(test)}
+                                                            type="button"
+                                                            aria-label={`Delete ${test.title}`}
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </div>
+                                                </li>
+                                            );
+                                        })}
                                     </ul>
                                 )}
                             </div>
                         </section>
 
+                        {connected && (
                         <section className="flex-shrink-0 grid grid-cols-3 divide-x divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                             <div className="min-w-0 px-3 py-4 text-center">
-                                <span className="block text-[9px] font-semibold tracking-wider text-slate-500">
-                                    USB STATUS
+                                <span className="block text-[13px] font-semibold tracking-wider text-slate-600">
+                                    TABLET
                                 </span>
 
                                 <strong
                                     className={[
-                                        "mt-1 block truncate text-xs",
+                                        "mt-1 block truncate text-sm",
                                         connected ? "text-emerald-600" : "text-red-600",
                                     ].join(" ")}
                                 >
-                                    {connected ? "Online" : "Offline"}
+                                    {connected ? "Connected" : "Offline"}
                                 </strong>
                             </div>
 
                             <div className="min-w-0 px-3 py-4 text-center">
-                                <span className="block text-[9px] font-semibold tracking-wider text-slate-500">
-                                    APP STATE
+                                <span className="block text-[13px] font-semibold tracking-wider text-slate-600">
+                                    SANDBOX APP
                                 </span>
 
-                                <strong className="mt-1 block truncate text-xs text-slate-700">
+                                <strong className="mt-1 block truncate text-sm text-slate-800">
                                     {state?.sandboxForeground ? "Visible" : "—"}
                                 </strong>
                             </div>
 
                             <div className="min-w-0 px-3 py-4 text-center">
-                                <span className="block text-[9px] font-semibold tracking-wider text-slate-500">
-                                    ROUTE
+                                <span className="block text-[13px] font-semibold tracking-wider text-slate-600">
+                                    CURRENT SCREEN
                                 </span>
 
-                                <strong className="mt-1 block truncate text-xs text-slate-700">
+                                <strong className="mt-1 block truncate text-sm text-slate-800">
                                     {state?.route ?? "—"}
                                 </strong>
                             </div>
                         </section>
+                        )}
                     </div>
 
                     <section className="min-h-0 h-full">
@@ -376,14 +476,61 @@ export default function Home() {
                                     className="h-full w-full object-cover bg-[#111]"
                                 />
                             ) : (
-                                <div className="flex h-full flex-col items-center justify-center gap-3 bg-slate-100 text-center text-slate-600">
-                                    <span className="grid h-12 w-12 place-items-center rounded-full border border-slate-300 bg-white text-xs font-black text-slate-500">
-                                        USB
-                                    </span>
-                                    <strong className="text-lg text-slate-800">Tablet disconnected</strong>
-                                    <small className="text-sm text-slate-500">
-                                        Reconnect and authorize USB debugging
-                                    </small>
+                                <div className="flex h-full flex-col gap-5 overflow-y-auto bg-white p-6">
+                                    <div>
+                                        <h2 className="text-lg font-semibold text-slate-900">Connect the tablet</h2>
+                                        <p className="mt-1 text-sm leading-6 text-slate-600">
+                                            Three steps, in order. This panel updates as each one completes.
+                                        </p>
+                                    </div>
+
+                                    <ol className="flex flex-col gap-5">
+                                        <li className="flex gap-3">
+                                            <span className={["grid h-7 w-7 shrink-0 place-items-center rounded-full text-sm font-semibold text-white", bridgeOnline ? "bg-emerald-700" : "bg-red-700"].join(" ")} aria-hidden="true">
+                                                {bridgeOnline ? "✓" : "1"}
+                                            </span>
+                                            <div className="min-w-0">
+                                                <p className="text-base font-semibold text-slate-900">
+                                                    Start the bridge{" "}
+                                                    <span className={["text-sm font-medium", bridgeOnline ? "text-emerald-800" : "text-red-800"].join(" ")}>
+                                                        {bridgeOnline ? "Running" : "Not running"}
+                                                    </span>
+                                                </p>
+                                                {!bridgeOnline && (
+                                                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                        <code className="rounded-lg bg-slate-900 px-3 py-2 font-mono text-sm text-slate-100">npm run bridge</code>
+                                                        <button
+                                                            type="button"
+                                                            onClick={copyBridgeCommand}
+                                                            className="min-h-[44px] rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-900 hover:bg-slate-50"
+                                                        >
+                                                            {copied ? "Copied" : "Copy"}
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </li>
+
+                                        <li className="flex gap-3">
+                                            <span className={["grid h-7 w-7 shrink-0 place-items-center rounded-full text-sm font-semibold", state?.connected ? "bg-emerald-700 text-white" : "bg-slate-300 text-slate-800"].join(" ")} aria-hidden="true">
+                                                {state?.connected ? "✓" : "2"}
+                                            </span>
+                                            <div>
+                                                <p className="text-base font-semibold text-slate-900">Connect with USB debugging</p>
+                                                <p className="mt-1 text-sm leading-6 text-slate-600">Plug in the tablet and allow the debugging prompt.</p>
+                                            </div>
+                                        </li>
+
+                                        <li className="flex gap-3">
+                                            <span className={["grid h-7 w-7 shrink-0 place-items-center rounded-full text-sm font-semibold", state?.sandboxForeground ? "bg-emerald-700 text-white" : "bg-slate-300 text-slate-800"].join(" ")} aria-hidden="true">
+                                                {state?.sandboxForeground ? "✓" : "3"}
+                                            </span>
+                                            <div>
+                                                <p className="text-base font-semibold text-slate-900">Open the Sandbox app</p>
+                                                <p className="mt-1 text-sm leading-6 text-slate-600">Use Open Sandbox app in the header once the tablet is connected.</p>
+                                            </div>
+                                        </li>
+                                    </ol>
                                 </div>
                             )}
                         </div>
@@ -391,6 +538,7 @@ export default function Home() {
                 </div>
             </div>
 
+            {(lastError || (state?.test?.status && state.test.status !== "idle")) && (
             <footer className="sticky bottom-0 border-t border-slate-200 bg-white/95 backdrop-blur">
                 <div className="mx-auto flex max-w-[1800px] items-center px-4 py-3 sm:px-6 lg:px-8">
                     <div className="flex min-w-0 items-center gap-3">
@@ -409,18 +557,19 @@ export default function Home() {
                                     ? state.test.step ?? "Test running"
                                     : state?.test?.status === "passed"
                                         ? `${state.test.name ?? "Test"} passed`
-                                        : connected
-                                            ? "Choose a real test sequence"
-                                            : "No tablet control active"}
+                                        : state?.test?.status === "failed"
+                                            ? `${state.test.name ?? "Test"} failed`
+                                            : "Something went wrong"}
                             </p>
 
-                            <p className="truncate text-xs text-slate-500">
-                                {lastError || state?.test?.error || "Only verified tablet actions appear in the feed"}
+                            <p className="truncate text-sm text-slate-700" role="status">
+                                {lastError || state?.test?.error || ""}
                             </p>
                         </div>
                     </div>
                 </div>
             </footer>
+            )}
 
             <CreateTestModal open={createModalOpen} onClose={() => setCreateModalOpen(false)} />
         </main>
