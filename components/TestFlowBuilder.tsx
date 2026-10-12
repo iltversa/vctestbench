@@ -367,23 +367,27 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     const removeNodeRecursive = (
       nodes: FlowNode[]
     ): FlowNode[] => {
-      return nodes
-        .filter(
-          (node) => node.id !== nodeId
-        )
-        .map((node) => ({
-          ...node,
+      return nodes.flatMap((node) => {
+        // If this is the node being deleted,
+        // promote its children to its parent's level.
+        if (node.id === nodeId) {
+          return node.paths;
+        }
 
-          paths: removeNodeRecursive(
-            node.paths
-          ),
-        }));
+        // Otherwise, continue searching recursively.
+        return [
+          {
+            ...node,
+            paths: removeNodeRecursive(node.paths),
+          },
+        ];
+      });
     };
 
     setNodes((currentNodes) => {
-      const updated =
-        removeNodeRecursive(currentNodes);
+      const updated = removeNodeRecursive(currentNodes);
 
+      // Preserve at least one node if the root becomes empty.
       if (updated.length === 0) {
         return [createNode()];
       }
