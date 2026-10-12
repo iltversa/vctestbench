@@ -2769,6 +2769,83 @@ async function executeDeviceAction(action) {
   // SAVE / normal actions
   // ---------------------------------------------
 
+  // ---------------------------------------------
+  // AUTHENTICATION
+  //
+  // Fill the visible email and password fields and press the sign-in
+  // button. Values are passed as JSON so they cannot break out of the
+  // script, and the password is never logged or added to the event feed.
+  // ---------------------------------------------
+
+  if (normalizedTitle === "AUTHENTICATION") {
+    const email = String(action.email ?? "").trim();
+    const password = String(action.password ?? "");
+
+    if (!email || !password) {
+      throw new Error("AUTHENTICATION needs both an email and a password.");
+    }
+
+    const result = await pageAction(`(() => {
+      const email = ${JSON.stringify(email)};
+      const password = ${JSON.stringify(password)};
+      const visible = (el) => !!(el.offsetWidth || el.offsetHeight);
+      const inputs = [...document.querySelectorAll("input")]
+        .filter((el) => visible(el) && !el.disabled && el.type !== "hidden");
+      const passwordField = inputs.find((el) => el.type === "password");
+
+      if (!passwordField) return { ok: false, error: "No password field is visible on the tablet." };
+
+      const hint = (el) =>
+        [el.type, el.name, el.id, el.placeholder, el.autocomplete, el.getAttribute("aria-label")]
+          .join(" ").toLowerCase();
+      const others = inputs.filter((el) => el !== passwordField);
+      const emailField =
+        others.find((el) => el.type === "email") ||
+        others.find((el) => /e-?mail|user|login/.test(hint(el))) ||
+        others.find((el) => ["text", "tel", ""].includes(el.type));
+
+      if (!emailField) return { ok: false, error: "No email field is visible on the tablet." };
+
+      const setValue = (el, value) => {
+        el.focus();
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+        setter.call(el, value);
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      };
+
+      setValue(emailField, email);
+      setValue(passwordField, password);
+
+      const scope = passwordField.form || document;
+      const label = (b) => (b.innerText || b.value || b.getAttribute("aria-label") || "").trim().toLowerCase();
+      const buttons = [...scope.querySelectorAll("button,[role=button],input[type=submit]")].filter(visible);
+      const submit =
+        buttons.find((b) => b.type === "submit") ||
+        buttons.find((b) => /sign\s*in|log\s*in|login|continue|submit|next/.test(label(b)));
+
+      if (!submit) return { ok: false, error: "No sign-in button was found next to the password field." };
+
+      submit.click();
+      return { ok: true, button: label(submit) };
+    })()`);
+
+    if (!result || result.ok !== true) {
+      throw new Error(result?.error || "Could not sign in on the tablet.");
+    }
+
+    addEvent(
+      `Signed in as ${email}`,
+      `Pressed "${result.button}"`,
+      "success"
+    );
+
+    // Give the app a moment to leave the login screen before the next step.
+    await sleep(1500);
+
+    return;
+  }
+
   if (normalizedTitle === "SAVE") {
     await clickSaveButton();
 
