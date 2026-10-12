@@ -11,87 +11,87 @@ import { eq, asc } from "drizzle-orm";
 export async function getTests() {
   const testRows = await db.select().from(tests);
 
-  const result = [];
+  // const result = [];
 
-  for (const test of testRows) {
-    const flowNodes = Array.isArray((test as any).flow)
-      ? (test as any).flow
-      : [];
+  // for (const test of testRows) {
+  //   const flowNodes = Array.isArray((test as any).flow)
+  //     ? (test as any).flow
+  //     : [];
 
-    // -----------------------------------
-    // Collect every actionId from flow
-    // -----------------------------------
+  //   // -----------------------------------
+  //   // Collect every actionId from flow
+  //   // -----------------------------------
 
-    const actionIds = new Set<string>();
+  //   const actionIds = new Set<string>();
 
-    function collectActionIds(nodes: any[]) {
-      for (const node of nodes) {
-        if (node?.actionId) {
-          actionIds.add(node.actionId);
-        }
+  //   function collectActionIds(nodes: any[]) {
+  //     for (const node of nodes) {
+  //       if (node?.actionId) {
+  //         actionIds.add(node.actionId);
+  //       }
 
-        if (Array.isArray(node?.paths)) {
-          collectActionIds(node.paths);
-        }
-      }
-    }
+  //       if (Array.isArray(node?.paths)) {
+  //         collectActionIds(node.paths);
+  //       }
+  //     }
+  //   }
 
-    collectActionIds(flowNodes);
+  //   collectActionIds(flowNodes);
 
-    // -----------------------------------
-    // Fetch actions referenced by this flow
-    // -----------------------------------
+  //   // -----------------------------------
+  //   // Fetch actions referenced by this flow
+  //   // -----------------------------------
 
-    const actions = [];
+  //   const actions = [];
 
-    for (const actionId of actionIds) {
-      const actionRows = await db
-        .select()
-        .from(testActions)
-        .where(eq(testActions.id, actionId));
+  //   for (const actionId of actionIds) {
+  //     const actionRows = await db
+  //       .select()
+  //       .from(testActions)
+  //       .where(eq(testActions.id, actionId));
 
-      if (actionRows.length === 0) {
-        console.warn(
-          `Action not found: ${actionId}`
-        );
+  //     if (actionRows.length === 0) {
+  //       console.warn(
+  //         `Action not found: ${actionId}`
+  //       );
 
-        continue;
-      }
+  //       continue;
+  //     }
 
-      const action = actionRows[0];
+  //     const action = actionRows[0];
 
-      // -----------------------------------
-      // Fetch confirmation options
-      // -----------------------------------
+  //     // -----------------------------------
+  //     // Fetch confirmation options
+  //     // -----------------------------------
 
-      const actionOptions = await db
-        .select()
-        .from(confirmationOptions)
-        .where(
-          eq(
-            confirmationOptions.testActionId,
-            action.id
-          )
-        );
+  //     const actionOptions = await db
+  //       .select()
+  //       .from(confirmationOptions)
+  //       .where(
+  //         eq(
+  //           confirmationOptions.testActionId,
+  //           action.id
+  //         )
+  //       );
 
-      actions.push({
-        ...action,
+  //     actions.push({
+  //       ...action,
 
-        confirmationOptions: actionOptions,
-      });
-    }
+  //       confirmationOptions: actionOptions,
+  //     });
+  //   }
 
-    result.push({
-      ...test,
+  //   result.push({
+  //     ...test,
 
-      // Original tree.
-      // This determines execution order.
-      flow: flowNodes,
+  //     // Original tree.
+  //     // This determines execution order.
+  //     flow: flowNodes,
 
-      // Action definitions referenced by flow.
-      actions,
-    });
-  }
+  //     // Action definitions referenced by flow.
+  //     actions,
+  //   });
+  // }
 
-  return result;
+  return testRows;
 }

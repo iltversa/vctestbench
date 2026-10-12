@@ -27,6 +27,7 @@ export type SavedTestAction = {
   email?: string | null;
   password?: string | null;
   icon?: string | null;
+  clickOnText?: string | null;
 };
 
 export type SavedTest = {

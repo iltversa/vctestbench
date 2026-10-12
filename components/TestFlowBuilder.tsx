@@ -5,7 +5,6 @@ import React, { useEffect, useRef, useState } from "react";
 import CreateTestButton from "@/app/testCases/page";
 import { SavedTest } from "@/app/page";
 import getActionsAction from "@/actions/get-actions";
-import { TestActionDefinition } from "@/services/get-test-actions";
 import { createFullTestAction, updateFullTestAction } from "@/actions/create-full-test";
 import { deleteTestActionDefinition } from "@/actions/delete-test-action";
 import { TestAction } from "@/components/ActionDialog";
@@ -13,8 +12,34 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faUser } from "@fortawesome/free-solid-svg-icons/faUser";
 import { faTimes, faStop, faCheck, faPaste } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
-
-
+import { useTestFlowStore } from "@/store/testFlowStore";
+export type TestActionDefinition = {
+  id: string;
+  title: string;
+  hasConfirmation: boolean;
+  confirmationTimeout: number | null;
+  actionTimeout: number;
+  pasteText?: string | null;
+  icon?: string | null;
+  clickOnText?: string | null;
+  email?: string | null;
+  password?: string | null;
+  confirmationOptions: {
+    id: string;
+    option: string;
+    isSelected:boolean |null;
+  }[];
+};
+export type ActionDefinition=
+{
+  id?: string; 
+  title: string; 
+  icon?: string | null | undefined; 
+  confirmationOptions?: { option: string; isSelected: boolean }[];
+  hasConfirmation?: boolean; 
+  actionTimeout?: number; 
+  confirmationTimeout?: number | null;
+}
 export type FlowNode = {
   id: string;
   actionId?: string;
@@ -40,6 +65,17 @@ const hydrateFlow = (
   actionList: TestActionDefinition[]
 ): FlowNode[] => {
   return flowNodes.map((savedNode) => {
+    if (savedNode.nodeType === "confirmation" || savedNode.optionId) {
+      return {
+        id: savedNode.id ?? crypto.randomUUID(),
+        nodeType: "confirmation" as const,
+        optionId: savedNode.optionId,
+        optionLabel: savedNode.optionLabel ?? "Option",
+        isSelected: Boolean(savedNode.isSelected),
+        paths: savedNode.paths?.length ? hydrateFlow(savedNode.paths, actionList) : [],
+      };
+    }
+
     const matchedAction = savedNode.actionId
       ? actionList.find((action) => action.id === savedNode.actionId)
       : undefined;
@@ -119,7 +155,22 @@ const hydrateFlow = (
         matchedAction?.title,
       actionData,
       paths: savedNode.paths?.length
-        ? hydrateFlow(savedNode.paths, actionList)
+        ? savedNode.paths.map((path: any) => {
+            if (path.nodeType === "confirmation" || path.optionId) {
+              const option = actionData?.confirmationOptions?.find(
+                (item) => item.id === path.optionId
+              );
+              return {
+                id: path.id ?? crypto.randomUUID(),
+                nodeType: "confirmation" as const,
+                optionId: path.optionId,
+                optionLabel: path.optionLabel ?? option?.option ?? "Option",
+                isSelected: path.isSelected ?? Boolean(option?.isSelected),
+                paths: path.paths?.length ? hydrateFlow(path.paths, actionList) : [],
+              };
+            }
+            return hydrateFlow([path], actionList)[0];
+          })
         : [],
     };
   });
@@ -176,31 +227,66 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
 
     event.dataTransfer.dropEffect = "copy";
   };
+  const prepareActionForEditor = (
+  action: TestActionDefinition,
+  flowTitle?: string
+): TestActionDefinition => {
+  const title = flowTitle?.trim() || action.title;
+  const options = action.confirmationOptions ?? [];
+
+  return {
+    ...action,
+    title,
+    clickOnText: action.clickOnText ?? "",
+    pasteText: action.pasteText ?? "",
+    hasConfirmation:
+      action.hasConfirmation ??
+      title.trim().toUpperCase() === "CONFIRMATION",
+    actionTimeout: action.actionTimeout ?? 5000,
+    confirmationTimeout: action.confirmationTimeout ?? 5000,
+    confirmationOptions: options.map((option) => ({
+      ...option,
+      isSelected: Boolean(option.isSelected),
+    })),
+  };
+};
+
   const buildChildrenForAction = (
-    action: TestActionDefinition
+    action: TestActionDefinition,
+    existingPaths: FlowNode[] = []
   ): FlowNode[] => {
-    // If the action has confirmation options, those become children and each
-    // confirmation value gets its own empty action drop zone beneath it.
-    if (action.hasConfirmation && action.confirmationOptions.length > 0) {
-      return action.confirmationOptions.map((option) => ({
-        id: crypto.randomUUID(),
-        optionId: option.id,
-        isSelected: option.isSelected,
-        optionLabel: option.option,
-        nodeType: "confirmation" as const,
-        paths: [
-          {
-            id: crypto.randomUUID(),
-            nodeType: "action" as const,
-            paths: [],
-          },
-        ],
-      }));
+    // Only the action literally titled CONFIRMATION renders option branches.
+    // Each option is visible, but only the selected option gets a child drop zone.
+    const isConfirmationAction =
+      action.title?.trim().toUpperCase() === "CONFIRMATION";
+
+    if (isConfirmationAction) {
+      return (action.confirmationOptions ?? []).map((option) => {
+        const existingOption = existingPaths.find(
+          (path) => path.nodeType === "confirmation" && path.optionId === option.id
+        );
+        const selected = Boolean(option.isSelected);
+
+        return {
+          id: existingOption?.id ?? crypto.randomUUID(),
+          optionId: option.id,
+          isSelected: selected,
+          optionLabel: option.option,
+          nodeType: "confirmation" as const,
+          paths: selected
+            ? existingOption?.paths?.length
+              ? existingOption.paths
+              : [{ id: crypto.randomUUID(), nodeType: "action" as const, paths: [] }]
+            : [],
+        };
+      });
     }
 
-    // Otherwise, seed with one empty slot so the user can chain immediately.
+    // Every non-CONFIRMATION action gets exactly one child drop zone.
+    // Preserve the existing child branch when editing the action.
+    const existingChild = existingPaths.find((path) => path.nodeType === "action");
     return [
-      {
+      existingChild ?? {
         id: crypto.randomUUID(),
         nodeType: "action" as const,
         paths: [],
@@ -253,14 +339,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     }
 
     // IMPORTANT: never give the editor the action object from `actions`
-    const actionCopy: TestActionDefinition = {
-      ...action,
-      confirmationOptions:
-        action.confirmationOptions?.map((option) => ({
-          ...option,
-          isSelected: Boolean(option.isSelected),
-        })) ?? [],
-    };
+    const actionCopy = prepareActionForEditor(action);
 
     setPendingNodeId(nodeId);
     setEditingAction(actionCopy);
@@ -329,21 +408,18 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   };
 
   const openActionEditor = (
-    action: TestActionDefinition,
-    nodeId?: string
-  ) => {
-    const actionCopy: TestActionDefinition = {
-      ...action,
-      confirmationOptions:
-        action.confirmationOptions?.map((option) => ({
-          ...option,
-          isSelected: Boolean(option.isSelected),
-        })) ?? [],
-    };
+  action: TestActionDefinition,
+  nodeId?: string,
+  flowTitle?: string
+) => {
+  const actionCopy = prepareActionForEditor(action, flowTitle);
 
-    setPendingNodeId(nodeId ?? null);
-    setEditingAction(actionCopy);
-  };
+  setPendingNodeId(nodeId ?? null);
+  setEditingAction(actionCopy);
+
+  // Also update the Zustand store if the popup reads from it.
+  useTestFlowStore.getState().setEditingAction(actionCopy);
+};
 
   const handleActionSavedToFlow = (configuredAction: TestAction) => {
     if (!pendingNodeId) return;
@@ -361,7 +437,8 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
         })
       ),
       actionTimeout: configuredAction.actionTimeout,
-      pasteText: (configuredAction as any).pasteText ?? (configuredAction as any).paste_text ?? null,
+      pasteText: (configuredAction as any).pasteText ?? (configuredAction as any).pasteText ?? null,
+      clickOnText: (configuredAction as any).clickOnText ?? (configuredAction as any).clickOnText ?? null,
       email: (configuredAction as any).email ?? null,
       password: (configuredAction as any).password ?? null,
       icon: (configuredAction as any).icon ?? null,
@@ -369,35 +446,21 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
 
     setNodes((currentNodes) =>
       updateNode(currentNodes, pendingNodeId, (node) => {
-        if (node.actionId) {
-          return {
-            ...node,
-            actionId: actionDef.id,
-            actionTitle: actionDef.title,
-            actionData: {
-              ...actionDef,
-              confirmationOptions: actionDef.confirmationOptions.map((option) => ({
-                ...option,
-              })),
-            },
-          };
-        }
-
-        // ADDING an action to an empty drop-zone:
-        // create its initial children.
-        const children = buildChildrenForAction(actionDef);
+        const configuredData: TestActionDefinition = {
+          ...actionDef,
+          confirmationOptions: (actionDef.confirmationOptions ?? []).map((option) => ({
+            ...option,
+            isSelected: Boolean(option.isSelected),
+          })),
+        };
+        const children = buildChildrenForAction(configuredData, node.paths);
 
         return {
           ...node,
-          actionId: actionDef.id,
-          actionTitle: actionDef.title,
+          actionId: configuredData.id,
+          actionTitle: configuredData.title,
           nodeType: "action" as const,
-          actionData: {
-            ...actionDef,
-            confirmationOptions: actionDef.confirmationOptions.map((option) => ({
-              ...option,
-            })),
-          },
+          actionData: configuredData,
           paths: children,
         };
       })
@@ -649,14 +712,15 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   };
 
   const renderNode = (node: FlowNode, level: number = 0): React.ReactNode => {
-    console.log(node.actionData, "node.actionData");
+    // console.log(node.actionData, "node.actionData");
     const isConfirmation = node.nodeType === "confirmation";
     const isDropZone = node.nodeType === "action" && !node.actionId;
     const isDelayAction = node.actionTitle === "DELAY";
     const hasconfirmationChildren = node.nodeType === "action" && node.paths.length > 0 && node.paths.every((p) => p.nodeType === "confirmation");
-    const canAddPath = isConfirmation || (!hasconfirmationChildren && !isDropZone);
+    const canAddPath = !isConfirmation && !hasconfirmationChildren && !isDropZone;
     const canAcceptDrop = node.nodeType === "action";
     const isPasteAction = node.nodeType === "action" && node.actionTitle?.trim().toUpperCase() === "PASTE";
+    const isCickOnText = node.nodeType === "action" && node.actionTitle?.trim().toUpperCase() === "CLICK";
     const isAuthenticationAction = node.nodeType === "action" && node.actionTitle?.trim().toUpperCase() === "AUTHENTICATION";
 
     return (
@@ -680,6 +744,10 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
             ) : isPasteAction ? (
               <span className="node-card-title">
                 {node.actionData?.pasteText || "PASTE"} <FontAwesomeIcon icon={getFaIcon(node.actionData?.icon)} />
+              </span>
+            ): isCickOnText ? (
+              <span className="node-card-title">
+                {node.actionData?.clickOnText || "CLICK"} <FontAwesomeIcon icon={getFaIcon(node.actionData?.icon)} />
               </span>
             ) : isAuthenticationAction ? (
               <div className="w-full space-y-2">
@@ -707,16 +775,25 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
                 {node.actionTitle ?? "Unassigned"} <FontAwesomeIcon icon={getFaIcon(node.actionData?.icon)} />
               </span>
             )}
-            {!isConfirmation && !isDropZone && isDelayAction && (
+            {!isConfirmation && !isDropZone && (
               <button
                 className="edit-button"
                 onClick={() => {
-                  if (node.actionData) {
-                    openActionEditor(node.actionData, node.id);
+                  const actionToEdit =
+                    node.actionData ??
+                    actions.find((action) => action.id === node.actionId);
+
+                  if (actionToEdit) {
+                    openActionEditor(
+                      actionToEdit,
+                      node.id,
+                      node.actionTitle
+                    );
                   }
                 }}
                 type="button"
-                title="Edit delay action"
+                title={`Edit ${node.actionTitle ?? "action"}`}
+                aria-label={`Edit ${node.actionTitle ?? "action"}`}
                 style={{
                   background: "none",
                   border: "none",
@@ -729,7 +806,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
               </button>
             )}
 
-            {(canAddPath || !isConfirmation) && !isDelayAction && (
+            {!isConfirmation && !isDelayAction && !isDropZone && (
               <div className="node-card-menu">
                 <button
                   className="menu-trigger"
@@ -793,7 +870,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
 
   const handleRunTest = async (test: SavedTest) => {
 
-    console.log(test);
+    // console.log(test);
     try {
       const response = await fetch(BRIDGE + "/run-test", {
         method: "POST",

@@ -5,13 +5,6 @@ import { updateTestActionService } from "@/services/update-test-action";
 export type UpdateTestActionInput = {
   id: string;
   title: string;
-  hasConfirmation: boolean;
-  confirmationTimeout?: number | null;
-  confirmationOptions: { option: string; isSelected: boolean }[];
-  actionTimeout: number;
-  pasteText?: string | null;
-  email?: string | null;
-  password?: string | null;
   icon?: string | null;
 };
 

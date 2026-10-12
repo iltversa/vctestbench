@@ -56,11 +56,14 @@ export default function CreateTestButton({ editingAction, onEditClose, isFlowPla
           password: (editingAction as any).password ?? null,
           icon: (editingAction as any).icon ?? null,
           type: (editingAction as any).type ?? null,
+          clickOnText: (editingAction as any).clickOnText ?? null,
         };
       })()
     : null;
 
   const handleSaveAction = async (action: TestAction) => {
+        console.log("editingAction:", action);
+
     // If this is for flow placement, just call the callback and don't save to DB
     if (isFlowPlacement && onFlowActionSave) {
       onFlowActionSave(action);
@@ -71,23 +74,23 @@ export default function CreateTestButton({ editingAction, onEditClose, isFlowPla
     // Otherwise, save to database as normal
     try {
       const targetId = action.id;
-        console.log("editingAction:", editingAction);
 
       if (targetId) {
-        const result = await updateTestActionAction({
+        await updateTestActionAction({
           id: targetId,
           title: action.title,
-          hasConfirmation: action.hasConfirmation,
-          confirmationTimeout: action.confirmationTimeout ?? null,
-          confirmationOptions: (action.confirmationOptions || []).map((option) => ({
-            option: option.option,
-            isSelected: option.isSelected,
-          })),
-          actionTimeout: action.actionTimeout,
-          pasteText: action.pasteText ?? null,
-          email: action.email ?? null,
-          password: action.password ?? null,
-          icon: action.icon ?? null,
+          // hasConfirmation: action.hasConfirmation,
+          // confirmationTimeout: action.confirmationTimeout ?? null,
+          // confirmationOptions: (action.confirmationOptions || []).map((option) => ({
+          //   option: option.option,
+          //   isSelected: option.isSelected,
+          // })),
+          // actionTimeout: action.actionTimeout,
+          // pasteText: action.pasteText ?? null,
+          // email: action.email ?? null,
+          // password: action.password ?? null,
+          // icon: action.icon ?? null,
+          // clickOnText: action.clickOnText ?? null,
         });
 
         await onActionSaved?.();

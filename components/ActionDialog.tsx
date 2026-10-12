@@ -21,6 +21,7 @@ export type TestAction = {
     password?: string | null;
     type?: string | null;
     icon?: string | null;
+    clickOnText?: string | null;
 };
 
 const DEFAULT_CONFIRMATION_OPTIONS: ConfirmationChoice[] = [
@@ -50,6 +51,7 @@ export default function ActionDialog({
     const [title, setTitle] = useState(test?.title ?? "");
     const [actionTimeout, setActionTimeout] = useState(test?.actionTimeout?.toString() ?? "5");
     const [email, setEmail] = useState(test?.email ?? "");
+    const [clickOnText, setClickOnText] = useState(test?.clickOnText ?? "");
     const [password, setPassword] = useState(test?.password ?? "");
     const [icon, setIcon] = useState(test?.icon ?? "");
     const [pasteText, setPasteText] = useState(test?.pasteText ?? "");
@@ -71,6 +73,7 @@ export default function ActionDialog({
         setTitle(test?.title ?? "");
         setActionTimeout(test?.actionTimeout?.toString() ?? "5");
         setEmail(test?.email ?? "");
+        setClickOnText(test?.clickOnText ?? "");
         setPassword(test?.password ?? "");
         setIcon(test?.icon ?? "");
         setPasteText(test?.pasteText ?? "");
@@ -160,9 +163,9 @@ export default function ActionDialog({
             email: email || null,
             password: password || null,
             icon: icon || null,
+            clickOnText: clickOnText || null,
             ...(isPasteAction ? { pasteText: pasteText.trim() } : {}),
         };
-
         try {
             setSaving(true);
 
@@ -277,9 +280,9 @@ export default function ActionDialog({
                                 </label>
                                 <input
                                     type="text"
-                                    value={title}
-                                    onChange={(event) => setTitle(event.target.value)}
-                                    placeholder="e.g. Start workout"
+                                    value={clickOnText}
+                                    onChange={(event) => setClickOnText(event.target.value)}
+                                    placeholder="Start"
                                     className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
                                 />
                             </div>

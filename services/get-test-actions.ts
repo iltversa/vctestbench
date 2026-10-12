@@ -10,6 +10,7 @@ export type TestActionDefinition = {
   actionTimeout: number;
   pasteText?: string | null;
   icon?: string | null;
+  clickOnText?: string | null;
   email?: string | null;
   password?: string | null;
   confirmationOptions: {
@@ -24,28 +25,29 @@ export async function getActionsService(): Promise<TestActionDefinition[]> {
     .select({
       actionId: testActions.id,
       title: testActions.title,
-      hasConfirmation: testActions?.hasConfirmation,
-      confirmationTimeout: testActions.confirmationTimeout,
-      actionTimeout: testActions.actionTimeout,
-      email: testActions.email,
-      password: testActions.password,
-      pasteText: testActions.pasteText,
+      // // hasConfirmation: testActions?.hasConfirmation,
+      // // confirmationTimeout: testActions.confirmationTimeout,
+      // actionTimeout: testActions.actionTimeout,
+      // email: testActions.email,
+      // password: testActions.password,
+      // pasteText: testActions.pasteText,
       icon: testActions.icon,
-      confirmationOptionId: confirmationOptions.id,
-      confirmationOption: confirmationOptions.option,
-      confirmationisSelected: confirmationOptions.isSelected,
+      // clickOnText: testActions.clickOnText,
+      // confirmationOptionId: confirmationOptions.id,
+      // confirmationOption: confirmationOptions.option,
+      // confirmationisSelected: confirmationOptions.isSelected,
     })
     .from(testActions)
-    .leftJoin(
-      confirmationOptions,
-      eq(
-        confirmationOptions.testActionId,
-        testActions.id
-      ) || []
-    ) 
+    // .leftJoin(
+    //   confirmationOptions,
+    //   eq(
+    //     confirmationOptions.testActionId,
+    //     testActions.id
+    //   ) || []
+    // ) 
     .orderBy(
       asc(testActions.title),
-      asc(confirmationOptions.option)
+      // asc(confirmationOptions.option)
     );
 
   const actionsMap = new Map<
@@ -58,30 +60,31 @@ export async function getActionsService(): Promise<TestActionDefinition[]> {
     const action = actionsMap.get(actionId) ?? {
       id: actionId,
       title: String(row.title),
-      hasConfirmation: Boolean(row.hasConfirmation),
-      confirmationTimeout: row.confirmationTimeout ?? null,
-      actionTimeout: Number(row.actionTimeout ?? 0),
-      pasteText: row.pasteText ?? null,
+      // hasConfirmation: Boolean(row.hasConfirmation),
+      // confirmationTimeout: row.confirmationTimeout ?? null,
+      // actionTimeout: Number(row.actionTimeout ?? 0),
+      // pasteText: row.pasteText ?? null,
       icon: row.icon ?? null,
-      email: row.email ?? null,
-      password: row.password ?? null,
-      confirmationOptions: [],
+      // clickOnText: row.clickOnText ?? null,
+      // email: row.email ?? null,
+      // password: row.password ?? null,
+      // confirmationOptions: [],
     };
 
     if (!actionsMap.has(actionId)) {
       actionsMap.set(actionId, action);
     }
 
-    const optionId = row.confirmationOptionId ? String(row.confirmationOptionId) : null;
-    const optionValue = row.confirmationOption ? String(row.confirmationOption) : null;
+    // const optionId = row.confirmationOptionId ? String(row.confirmationOptionId) : null;
+    // const optionValue = row.confirmationOption ? String(row.confirmationOption) : null;
 
-    if (optionId && optionValue) {
-      action.confirmationOptions.push({
-        id: optionId,
-        option: optionValue,
-        isSelected: Boolean(row.confirmationisSelected),
-      });
-    }
+    // if (optionId && optionValue) {
+    //   action.confirmationOptions.push({
+    //     id: optionId,
+    //     option: optionValue,
+    //     isSelected: Boolean(row.confirmationisSelected),
+    //   });
+    // }
   }
 
   return Array.from(actionsMap.values());
