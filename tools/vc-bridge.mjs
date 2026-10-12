@@ -2471,8 +2471,6 @@ async function runVideoClassTest(){
 async function runTest(testData) {
   console.log("================================");
   console.log("RUN TEST:", testData?.title);
-  console.log("FLOW:", testData?.flow);
-  console.log("ACTIONS:", testData?.actions);
   console.log("================================");
 
   if (!Array.isArray(testData?.flow)) {
@@ -2667,15 +2665,6 @@ async function executeFlowNodes(nodes, actionMap) {
 
     if (normalizedTitle === "CONFIRMATION") {
       addEvent(
-        `testtt action: ${JSON.stringify(
-          action,
-          null,
-          2
-        )}`,
-        "",
-        "success"
-      );
-      addEvent(
   `Confirmation options: ${JSON.stringify(
     action.confirmationOptions,
     null,
@@ -2758,7 +2747,7 @@ async function executeDeviceAction(action) {
         const input = document.querySelector('input[type="text"], input:not([type]), textarea');
         if (!input) return 'No input field found';
         input.focus();
-        input.value = '${pasteText.replace(/'/g, "\\'")}';
+        input.value = ${JSON.stringify(pasteText)};
         input.dispatchEvent(new Event('input', { bubbles: true }));
         input.dispatchEvent(new Event('change', { bubbles: true }));
         return 'Text pasted successfully';
@@ -2904,11 +2893,18 @@ async function executeConfirmationNode(
 
 
 
+// The bridge drives a real device, so only the TestBench UI may call it.
+// A CORS header alone is not enough: the browser still sends a cross-origin
+// POST, so Origin and Host are checked before anything runs.
+const ALLOWED_ORIGINS=new Set((process.env.VC_ALLOWED_ORIGINS??"http://localhost:3000,http://127.0.0.1:3000").split(",").map(value=>value.trim()).filter(Boolean));
+const ALLOWED_HOSTS=new Set(["localhost:"+PORT,"127.0.0.1:"+PORT]);
+const MAX_BODY_BYTES=1_000_000;
 const server=http.createServer((req,res)=>{
-  res.setHeader("Access-Control-Allow-Origin", "*");
-res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-//  res.setHeader("Access-Control-Allow-Origin","*");res.setHeader("Access-Control-Allow-Methods","GET,POST,OPTIONS");res.setHeader("Cache-Control","no-store");
+  const origin=req.headers.origin;
+  if(!ALLOWED_HOSTS.has(req.headers.host??"")||(origin!==undefined&&!ALLOWED_ORIGINS.has(origin))){res.writeHead(403);return res.end()}
+  if(origin){res.setHeader("Access-Control-Allow-Origin",origin);res.setHeader("Vary","Origin")}
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
  if(req.method==="OPTIONS"){res.writeHead(204);return res.end()}
  if(req.url?.startsWith("/screen")){if(!screen){res.writeHead(404);return res.end()}res.writeHead(200,{"Content-Type":"image/png"});return res.end(screen)}
  if(req.url==="/state"){res.writeHead(200,{"Content-Type":"application/json"});return res.end(JSON.stringify({...state,test}))}
@@ -2918,13 +2914,27 @@ res.setHeader("Access-Control-Allow-Headers", "Content-Type");
  if(req.url==="/tap-stop"&&req.method==="POST"){res.writeHead(200,{"Content-Type":"application/json"});clickText(["stop"]).then(value=>res.end(JSON.stringify({clicked:value||false}))).catch(error=>{res.writeHead(500);res.end(JSON.stringify({error:error.message}))});return}
  if(req.url==="/run-video-class"&&req.method==="POST"){res.writeHead(202,{"Content-Type":"application/json"});res.end(JSON.stringify({accepted:true}));runVideoClassTest().catch(async error=>{addEvent("Video class test failed",error.message,"warning");test={status:"failed",name:"Video class test",error:error.message,finishedAt:new Date().toISOString()};state.test=test;try{if(state.route?.startsWith("/live-stream-ts/"))await adb("shell","input","tap","660","690")}catch{}});return}
  if (req.url === "/run-test" && req.method === "POST") {
+  if (!String(req.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) {
+    res.writeHead(415, {"Content-Type": "application/json"});
+    return res.end(JSON.stringify({accepted: false, error: "Content-Type must be application/json"}));
+  }
+
   let body = "";
+  let tooLarge = false;
 
   req.on("data", chunk => {
+    if (tooLarge) return;
     body += chunk;
+    if (body.length > MAX_BODY_BYTES) {
+      tooLarge = true;
+      res.writeHead(413, {"Content-Type": "application/json"});
+      res.end(JSON.stringify({accepted: false, error: "Request body too large"}));
+      req.destroy();
+    }
   });
 
   req.on("end", () => {
+    if (tooLarge) return;
     try {
       const testData = JSON.parse(body);
 

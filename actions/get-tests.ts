@@ -1,9 +1,11 @@
 "use server";
 
 import { getTests } from "@/services/get-tests";
+import { requireUserIfEnabled } from "@/services/require-user";
 
 export async function getTestsAction() {
   try {
+    await requireUserIfEnabled();
     const tests = await getTests();
 
     return {

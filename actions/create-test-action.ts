@@ -1,6 +1,7 @@
 "use server";
 
 import { createTestActionService } from "@/services/create-test-action";
+import { requireUserIfEnabled } from "@/services/require-user";
 
 export type CreateTestActionInput = {
   id?: string;
@@ -18,6 +19,7 @@ export async function createTestActionAction(
   input: CreateTestActionInput
 ) {
   try {
+    await requireUserIfEnabled();
     const action = await createTestActionService(input);
 
     return {

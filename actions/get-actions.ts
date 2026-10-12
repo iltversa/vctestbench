@@ -1,9 +1,11 @@
 "use server";
 
 import { getActionsService } from "@/services/get-test-actions";
+import { requireUserIfEnabled } from "@/services/require-user";
 
 export default async function getActionsAction() {
     try {
+        await requireUserIfEnabled();
         const actions = await getActionsService();
         return { success: true, data: actions };
 
