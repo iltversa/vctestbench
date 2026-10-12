@@ -3,6 +3,7 @@
 import {
   filterUnsavedRunIdsService,
   getRunService,
+  getRunTrendsService,
   listRunsService,
   saveRunReportService,
 } from "@/services/run-reports";
@@ -55,6 +56,16 @@ export async function getRunAction(input: { runId: string }) {
       : { success: false as const, notFound: true as const, message: "This report was not found." };
   } catch (error) {
     console.error("getRunAction error:", error);
+    return FAILED;
+  }
+}
+
+export async function getRunTrendsAction() {
+  try {
+    await requireUserIfEnabled();
+    return { success: true as const, trends: await getRunTrendsService() };
+  } catch (error) {
+    console.error("getRunTrendsAction error:", error);
     return FAILED;
   }
 }

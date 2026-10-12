@@ -74,8 +74,13 @@ as *Not run*, and a screenshot of the tablet at the moment of failure is kept.
 
 - **Home** lists the five most recent runs; **Run history** (`/runs`) lists all
   of them, and `/runs?test=<id>` filters to one test.
+- **Test health** at the top of `/runs`: for each test, the pass rate over its
+  newest 20 runs, a ✓/✕ strip from oldest to newest, how long it has been
+  passing or failing, the average duration and its most common failing step.
+  Worst tests come first. A deleted test keeps its history under its old title.
 - **Report** (`/runs/<id>`) shows the failure with a plain-language likely cause,
-  the step table, and Download JSON / Print.
+  the step table, and Download JSON / Print. **Run again** starts the test as it
+  is saved now (not the version that run used).
 - The bridge holds the last 20 runs in memory. Any open page copies runs the
   database has not seen yet, so a report is saved even if you were on another
   screen when it finished. Saving is idempotent.

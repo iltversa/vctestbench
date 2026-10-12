@@ -146,3 +146,125 @@ export async function getRunService(runId: string) {
   const [row] = await db.select().from(testRuns).where(eq(testRuns.runId, runId));
   return row ?? null;
 }
+
+// ---------------------------------------------------------------------
+// Trends: how each test has been doing over its recent runs.
+// ---------------------------------------------------------------------
+
+const TREND_RUNS_PER_TEST = 20;
+const TREND_SCAN_LIMIT = 500;
+
+export type TestTrend = {
+  key: string;
+  testId: string | null;
+  title: string;
+  total: number;
+  passed: number;
+  passRate: number;
+  // Oldest first, so the strip reads left to right through time.
+  results: { runId: string; status: string; startedAt: string }[];
+  lastStatus: string;
+  lastRunAt: string;
+  avgDurationMs: number | null;
+  streak: { status: string; length: number };
+  commonFailure: { action: string; detail: string; count: number } | null;
+  // Pass rate of the newest half against the older half, in percentage points.
+  change: number | null;
+};
+
+export async function getRunTrendsService(): Promise<TestTrend[]> {
+  const rows = await db
+    .select({
+      runId: testRuns.runId,
+      testId: testRuns.testId,
+      title: testRuns.title,
+      status: testRuns.status,
+      startedAt: testRuns.startedAt,
+      durationMs: testRuns.durationMs,
+      failedStep: testRuns.failedStep,
+      steps: testRuns.steps,
+    })
+    .from(testRuns)
+    .orderBy(desc(testRuns.startedAt))
+    .limit(TREND_SCAN_LIMIT);
+
+  // A deleted test keeps its history, grouped by the title it had.
+  const groups = new Map<string, typeof rows>();
+
+  for (const row of rows) {
+    const key = row.testId ?? `title:${row.title}`;
+    const list = groups.get(key) ?? [];
+    if (list.length < TREND_RUNS_PER_TEST) list.push(row);
+    groups.set(key, list);
+  }
+
+  const rate = (list: typeof rows) =>
+    list.length === 0 ? null : (list.filter((run) => run.status === "passed").length / list.length) * 100;
+
+  const trends: TestTrend[] = [];
+
+  for (const [key, newestFirst] of groups) {
+    const latest = newestFirst[0];
+    const oldestFirst = [...newestFirst].reverse();
+
+    let streakLength = 0;
+    for (const run of newestFirst) {
+      if (run.status !== latest.status) break;
+      streakLength += 1;
+    }
+
+    const failures = new Map<string, { action: string; detail: string; count: number }>();
+    for (const run of newestFirst) {
+      if (run.status !== "failed") continue;
+      const step = run.steps.find((item) => item.index === run.failedStep || item.status === "failed");
+      if (!step) continue;
+
+      const failureKey = `${step.action}|${step.detail}`;
+      const entry = failures.get(failureKey) ?? { action: step.action, detail: step.detail, count: 0 };
+      entry.count += 1;
+      failures.set(failureKey, entry);
+    }
+
+    const durations = newestFirst
+      .map((run) => run.durationMs)
+      .filter((value): value is number => typeof value === "number");
+
+    // Compare halves only when there is enough history to mean something.
+    let change: number | null = null;
+    if (oldestFirst.length >= 6) {
+      const half = Math.floor(oldestFirst.length / 2);
+      const older = rate(oldestFirst.slice(0, half));
+      const newer = rate(oldestFirst.slice(oldestFirst.length - half));
+      if (older !== null && newer !== null) change = Math.round(newer - older);
+    }
+
+    const passed = newestFirst.filter((run) => run.status === "passed").length;
+
+    trends.push({
+      key,
+      testId: latest.testId,
+      title: latest.title,
+      total: newestFirst.length,
+      passed,
+      passRate: Math.round((passed / newestFirst.length) * 100),
+      results: oldestFirst.map((run) => ({
+        runId: run.runId,
+        status: run.status,
+        startedAt: run.startedAt.toISOString(),
+      })),
+      lastStatus: latest.status,
+      lastRunAt: latest.startedAt.toISOString(),
+      avgDurationMs: durations.length
+        ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length)
+        : null,
+      streak: { status: latest.status, length: streakLength },
+      commonFailure: [...failures.values()].sort((a, b) => b.count - a.count)[0] ?? null,
+      change,
+    });
+  }
+
+  // Tests that need attention first: lowest pass rate, then most recent.
+  return trends.sort(
+    (a, b) => a.passRate - b.passRate || b.lastRunAt.localeCompare(a.lastRunAt)
+  );
+}

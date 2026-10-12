@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getRunAction } from "@/actions/run-reports";
+import { getRunPayloadAction } from "@/actions/get-run-payload";
+import { BRIDGE, getRunBlockedReason, type TabletState } from "@/components/bridge";
 import RunStatusBadge from "@/components/RunStatusBadge";
 import {
   explainFailure,
@@ -36,6 +38,36 @@ export default function RunReportPage() {
   const [run, setRun] = useState<Run | null>(null);
   const [state, setState] = useState<"loading" | "missing" | "error" | "ready">("loading");
   const [attempt, setAttempt] = useState(0);
+  const [bridgeOnline, setBridgeOnline] = useState(false);
+  const [bridgeState, setBridgeState] = useState<TabletState | null>(null);
+  const [rerun, setRerun] = useState<{ kind: "info" | "error"; text: string } | null>(null);
+  const [starting, setStarting] = useState(false);
+
+  // Is the bridge up and the tablet ready? Decides whether Run again is offered.
+  useEffect(() => {
+    let stopped = false;
+
+    const poll = async () => {
+      try {
+        const response = await fetch(BRIDGE + "/state", { cache: "no-store" });
+        if (!response.ok) throw new Error();
+        const next = (await response.json()) as TabletState;
+        if (stopped) return;
+        setBridgeState(next);
+        setBridgeOnline(true);
+      } catch {
+        if (!stopped) setBridgeOnline(false);
+      }
+    };
+
+    poll();
+    const timer = window.setInterval(poll, 2000);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +110,50 @@ export default function RunReportPage() {
     setAttempt(0);
   };
 
+  const runAgain = async () => {
+    if (!run?.testId || starting) return;
+
+    setStarting(true);
+    setRerun({ kind: "info", text: "Starting…" });
+
+    try {
+      // Always the test as it is saved now, not the version this run used.
+      const payload = await getRunPayloadAction({ id: run.testId });
+
+      if (!payload.success) {
+        setRerun({ kind: "error", text: payload.message });
+        return;
+      }
+
+      const response = await fetch(BRIDGE + "/run-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload.data),
+      });
+
+      if (response.status === 409) {
+        setRerun({ kind: "error", text: "A test is already running on the tablet." });
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`The bridge answered ${response.status}.`);
+      }
+
+      setRerun({ kind: "info", text: "Started. The new report appears in Run history when it finishes." });
+    } catch (error) {
+      console.error("runAgain error:", error);
+      setRerun({
+        kind: "error",
+        text: bridgeOnline
+          ? "The bridge did not accept the test."
+          : "Could not reach the bridge. Start it with npm run bridge.",
+      });
+    } finally {
+      setStarting(false);
+    }
+  };
+
   if (state === "loading") {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f4f6fa]">
@@ -118,6 +194,8 @@ export default function RunReportPage() {
   const notRun = run.steps.filter((step) => step.status === "pending" || step.status === "running").length;
   const failedStep = run.steps.find((step) => step.status === "failed");
   const advice = explainFailure(run.error);
+  const blockedReason = getRunBlockedReason(bridgeOnline, bridgeState);
+  const canRerun = Boolean(run.testId) && !blockedReason && !starting;
 
   const download = () => {
     const blob = new Blob([JSON.stringify(run, null, 2)], { type: "application/json" });
@@ -161,6 +239,15 @@ export default function RunReportPage() {
             )}
             <button
               type="button"
+              onClick={runAgain}
+              disabled={!canRerun}
+              title={!run.testId ? "The test this run came from no longer exists" : blockedReason || undefined}
+              className="min-h-[44px] rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-700"
+            >
+              {starting ? "Starting…" : "Run again"}
+            </button>
+            <button
+              type="button"
               onClick={download}
               className="min-h-[44px] rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium hover:bg-slate-50"
             >
@@ -178,6 +265,32 @@ export default function RunReportPage() {
       </header>
 
       <div className="mx-auto flex max-w-[1100px] flex-col gap-5 px-6 py-6">
+        {(rerun || !run.testId || blockedReason) && (
+          <p
+            role={rerun?.kind === "error" ? "alert" : "status"}
+            className={`rounded-lg border px-4 py-3 text-sm print:hidden ${
+              rerun?.kind === "error"
+                ? "border-red-200 bg-red-50 text-red-900"
+                : "border-slate-200 bg-white text-slate-800"
+            }`}
+          >
+            {rerun?.text ??
+              (!run.testId
+                ? "The test this run came from no longer exists, so it cannot be run again."
+                : `Run again is unavailable. ${blockedReason}`)}
+            {rerun && !rerun.text.startsWith("Starting") && rerun.kind === "info" && (
+              <>
+                {" "}
+                <Link href="/runs" className="font-semibold underline">Run history</Link>
+              </>
+            )}
+          </p>
+        )}
+
+        <p className="-mt-2 text-sm text-slate-600 print:hidden">
+          Run again uses the test as it is saved now, which may differ from the version this run used.
+        </p>
+
         <section className="grid grid-cols-2 gap-3 md:grid-cols-4" aria-label="Summary">
           {[
             { label: "Passed", value: `${passed} of ${run.steps.length}` },

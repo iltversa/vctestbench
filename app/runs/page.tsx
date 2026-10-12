@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { listRunsAction } from "@/actions/run-reports";
 import RunStatusBadge from "@/components/RunStatusBadge";
+import TestHealth from "@/components/TestHealth";
 import { formatDateTime, formatDuration } from "@/components/run-format";
 
 type RunRow = {
@@ -86,6 +87,8 @@ export default function RunsPage() {
             </Link>
           </p>
         )}
+
+        {!loading && !error && runs.length > 0 && <TestHealth onlyTestId={testId} />}
 
         {loading ? (
           <p className="text-sm text-slate-600" role="status">Loading runs…</p>
