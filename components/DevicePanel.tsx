@@ -1,10 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BRIDGE } from "@/components/bridge";
 import { useBridge } from "@/components/BridgeProvider";
 
 const PREVIEW_MS = 1500;
+
+// Room around the picture inside the panel, and the narrowest the panel gets.
+const PADDING = 24;
+const MIN_WIDTH = 300;
+// Used until the first picture says what shape the screen is, and when there is
+// no picture: wide enough for the connection steps.
+const DEFAULT_WIDTH = 440;
+const MAX_WIDTH = 720;
 
 type StepState = "done" | "todo" | "blocked";
 
@@ -35,11 +43,16 @@ function Step({ number, state, title, children }: { number: number; state: StepS
 // The tablet: its model and state in the heading, and its screen at the real
 // proportions of the device, as large as the panel allows. When there is no
 // tablet it says why and what to do.
-export default function DevicePanel() {
+export default function DevicePanel({ className = "" }: { className?: string }) {
   const { online, connected, state, openSandbox } = useBridge();
   const [copied, setCopied] = useState(false);
   const [src, setSrc] = useState("");
   const [opening, setOpening] = useState(false);
+  // Width over height of the screen, learned from the picture itself.
+  const [aspect, setAspect] = useState<number | null>(null);
+  const [width, setWidth] = useState(DEFAULT_WIDTH);
+  const root = useRef<HTMLElement>(null);
+  const head = useRef<HTMLElement>(null);
 
   // Fetch the next frame in the background and swap it in once loaded, so the
   // picture never flashes. Only while the page is visible.
@@ -54,7 +67,12 @@ export default function DevicePanel() {
       const next = new Image();
       const url = `${BRIDGE}/screen?t=${Date.now()}`;
       next.onload = () => {
-        if (!cancelled) setSrc(url);
+        if (cancelled) return;
+
+        setSrc(url);
+        if (next.naturalWidth && next.naturalHeight) {
+          setAspect(next.naturalWidth / next.naturalHeight);
+        }
       };
       next.src = url;
     };
@@ -67,6 +85,32 @@ export default function DevicePanel() {
       window.clearInterval(timer);
     };
   }, [connected]);
+
+  // Size the panel to the screen: as tall as the page allows, and exactly as
+  // wide as the picture then is, so no width is wasted beside it.
+  useLayoutEffect(() => {
+    const element = root.current;
+    if (!element) return;
+
+    const fit = () => {
+      if (!connected || !aspect) {
+        setWidth(DEFAULT_WIDTH);
+        return;
+      }
+
+      const room = element.clientHeight - (head.current?.offsetHeight ?? 0) - PADDING;
+      const wanted = Math.round(room * aspect) + PADDING;
+
+      setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, wanted)));
+    };
+
+    fit();
+
+    const observer = new ResizeObserver(fit);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [connected, aspect]);
 
   const copy = async () => {
     try {
@@ -102,8 +146,14 @@ export default function DevicePanel() {
       : "Three steps, in order. This updates as each one completes.";
 
   return (
-    <section id="device" aria-labelledby="device-title" className="flex h-full min-h-0 flex-col">
-      <header className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-200 px-4 py-3">
+    <section
+      ref={root}
+      id="device"
+      aria-labelledby="device-title"
+      className={`flex h-full min-h-0 flex-col lg:w-[var(--device-width)] ${className}`}
+      style={{ "--device-width": `${width}px` } as React.CSSProperties}
+    >
+      <header ref={head} className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-200 px-4 py-3">
         <div className="min-w-0">
           <h2 id="device-title" className="text-base font-semibold text-slate-900">{heading}</h2>
           <p className="text-sm text-slate-700">{description}</p>

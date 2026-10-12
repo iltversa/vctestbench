@@ -123,7 +123,7 @@ export default function RunViewPage() {
 
   return (
     <div className="p-3 sm:p-4 lg:h-[calc(100dvh-64px)]">
-      <div className="grid gap-4 lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_300px]">
+      <div className="grid gap-4 lg:h-full lg:grid-cols-[minmax(0,1fr)_auto_300px]">
         {/* ----------------------- Flow: header and chart ----------------------- */}
         <section className={panel} aria-labelledby="run-title">
           <header className="border-b border-slate-200 px-4 py-3">
@@ -216,9 +216,7 @@ export default function RunViewPage() {
         </section>
 
         {/* ------------------------------ Device ------------------------------ */}
-        <section className={panel} aria-label="Device">
-          <DevicePanel />
-        </section>
+        <DevicePanel className={panel} />
 
         {/* -------------------------- Live activity -------------------------- */}
         <section className={panel} aria-labelledby="live-title">
