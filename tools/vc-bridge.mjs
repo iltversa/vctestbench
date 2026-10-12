@@ -1,4 +1,17 @@
 import http from "node:http";
+
+// The bridge talks to the tablet's WebView over a WebSocket. Node only has one
+// built in from 22 (20.10+ behind --experimental-websocket, which npm run
+// bridge passes). Without it every step that touches the screen would fail
+// halfway through a run with "WebSocket is not defined".
+if (typeof WebSocket === "undefined") {
+  console.error(
+    "This Node.js has no built-in WebSocket. Start the bridge with `npm run bridge`, " +
+      "or use Node 22 (nvm use 22)."
+  );
+  process.exit(1);
+}
+
 import {execFile, execFileSync} from "node:child_process";
 import {promisify} from "node:util";
 const exec=promisify(execFile),PORT=3131;

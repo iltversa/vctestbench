@@ -12,7 +12,7 @@ browser (this app, :3000)  ──►  bridge (tools/vc-bridge.mjs, :3131)  ─�
 
 ## Requirements
 
-- Node.js `>=22.13` (use 22 LTS; Node 20 fails in `vinext`)
+- Node.js `>=22.13` (use 22 LTS). The web app fails on Node 20; the bridge also runs on Node 20.10+ via `npm run bridge`, which enables its built-in WebSocket
 - PostgreSQL 14+
 - `adb` on your PATH (or set `ADB=/path/to/adb`) and a tablet with USB debugging
 
