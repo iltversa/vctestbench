@@ -471,9 +471,7 @@ export async function clickTextAround(targetText) {
     ws.onmessage = event => {
   const message = JSON.parse(event.data);
 
-  console.log("\n========== RAW DEVTOOLS RESPONSE ==========");
-  console.log(JSON.stringify(message, null, 2));
-  console.log("===========================================\n");
+  debug("devtools response:", JSON.stringify(message));
 
   if (message.id !== 1) {
     return;
@@ -496,26 +494,6 @@ export async function clickTextAround(targetText) {
 
   const runtimeResult =
     message.result?.result;
-
-  // console.log("\n========== RUNTIME RESULT ==========");
-  // console.log(
-  //   JSON.stringify(runtimeResult, null, 2)
-  // );
-  // console.log("====================================\n");
-
-  const result = runtimeResult?.value;
-
-  // console.log("\n================================");
-  // console.log("CLICK RESULT:", targetText);
-  // console.log("================================");
-  // console.log(
-  //   JSON.stringify(result, null, 2)
-  // );
-  // console.log(
-  //   "Parent chain:",
-  //   JSON.stringify(result?.parentChain, null, 2)
-  // );
-  // console.log("================================\n");
 
   ws.close();
 

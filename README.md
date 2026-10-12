@@ -87,11 +87,15 @@ npm run bridge   # in a second terminal, with the tablet connected
 
 ### Timing
 
-Every step waits **5 seconds before it runs**, so a dialog or a screen change
-from the previous step has time to settle. Add a **DELAY** step when something
-needs longer. DELAY itself does not get the extra wait. AUTHENTICATION also
-keeps looking for the email and password fields for up to 10 seconds. Change
-the default when starting the bridge: `VC_STEP_DELAY_SECONDS=3 npm run bridge`.
+A step does not wait a fixed time for the screen. It tries its action straight
+away and keeps looking every half second, up to **15 seconds**, for what it acts
+on: the text to tap, the text field, the sign-in form, the save button. It acts
+the moment the target appears; if it never does, the step fails with what was
+missing and "looked for 15s". The time spent looking shows in the report's
+*Waited* column. Before each step there is only a short **1 second** settle so a
+screen is not caught half-drawn. Add a **DELAY** step when something needs a
+fixed wait; DELAY itself gets no settle. Change the limits when starting the
+bridge: `VC_ACTION_TIMEOUT_SECONDS=30 VC_STEP_DELAY_SECONDS=2 npm run bridge`.
 
 A run ends when there is no next step: an empty slot at the end of a chain
 completes the flow and nothing runs after it. Only one run can be active.
@@ -144,7 +148,8 @@ lists and the editor only ever see ciphertext.
 |---|---|
 | `DATABASE_URL` | Postgres connection (web app). |
 | `VC_SECRET_KEY` | 32 random bytes, base64. Encrypts stored passwords. |
-| `VC_STEP_DELAY_SECONDS` | Wait before every step (bridge, default `5`). |
+| `VC_STEP_DELAY_SECONDS` | Short settle before every step (bridge, default `1`). |
+| `VC_ACTION_TIMEOUT_SECONDS` | How long a step looks for its target before failing (bridge, default `15`). |
 | `VC_AFTER_SHOT_DELAY_SECONDS` | Wait after an action before its "after" picture (bridge, default `2`). |
 | `VC_ALLOWED_ORIGINS` | Origins allowed to call the bridge. Default `http://localhost:3000,http://127.0.0.1:3000`; set it if the UI runs on another port. |
 | `VC_BRIDGE_PORT` | Port the bridge listens on (default `3131`; the web app expects 3131). |

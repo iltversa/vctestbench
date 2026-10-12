@@ -6,7 +6,7 @@
 
 import { randomUUID } from "node:crypto";
 import { screenshot, screenshotBase64 } from "./adb.mjs";
-import { AFTER_SHOT_DELAY_SECONDS, MAX_RUNS, STEP_DELAY_SECONDS, debug } from "./config.mjs";
+import { ACTION_TIMEOUT_SECONDS, AFTER_SHOT_DELAY_SECONDS, MAX_RUNS, STEP_DELAY_SECONDS, debug } from "./config.mjs";
 import { toStepImage } from "./image.mjs";
 import { addEvent, sleep, store } from "./state.mjs";
 import { clickSaveButton, clickTextAround, evaluate } from "./webview.mjs";
@@ -42,6 +42,44 @@ async function pause(ms) {
   }
 
   assertNotStopped();
+}
+
+// Looks for what a step acts on until it is there. The action is tried
+// straight away and again every half second, so a modal that is still opening
+// costs only as long as it takes; after ACTION_TIMEOUT_SECONDS the step fails
+// with what was missing. Anything that is not "not there yet" fails at once.
+const NOT_THERE_YET = /was not found|not currently in DOM|No (text|password|email) field|Timeout|WebView|DevTools|No sign-in button/;
+
+async function untilFound(step, attempt) {
+  const started = Date.now();
+  const deadline = started + ACTION_TIMEOUT_SECONDS * 1000;
+  let announced = false;
+
+  for (;;) {
+    try {
+      const result = await attempt();
+      if (step && announced) step.waitedMs += Date.now() - started;
+      return result;
+    } catch (error) {
+      if (error instanceof RunStopped) throw error;
+
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (!NOT_THERE_YET.test(message)) throw error;
+
+      if (Date.now() >= deadline) {
+        if (step) step.waitedMs += Date.now() - started;
+        throw new Error(`${message} (looked for ${ACTION_TIMEOUT_SECONDS}s)`);
+      }
+
+      if (!announced) {
+        announced = true;
+        addEvent("Looking for it on the tablet…", `Trying for up to ${ACTION_TIMEOUT_SECONDS}s`);
+      }
+
+      await pause(500);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -365,7 +403,7 @@ async function executeFlowNodes(run, nodes, actionMap) {
 
       addEvent(`Attempting action: ${title}`, step.detail);
 
-      await executeDeviceAction(action);
+      await executeDeviceAction(action, step);
 
       addEvent(`Finished action: ${title}`, "", "success");
 
@@ -401,7 +439,7 @@ async function executeConfirmationNode(run, node, action, actionMap, onOptionTap
 
   if (!selected) {
     addEvent("No confirmation option selected", "Tapping Connect", "info");
-    await clickTextAround("Connect");
+    await untilFound(run.steps.find((item) => item.nodeId === node.id), () => clickTextAround("Connect"));
     return;
   }
 
@@ -414,7 +452,7 @@ async function executeConfirmationNode(run, node, action, actionMap, onOptionTap
     throw new Error(`No flow path found for confirmation option "${optionName}"`);
   }
 
-  await clickTextAround(optionName);
+  await untilFound(run.steps.find((item) => item.nodeId === node.id), () => clickTextAround(optionName));
   addEvent(`Tapped confirmation option: ${optionName}`, "", "success");
 
   await onOptionTapped();
@@ -426,7 +464,7 @@ async function executeConfirmationNode(run, node, action, actionMap, onOptionTap
 // One action on the device
 // ---------------------------------------------------------------------
 
-async function executeDeviceAction(action) {
+async function executeDeviceAction(action, step) {
   const title = String(action.title || "").trim();
   const name = title.toUpperCase();
 
@@ -443,20 +481,22 @@ async function executeDeviceAction(action) {
   if (name === "PASTE") {
     const text = String(action.pasteText || "").trim();
 
-    const result = await evaluate(`(() => {
-      const input = document.querySelector('input[type="text"], input:not([type]), textarea');
-      if (!input) return { ok: false };
-      input.focus();
-      input.value = ${JSON.stringify(text)};
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      return { ok: true };
-    })()`);
+    await untilFound(step, async () => {
+      const result = await evaluate(`(() => {
+        const input = document.querySelector('input[type="text"], input:not([type]), textarea');
+        if (!input) return { ok: false };
+        input.focus();
+        input.value = ${JSON.stringify(text)};
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        return { ok: true };
+      })()`);
 
-    // A missing field used to be logged as a success; it is a failed step.
-    if (!result?.ok) {
-      throw new Error("No text field is visible on the tablet to paste into.");
-    }
+      // A missing field used to be logged as a success; it is a failed step.
+      if (!result?.ok) {
+        throw new Error("No text field is visible on the tablet to paste into.");
+      }
+    });
 
     addEvent("Pasted text", text, "success");
     return;
@@ -519,24 +559,16 @@ async function executeDeviceAction(action) {
         return { ok: true, button: label(submit) };
       })()`);
 
-    // The form is often in a modal that is still opening: keep looking for
-    // the fields for up to 10 seconds before giving up.
-    let result = await findAndSignIn();
-    const giveUpAt = Date.now() + 10_000;
+    // The form is often in a modal that is still opening.
+    const result = await untilFound(step, async () => {
+      const attempt = await findAndSignIn();
 
-    while (
-      result &&
-      result.ok === false &&
-      /No (password|email) field/.test(result.error || "") &&
-      Date.now() < giveUpAt
-    ) {
-      await pause(500);
-      result = await findAndSignIn();
-    }
+      if (!attempt || attempt.ok !== true) {
+        throw new Error(attempt?.error || "Could not sign in on the tablet.");
+      }
 
-    if (!result || result.ok !== true) {
-      throw new Error(result?.error || "Could not sign in on the tablet.");
-    }
+      return attempt;
+    });
 
     addEvent(`Signed in as ${email}`, `Pressed "${result.button}"`, "success");
 
@@ -546,7 +578,7 @@ async function executeDeviceAction(action) {
   }
 
   if (name === "SAVE") {
-    await clickSaveButton();
+    await untilFound(step, () => clickSaveButton());
     addEvent("Pressed save", "", "success");
     return;
   }
@@ -554,6 +586,6 @@ async function executeDeviceAction(action) {
   // CLICK: the text to tap is stored in clickOnText; fall back to the action's
   // title for actions that are named after the button itself.
   const target = String(action.clickOnText || "").trim() || title;
-  await clickTextAround(target);
+  await untilFound(step, () => clickTextAround(target));
   addEvent(`Tapped "${target}"`, "", "success");
 }

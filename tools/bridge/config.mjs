@@ -4,11 +4,20 @@ import { execFileSync } from "node:child_process";
 
 export const PORT = Number(process.env.VC_BRIDGE_PORT) || 3131;
 
-// Every step waits this long before it runs, so a modal or a route change from
-// the previous step has time to settle. A DELAY step adds more on top.
+// A short settle before every step, so the screen the previous step caused is
+// not caught half-drawn. It is not what waits for a modal: the step itself
+// keeps looking for its target (see ACTION_TIMEOUT_SECONDS). A DELAY step adds
+// more on top.
 export const STEP_DELAY_SECONDS = (() => {
-  const value = Number(process.env.VC_STEP_DELAY_SECONDS ?? 5);
-  return Number.isFinite(value) && value >= 0 ? value : 5;
+  const value = Number(process.env.VC_STEP_DELAY_SECONDS ?? 1);
+  return Number.isFinite(value) && value >= 0 ? value : 1;
+})();
+
+// How long a step keeps looking for what it acts on (a button's text, a field)
+// before it fails. It acts the moment the target shows up.
+export const ACTION_TIMEOUT_SECONDS = (() => {
+  const value = Number(process.env.VC_ACTION_TIMEOUT_SECONDS ?? 15);
+  return Number.isFinite(value) && value > 0 ? value : 15;
 })();
 
 // The "after" picture of a step is taken this long after the action, so a
