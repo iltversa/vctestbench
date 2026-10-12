@@ -14,6 +14,8 @@ export async function getRunPayloadService(testId: string) {
   }
 
   return {
+    // The bridge copies this into the run report so it can be linked back.
+    testId: test.id,
     title: test.title,
     actions: [],
     flow: decryptFlowSecrets(test.flow),

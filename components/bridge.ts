@@ -23,6 +23,9 @@ export type TabletState = {
   events: FeedEvent[];
   // How long the bridge waits before every step (a DELAY step adds more).
   stepDelaySeconds?: number;
+  // Finished runs the bridge still holds in memory, oldest first.
+  runIds?: string[];
+  currentRunId?: string | null;
   test?: {
     status: "idle" | "running" | "passed" | "failed";
     name?: string;

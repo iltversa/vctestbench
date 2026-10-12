@@ -29,7 +29,7 @@ DATABASE_URL=postgres://user:password@localhost:5432/vctestbench
 VC_SECRET_KEY=<output of: openssl rand -base64 32>
 ```
 
-Apply the migrations in `db/migrations/` in order (`0000` … `0006`). They create
+Apply the migrations in `db/migrations/` in order (`0000` … `0007`). They create
 the tables and seed the built-in actions (PASTE, AUTHENTICATION, CLICK, DELAY,
 CONFIRMATION, SAVE). For example:
 
@@ -65,6 +65,24 @@ app) and enables **Run** once the tablet is connected and the Sandbox app is ope
 | CONFIRMATION | Branches on the selected option |
 | SAVE | Presses the save button |
 
+## Run reports
+
+Every run produces a report: the result, when it started and finished, the
+device, and a record for each step with its start time, how long it waited,
+how long it took and, if it failed, the error. Steps after a failure are listed
+as *Not run*, and a screenshot of the tablet at the moment of failure is kept.
+
+- **Home** lists the five most recent runs; **Run history** (`/runs`) lists all
+  of them, and `/runs?test=<id>` filters to one test.
+- **Report** (`/runs/<id>`) shows the failure with a plain-language likely cause,
+  the step table, and Download JSON / Print.
+- The bridge holds the last 20 runs in memory. Any open page copies runs the
+  database has not seen yet, so a report is saved even if you were on another
+  screen when it finished. Saving is idempotent.
+- A run ends when there is no next step: an empty slot at the end of a chain
+  completes the flow and nothing runs after it. Only one run can be active; a
+  second start is refused until the first finishes.
+
 ## Timing
 
 Every step waits **5 seconds before it runs**, so a dialog or a screen change
@@ -97,6 +115,8 @@ lists and the editor only ever see ciphertext.
 | `VC_ALLOWED_ORIGINS` | Origins allowed to call the bridge. Default `http://localhost:3000,http://127.0.0.1:3000`. Set it if the UI runs on another port. |
 | `REQUIRE_AUTH=true` | Reject server actions and the create API from callers with no signed-in user. Off by default for local use. |
 | `ADB` | Path to the `adb` binary. |
+| `VC_STEP_DELAY_SECONDS` | Wait before every step (default `5`). |
+| `VC_BRIDGE_PORT` | Port the bridge listens on (default `3131`). The web app expects 3131. |
 
 The bridge listens on `127.0.0.1` only, rejects requests from other origins or
 host names, requires `application/json` for `/run-test`, and caps the body at

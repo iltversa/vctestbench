@@ -6,6 +6,7 @@ import CreateTestButton from "@/app/testCases/page";
 import { SavedTest } from "@/app/page";
 import getActionsAction from "@/actions/get-actions";
 import { getRunPayloadAction } from "@/actions/get-run-payload";
+import { useRunReportSync } from "@/components/useRunReportSync";
 import { createFullTestAction, updateFullTestAction } from "@/actions/create-full-test";
 import { deleteTestActionDefinition } from "@/actions/delete-test-action";
 import { TestAction } from "@/components/ActionDialog";
@@ -1149,6 +1150,11 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     if (stored) await startRun(stored);
   };
 
+  // Keep the run history up to date from whichever page is open.
+  useRunReportSync(bridgeState);
+
+  const latestRunId = bridgeState?.runIds?.[bridgeState.runIds.length - 1];
+
   const runResult = (() => {
     if (!runMessage) return null;
     if (runMessage.kind === "error") return runMessage;
@@ -1158,17 +1164,22 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
       return { kind: "info" as const, text: `Running: ${test.step ?? test.name ?? "test"}` };
     }
     if (test?.status === "passed") {
-      return { kind: "success" as const, text: `${test.name ?? "Test"} passed.` };
+      return { kind: "success" as const, text: `${test.name ?? "Test"} passed.`, reportId: latestRunId };
     }
     if (test?.status === "failed") {
-      return { kind: "error" as const, text: `${test.name ?? "Test"} failed. ${test.error ?? ""}`.trim() };
+      return {
+        kind: "error" as const,
+        text: `${test.name ?? "Test"} failed. ${test.error ?? ""}`.trim(),
+        reportId: latestRunId,
+      };
     }
     return runMessage;
   })();
 
   const runDisabled = saving || !testTitle.trim() || Boolean(runBlockedReason);
   const runLabel = saving ? "Saving…" : dirty || !savedTest ? "Save and run" : "Run test";
-  const statusLine = runResult ?? saveMessage;
+  const statusLine: { kind: "info" | "success" | "error"; text: string; reportId?: string } | null =
+    runResult ?? saveMessage;
 
   return (
     <div className="flow-builder">
@@ -1352,6 +1363,14 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
             ].join(" ")}
           >
             {statusLine.text}
+            {statusLine.reportId && (
+              <>
+                {" "}
+                <a href={`/runs/${statusLine.reportId}`} className="font-semibold underline">
+                  View report
+                </a>
+              </>
+            )}
           </p>
         )}
 

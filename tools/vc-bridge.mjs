@@ -1,4 +1,5 @@
 import http from "node:http";
+import {randomUUID} from "node:crypto";
 
 // The bridge talks to the tablet's WebView over a WebSocket. Node only has one
 // built in from 22 (20.10+ behind --experimental-websocket, which npm run
@@ -14,7 +15,7 @@ if (typeof WebSocket === "undefined") {
 
 import {execFile, execFileSync} from "node:child_process";
 import {promisify} from "node:util";
-const exec=promisify(execFile),PORT=3131;
+const exec=promisify(execFile),PORT=Number(process.env.VC_BRIDGE_PORT)||3131;
 // Every step waits this long before it runs, so a modal or a route change from
 // the previous step has time to settle. A DELAY step adds more on top.
 const STEP_DELAY_SECONDS=(()=>{const value=Number(process.env.VC_STEP_DELAY_SECONDS??5);return Number.isFinite(value)&&value>=0?value:5})();
@@ -36,7 +37,12 @@ const ADB = process.env.ADB ?? (() => {
 })();
 let screen=null,eventId=0,previous={connected:false,sandboxForeground:false,route:""};
 const events=[];
-let state={connected:false,sandboxForeground:false,updatedAt:new Date().toISOString(),events,test:{status:"idle",name:"Workout smoke test"},stepDelaySeconds:STEP_DELAY_SECONDS};
+// Finished runs, oldest first. The UI copies them into the database and the
+// bridge only keeps the latest few in memory.
+const MAX_RUNS=20;
+const runs=[];
+let currentRun=null;
+let state={connected:false,sandboxForeground:false,updatedAt:new Date().toISOString(),events,test:{status:"idle",name:"Workout smoke test"},stepDelaySeconds:STEP_DELAY_SECONDS,runIds:[]};
 let test={status:"idle",name:"Workout smoke test"};
 const adb=async(...args)=>(await exec(ADB,args,{encoding:"utf8",maxBuffer:8_000_000})).stdout.trim();
 const addEvent=(label,detail,kind="info")=>{events.push({id:++eventId,at:new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"}),label,detail,kind});if(events.length>30)events.shift()};
@@ -116,7 +122,7 @@ async function clickText(labels){
 }
 const feetFrom=text=>Number(text?.match(/Current Feet\s+([0-9,]+)/i)?.[1]?.replaceAll(",","")??0);
 async function poll(){
- const next={connected:false,sandboxForeground:false,updatedAt:new Date().toISOString(),events,test,stepDelaySeconds:STEP_DELAY_SECONDS};
+ const next={connected:false,sandboxForeground:false,updatedAt:new Date().toISOString(),events,test,stepDelaySeconds:STEP_DELAY_SECONDS,runIds:runs.map(run=>run.runId),currentRunId:currentRun?.status==="running"?currentRun.runId:null};
  try{
   const devices=await adb("devices","-l"),line=devices.split("\n").find(value=>/\sdevice\s/.test(value));if(!line)throw new Error("not connected");
   next.connected=true;next.device=line.trim().split(/\s+/)[0];next.model=await adb("shell","getprop","ro.product.model");next.android=await adb("shell","getprop","ro.build.version.release");
@@ -2484,6 +2490,122 @@ async function runVideoClassTest(){
  test={status:"passed",name:"Video class test",finishedAt:new Date().toISOString(),step:"Complete"};state.test=test;
 }
 
+// ---------------------------------------------------------------------
+// Run report: one record per step, written as the flow executes.
+// ---------------------------------------------------------------------
+
+function describeStep(title, data = {}) {
+  const name = String(title || "").trim().toUpperCase();
+
+  if (name === "DELAY") return `Wait ${Number(data.actionTimeout) || 0}s`;
+  if (name === "PASTE") return data.pasteText ? `Paste "${data.pasteText}"` : "Paste text";
+  if (name === "CLICK") return data.clickOnText ? `Tap "${data.clickOnText}"` : `Tap "${title}"`;
+  if (name === "AUTHENTICATION") return data.email ? `Sign in as ${data.email}` : "Sign in";
+  if (name === "SAVE") return "Press save";
+  if (name === "CONFIRMATION") {
+    const chosen = (data.confirmationOptions || []).find((option) => option.isSelected === true);
+    return chosen ? `Choose "${chosen.option}"` : "Confirm";
+  }
+  return `Tap "${title}"`;
+}
+
+// The steps a run is expected to execute, in order, so a report can show the
+// ones that were never reached after a failure.
+function planFlow(nodes, actionMap, out = []) {
+  for (const node of Array.isArray(nodes) ? nodes : []) {
+    if (!node.actionId) {
+      planFlow(node.paths, actionMap, out);
+      continue;
+    }
+
+    const data = actionMap.get(node.actionId) ?? node.actionData ?? {};
+    const title = String(data.title || node.actionTitle || "Unknown").trim();
+
+    out.push({
+      index: out.length + 1,
+      nodeId: node.id,
+      action: title,
+      detail: describeStep(title, data),
+      status: "pending",
+      startedAt: null,
+      finishedAt: null,
+      durationMs: null,
+      waitedMs: 0,
+      error: null,
+    });
+
+    if (title.toUpperCase() === "CONFIRMATION") {
+      const chosen = (data.confirmationOptions || []).find((option) => option.isSelected === true);
+      const branch = (node.paths || []).find((child) => child.optionId === chosen?.id);
+      planFlow(branch?.paths, actionMap, out);
+    } else {
+      planFlow(node.paths, actionMap, out);
+    }
+  }
+
+  return out;
+}
+
+function beginStep(node, action) {
+  let step = currentRun?.steps.find((item) => item.nodeId === node.id);
+
+  if (!step && currentRun) {
+    step = {
+      index: currentRun.steps.length + 1,
+      nodeId: node.id,
+      action: String(action.title || "").trim(),
+      detail: describeStep(action.title, action),
+      status: "pending",
+      startedAt: null,
+      finishedAt: null,
+      durationMs: null,
+      waitedMs: 0,
+      error: null,
+    };
+    currentRun.steps.push(step);
+  }
+
+  const record = step ?? { status: "running", waitedMs: 0 };
+  record.status = "running";
+  record.startedAt = new Date().toISOString();
+  return record;
+}
+
+function endStep(step, status, error = null) {
+  step.status = status;
+  step.finishedAt = new Date().toISOString();
+  step.durationMs = step.startedAt ? Date.now() - new Date(step.startedAt).getTime() : null;
+  step.error = error;
+}
+
+async function captureScreenshot() {
+  try {
+    const capture = await exec(ADB, ["exec-out", "screencap", "-p"], {encoding: "buffer", maxBuffer: 8_000_000});
+    const encoded = capture.stdout.toString("base64");
+    return encoded.length <= 2_000_000 ? encoded : null;
+  } catch {
+    return null;
+  }
+}
+
+async function finalizeRun(status, error = null) {
+  if (!currentRun) return;
+
+  const finishedAt = new Date().toISOString();
+  currentRun.status = status;
+  currentRun.finishedAt = finishedAt;
+  currentRun.durationMs = new Date(finishedAt).getTime() - new Date(currentRun.startedAt).getTime();
+  currentRun.error = error;
+  currentRun.failedStep = currentRun.steps.find((step) => step.status === "failed")?.index ?? null;
+
+  // Steps that were never reached stay "pending"; the report shows them as not run.
+  if (status === "failed") currentRun.screenshot = await captureScreenshot();
+
+  runs.push(currentRun);
+  while (runs.length > MAX_RUNS) runs.shift();
+  currentRun = null;
+}
+
 async function runTest(testData) {
   console.log("================================");
   console.log("RUN TEST:", testData?.title);
@@ -2529,6 +2651,22 @@ async function runTest(testData) {
       }))
     );
 
+    currentRun = {
+      runId: randomUUID(),
+      testId: typeof testData.testId === "string" ? testData.testId : null,
+      title: String(testData.title ?? ""),
+      status: "running",
+      startedAt,
+      finishedAt: null,
+      durationMs: null,
+      error: null,
+      failedStep: null,
+      stepDelaySeconds: STEP_DELAY_SECONDS,
+      device: {model: state.model ?? null, android: state.android ?? null},
+      steps: planFlow(testData.flow, actionMap),
+      screenshot: null,
+    };
+
     // Flow controls the actual execution order.
     await executeFlowNodes(
       testData.flow,
@@ -2545,9 +2683,14 @@ async function runTest(testData) {
 
     state.test = test;
 
+    // Reaching the end of the chain (an empty slot, or no more steps) is the
+    // flow completing; nothing runs after it.
+    const passedSteps = currentRun?.steps.filter((step) => step.status === "passed").length ?? 0;
+    await finalizeRun("passed");
+
     addEvent(
-      `Test completed: ${testData.title}`,
-      "",
+      `Flow completed: ${testData.title}`,
+      `${passedSteps} ${passedSteps === 1 ? "step" : "steps"} passed`,
       "success"
     );
 
@@ -2568,11 +2711,16 @@ async function runTest(testData) {
 
     state.test = test;
 
+    await finalizeRun("failed", message);
+
     addEvent(
       `${testData.title} failed`,
       message,
       "warning"
     );
+
+    // The HTTP handler must not log this a second time.
+    if (error && typeof error === "object") error.reported = true;
 
     throw error;
   }
@@ -2598,6 +2746,11 @@ async function executeFlowNodes(nodes, actionMap) {
 
 
     if (!node.actionId && node.optionId) {
+      // A branch the user did not choose must not run.
+      if (node.isSelected === false) {
+        continue;
+      }
+
       console.log(
         "OPTION selected:",
         node.isSelected
@@ -2659,64 +2812,74 @@ async function executeFlowNodes(nodes, actionMap) {
     test.step = title;
     state.test = test;
 
-    // Default settle time before every step. DELAY is exempt: it is the
-    // explicit way to wait longer.
-    if (normalizedTitle !== "DELAY" && STEP_DELAY_SECONDS > 0) {
+    const step = beginStep(node, action);
+
+    try {
+      // Default settle time before every step. DELAY is exempt: it is the
+      // explicit way to wait longer.
+      if (normalizedTitle !== "DELAY" && STEP_DELAY_SECONDS > 0) {
+        addEvent(
+          `Waiting ${STEP_DELAY_SECONDS}s before ${title}`,
+          "",
+          "info"
+        );
+
+        const waitStarted = Date.now();
+        await sleep(STEP_DELAY_SECONDS * 1000);
+        step.waitedMs = Date.now() - waitStarted;
+      }
+
       addEvent(
-        `Waiting ${STEP_DELAY_SECONDS}s before ${title}`,
+        `Attempting action: ${title}`,
         "",
         "info"
       );
 
-      await sleep(STEP_DELAY_SECONDS * 1000);
-    }
+      await executeDeviceAction(action);
 
-    addEvent(
-      `Attempting action: ${title}`,
-      "",
-      "info"
-    );
-
-    // ------------------------------------------------
-    // Execute the actual device action
-    // ------------------------------------------------
-
-    await executeDeviceAction(action);
-
-    addEvent(
-      `Finished action: ${title}`,
-      "",
-      "success"
-    );
-
-    // ------------------------------------------------
-    // CONFIRMATION
-    // ------------------------------------------------
-
-    if (normalizedTitle === "CONFIRMATION") {
       addEvent(
-  `Confirmation options: ${JSON.stringify(
-    action.confirmationOptions,
-    null,
-    2
-  )}`,
-  "",
-  "success"
-);
-      await executeConfirmationNode(
-        node,
-        action,
-        actionMap
+        `Finished action: ${title}`,
+        "",
+        "success"
       );
 
-      continue;
+      if (normalizedTitle === "CONFIRMATION") {
+        addEvent(
+          `Confirmation options: ${JSON.stringify(
+            action.confirmationOptions,
+            null,
+            2
+          )}`,
+          "",
+          "success"
+        );
+
+        // The step is done once the option is tapped; the branch below it
+        // records its own steps.
+        await executeConfirmationNode(
+          node,
+          action,
+          actionMap,
+          () => endStep(step, "passed")
+        );
+
+        if (step.status === "running") endStep(step, "passed");
+
+        continue;
+      }
+
+      endStep(step, "passed");
+    } catch (error) {
+      if (step.status === "running") {
+        endStep(step, "failed", error instanceof Error ? error.message : String(error));
+      }
+
+      throw error;
     }
 
     // ------------------------------------------------
-    // Normal action
-    //
-    // executeDeviceAction already handles its
-    // actionTimeout.
+    // Normal action: carry on with whatever comes next.
+    // When there is nothing next, the flow is complete.
     // ------------------------------------------------
 
     if (Array.isArray(node.paths)) {
@@ -2915,7 +3078,8 @@ async function executeDeviceAction(action) {
 async function executeConfirmationNode(
   node,
   action,
-  actionMap
+  actionMap,
+  onOptionTapped = async () => {}
 ) {
   const options = Array.isArray(action.confirmationOptions)
     ? action.confirmationOptions
@@ -2992,6 +3156,8 @@ async function executeConfirmationNode(
     "success"
   );
 
+  await onOptionTapped();
+
   // ---------------------------------------------
   // Continue through that option's branch
   // ---------------------------------------------
@@ -3025,7 +3191,17 @@ const server=http.createServer((req,res)=>{
  if(req.url==="/run-monument"&&req.method==="POST"){res.writeHead(202,{"Content-Type":"application/json"});res.end(JSON.stringify({accepted:true}));runMonumentTest().catch(error=>{addEvent("Monument test f",error.message,"warning");test={status:"failed",name:"Monument smoke test",error:error.message,finishedAt:new Date().toISOString()};state.test=test;try{if(state.route?.startsWith("/record-new"))adb("shell","input","tap","660","1275")}catch{}});return}
  if(req.url==="/tap-stop"&&req.method==="POST"){res.writeHead(200,{"Content-Type":"application/json"});clickText(["stop"]).then(value=>res.end(JSON.stringify({clicked:value||false}))).catch(error=>{res.writeHead(500);res.end(JSON.stringify({error:error.message}))});return}
  if(req.url==="/run-video-class"&&req.method==="POST"){res.writeHead(202,{"Content-Type":"application/json"});res.end(JSON.stringify({accepted:true}));runVideoClassTest().catch(async error=>{addEvent("Video class test failed",error.message,"warning");test={status:"failed",name:"Video class test",error:error.message,finishedAt:new Date().toISOString()};state.test=test;try{if(state.route?.startsWith("/live-stream-ts/"))await adb("shell","input","tap","660","690")}catch{}});return}
+ if (req.url === "/runs" && req.method === "GET") {
+  res.writeHead(200, {"Content-Type": "application/json"});
+  return res.end(JSON.stringify(runs));
+ }
  if (req.url === "/run-test" && req.method === "POST") {
+  // One run at a time: a second start would drive the same tablet twice.
+  if (test.status === "running") {
+    res.writeHead(409, {"Content-Type": "application/json"});
+    return res.end(JSON.stringify({accepted: false, error: "A test is already running"}));
+  }
+
   if (!String(req.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) {
     res.writeHead(415, {"Content-Type": "application/json"});
     return res.end(JSON.stringify({accepted: false, error: "Content-Type must be application/json"}));
@@ -3061,6 +3237,9 @@ const server=http.createServer((req,res)=>{
       );
 
       runTest(testData).catch(error => {
+        // runTest already recorded and logged failures from inside the run.
+        if (error && error.reported) return;
+
         const message =
           error instanceof Error
             ? error.message

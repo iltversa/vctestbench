@@ -8,6 +8,7 @@
     { "idx": 3, "version": "7", "when": 1790241851778, "tag": "0003_add_test_action_ids", "breakpoints": true },
     { "idx": 4, "version": "7", "when": 1790241852778, "tag": "0004_add_paste_text_field", "breakpoints": true },
     { "idx": 5, "version": "7", "when": 1790241853778, "tag": "0005_align_schema_with_code", "breakpoints": true },
-    { "idx": 6, "version": "7", "when": 1790241854778, "tag": "0006_seed_builtin_actions", "breakpoints": true }
+    { "idx": 6, "version": "7", "when": 1790241854778, "tag": "0006_seed_builtin_actions", "breakpoints": true },
+    { "idx": 7, "version": "7", "when": 1790241855778, "tag": "0007_add_test_runs", "breakpoints": true }
   ]
 }

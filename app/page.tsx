@@ -1,9 +1,14 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { getTestsAction } from "@/actions/get-tests";
 import { deleteTestAction } from "@/actions/delete-test";
 import { getRunPayloadAction } from "@/actions/get-run-payload";
+import { listRunsAction } from "@/actions/run-reports";
+import { useRunReportSync } from "@/components/useRunReportSync";
+import RunStatusBadge from "@/components/RunStatusBadge";
+import { formatDateTime, formatDuration } from "@/components/run-format";
 import CreateTestModal from "@/components/CreateTestModal";
 import { FlowNode } from "@/components/TestFlowBuilder";
 import { BRIDGE, getRunBlockedReason, type TabletState } from "@/components/bridge";
@@ -55,6 +60,8 @@ export default function Home() {
     [testsLoading, setTestsLoading] = useState(true),
     [testsError, setTestsError] = useState(""),
     [testsReload, setTestsReload] = useState(0),
+    [recentRuns, setRecentRuns] = useState<{ runId: string; title: string; status: string; startedAt: string | Date; durationMs: number | null; stepCount: number; passedCount: number }[]>([]),
+    [runsReload, setRunsReload] = useState(0),
     [copied, setCopied] = useState(false);
     const refresh = useCallback(async () => {
         try {
@@ -75,6 +82,24 @@ export default function Home() {
         return () => window.clearInterval(timer);
     }, [refresh]);
     const connected = bridgeOnline && Boolean(state?.connected), events = state?.events ?? [];
+
+    // Finished runs are copied from the bridge into the database, then listed below.
+    useRunReportSync(state, () => setRunsReload((count) => count + 1));
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadRecentRuns = async () => {
+            const result = await listRunsAction({ limit: 5 });
+            if (!cancelled && result.success) setRecentRuns(result.runs as typeof recentRuns);
+        };
+
+        loadRecentRuns();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [runsReload]);
     const canRun = connected && state?.sandboxForeground && state.test?.status !== "running";
     const runBlockedReason = getRunBlockedReason(bridgeOnline, state);
     const copyBridgeCommand = async () => {
@@ -210,6 +235,13 @@ export default function Home() {
                     </div>
 
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:ml-auto">
+                        <Link
+                            href="/runs"
+                            className="inline-flex min-h-[44px] items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 transition hover:bg-slate-50"
+                        >
+                            Run history
+                        </Link>
+
                         <button
                             className="min-h-[44px] rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                             disabled={!connected || launching}
@@ -416,6 +448,43 @@ export default function Home() {
                                     </ul>
                                 )}
                             </div>
+                        </section>
+
+                        <section className="min-w-0 flex-shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+                                <h2 className="text-lg font-semibold text-slate-900">Recent runs</h2>
+                                <Link href="/runs" className="text-sm font-medium text-slate-900 underline">
+                                    View all
+                                </Link>
+                            </div>
+
+                            {recentRuns.length === 0 ? (
+                                <p className="px-5 py-4 text-sm text-slate-600">
+                                    No runs yet. A report with every step and its timing appears here after a run.
+                                </p>
+                            ) : (
+                                <ul className="divide-y divide-slate-200">
+                                    {recentRuns.map((run) => (
+                                        <li key={run.runId} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+                                            <div className="min-w-0">
+                                                <p className="truncate text-sm font-semibold text-slate-900">{run.title}</p>
+                                                <p className="text-sm text-slate-600">
+                                                    {formatDateTime(run.startedAt)} · {formatDuration(run.durationMs)} · {run.passedCount}/{run.stepCount} steps
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <RunStatusBadge status={run.status} />
+                                                <Link
+                                                    href={`/runs/${run.runId}`}
+                                                    className="inline-flex min-h-[44px] items-center rounded-lg border border-slate-300 px-4 text-sm font-medium text-slate-900 hover:bg-slate-50"
+                                                >
+                                                    Report
+                                                </Link>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </section>
 
                         {connected && (
