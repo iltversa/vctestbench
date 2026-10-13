@@ -67,9 +67,13 @@ npm run db      # a local database on the port in DATABASE_URL; leave it running
 ```
 
 It creates the database and applies the migrations (not the optional `0009`) the
-first time, and keeps its data in `tools/dev-db/data`, so it survives a reboot.
-Start it again after a restart. For a database that holds anything you care
-about, use a real PostgreSQL and back it up.
+first time, and keeps its data in `tools/dev-db/data`, so the data survives a
+reboot. The server itself does not: after a restart `npm run dev` starts it again
+by itself (in the background, with the same data), so there is nothing to
+remember. If the app says the database did not respond, that is the server being
+down, not lost data; `npm run db` starts it by hand. Do not delete
+`tools/dev-db/data`. For a database that holds anything you care about, use a
+real PostgreSQL and back it up.
 
 ## Run
 

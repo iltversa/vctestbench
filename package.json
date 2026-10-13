@@ -8,6 +8,7 @@
   "scripts": {
     "db": "npm install --prefix tools/dev-db --no-audit --no-fund --silent && node tools/dev-db/start.mjs",
     "bridge": "node --experimental-websocket tools/bridge/index.mjs",
+    "predev": "node tools/dev-db/ensure.mjs",
     "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
     "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
