@@ -23,6 +23,7 @@ export type TestAction = {
     icon?: string | null;
     clickOnText?: string | null;
     route?: string | null;
+    routeMode?: "check" | "go" | null;
 };
 
 // "home", "/home/" and "/home?x=1" all mean /home.
@@ -58,6 +59,7 @@ export default function ActionDialog({
     const [email, setEmail] = useState(test?.email ?? "");
     const [clickOnText, setClickOnText] = useState(test?.clickOnText ?? "");
     const [route, setRoute] = useState(test?.route ?? "");
+    const [routeMode, setRouteMode] = useState<"check" | "go">(test?.routeMode === "go" ? "go" : "check");
     const [password, setPassword] = useState(test?.password ?? "");
     const [icon, setIcon] = useState(test?.icon ?? "");
     const [pasteText, setPasteText] = useState(test?.pasteText ?? "");
@@ -158,6 +160,7 @@ export default function ActionDialog({
             icon: icon || null,
             clickOnText: clickOnText || null,
             route: isRouteAction ? routePath : null,
+            routeMode: isRouteAction ? routeMode : null,
             ...(isPasteAction ? { pasteText: pasteText.trim() } : {}),
         };
         try {
@@ -296,9 +299,39 @@ export default function ActionDialog({
                                     className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
                                 />
                                 <p className="mt-1.5 text-xs text-gray-600">
-                                    The page the tablet should be on, such as /home or /loginTS. The step waits for it,
-                                    and fails if the tablet is on another page.
+                                    The page, such as /home or /loginTS.
                                 </p>
+                                <fieldset className="mt-3 space-y-2">
+                                    <legend className="mb-1 text-sm font-medium text-gray-700">
+                                        If the tablet is on another page
+                                    </legend>
+                                    <label className="flex items-start gap-2 text-sm text-gray-800">
+                                        <input
+                                            type="radio"
+                                            name="route-mode"
+                                            checked={routeMode === "check"}
+                                            onChange={() => setRouteMode("check")}
+                                            className="mt-1 h-4 w-4"
+                                        />
+                                        <span>
+                                            <strong>Check only.</strong> Wait for the tablet to get there, and fail if
+                                            it does not.
+                                        </span>
+                                    </label>
+                                    <label className="flex items-start gap-2 text-sm text-gray-800">
+                                        <input
+                                            type="radio"
+                                            name="route-mode"
+                                            checked={routeMode === "go"}
+                                            onChange={() => setRouteMode("go")}
+                                            className="mt-1 h-4 w-4"
+                                        />
+                                        <span>
+                                            <strong>Go to it.</strong> Open the page, then check the tablet is there.
+                                            Skips tapping through the app.
+                                        </span>
+                                    </label>
+                                </fieldset>
                             </div>
                         )}
                         {/* Delay */}

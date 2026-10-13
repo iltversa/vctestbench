@@ -32,6 +32,33 @@ export const RECORDER_SCRIPT = `(() => {
     return "";
   };
 
+  // A dialog or popup: by its role, or by what it is called. The page itself
+  // (body often carries "modal-open") never counts.
+  const MODAL =
+    '[role=dialog],[role=alertdialog],[aria-modal=true],dialog,' +
+    '[class*=modal i],[class*=dialog i],[class*=popup i],[class*=sheet i],[class*=overlay i]';
+  const BUTTONS = 'button,[role=button],input[type=submit],input[type=button],a[href]';
+
+  const visible = (el) => Boolean(el.offsetWidth || el.offsetHeight);
+
+  // The buttons offered by the dialog around the target, or null when it is not
+  // in one (or the "dialog" is really most of the page).
+  const modalOptions = (target) => {
+    const modal = target.closest(MODAL);
+    if (!modal || modal === document.body || modal === document.documentElement) return null;
+
+    const labels = [];
+
+    for (const button of modal.querySelectorAll(BUTTONS)) {
+      if (!visible(button)) continue;
+
+      const label = labelOf(button);
+      if (label && !labels.includes(label)) labels.push(label);
+    }
+
+    return labels.length > 0 && labels.length <= 6 ? labels : null;
+  };
+
   const onClick = (event) => {
     if (!event.isTrusted) return;
 
@@ -46,6 +73,7 @@ export const RECORDER_SCRIPT = `(() => {
       kind: "click",
       label: labelOf(element),
       isSave: Boolean(target.closest("#data-save")),
+      modal: modalOptions(target),
     });
   };
 

@@ -51,6 +51,22 @@ async function pause(ms) {
 const NOT_THERE_YET =
   /was not found|not currently in DOM|No (text|password|email) field|Timeout|WebView|DevTools|No sign-in button|Expected the tablet to be on/;
 
+// Steps that moved the tablet to another page: they get an "after" picture.
+const navigatedSteps = new WeakSet();
+
+const NAVIGATE_SCRIPT = (path) => `((path) => {
+  try {
+    const router = window.next && window.next.router;
+    if (router && typeof router.push === "function") {
+      router.push(path);
+      return "router";
+    }
+  } catch {}
+
+  location.assign(path);
+  return "assign";
+})(${JSON.stringify(path)})`;
+
 // "home", "/home/" and "/home?x=1" all mean /home.
 export function normalizeRoute(value) {
   const path = String(value ?? "").trim().split(/[?#]/)[0];
@@ -104,7 +120,10 @@ function describeStep(title, data = {}) {
   if (name === "CLICK") return data.clickOnText ? `Tap "${data.clickOnText}"` : `Tap "${title}"`;
   if (name === "AUTHENTICATION") return data.email ? `Sign in as ${data.email}` : "Sign in";
   if (name === "SAVE") return "Press save";
-  if (name === "ROUTE") return data.route ? `On page ${data.route}` : "Check the page";
+  if (name === "ROUTE") {
+    if (!data.route) return "Check the page";
+    return data.routeMode === "go" ? `Go to ${data.route}` : `On page ${data.route}`;
+  }
   if (name === "CONFIRMATION") {
     const chosen = (data.confirmationOptions || []).find((option) => option.isSelected === true);
     return chosen ? `Choose "${chosen.option}"` : "Confirm";
@@ -232,7 +251,7 @@ async function finishStep(run, step, status, error = null) {
   // "after" picture. Stop still cuts it short. This time is not part of
   // the step's duration, which was recorded above.
   // A page check does nothing to the screen, so it needs no wait.
-  const checkOnly = String(step.action).trim().toUpperCase() === "ROUTE";
+  const checkOnly = String(step.action).trim().toUpperCase() === "ROUTE" && !navigatedSteps.has(step);
 
   if (status === "passed" && !checkOnly && AFTER_SHOT_DELAY_SECONDS > 0 && store.connection.connected) {
     try {
@@ -497,6 +516,21 @@ async function executeDeviceAction(action, step) {
     const expected = normalizeRoute(action.route);
 
     if (!expected) throw new Error("ROUTE needs a page route, for example /home.");
+
+    // "Go to it": open the page first, unless the tablet is already there.
+    if (action.routeMode === "go") {
+      const current = normalizeRoute(await evaluate("location.pathname"));
+
+      if (current.toLowerCase() !== expected.toLowerCase()) {
+        addEvent(`Going to ${expected}`, `The tablet was on ${current || "an unknown page"}`);
+        navigatedSteps.add(step);
+
+        // The page's own router when it has one (the app keeps its state);
+        // otherwise a normal page load. A load can close the connection that
+        // asked for it, which is not a failure: the check below decides.
+        await evaluate(NAVIGATE_SCRIPT(expected)).catch(() => {});
+      }
+    }
 
     await untilFound(step, async () => {
       const current = normalizeRoute(await evaluate("location.pathname"));

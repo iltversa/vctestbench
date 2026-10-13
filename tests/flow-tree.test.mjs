@@ -254,3 +254,28 @@ test("a recorded page becomes a ROUTE step with its route", () => {
   assert.equal(flow[0].actionTitle, "ROUTE");
   assert.equal(flow[0].actionData.route, "/home");
 });
+
+test("a recorded dialog choice is a CONFIRMATION whose chosen option continues the flow", () => {
+  const flow = flowFromRecording(
+    [
+      { id: 1, action: "CONFIRMATION", text: "Delete", options: ["Cancel", "Delete"] },
+      { id: 2, action: "CLICK", text: "Done" },
+    ],
+    []
+  );
+
+  const confirmation = flow[0];
+  assert.equal(confirmation.actionTitle, "CONFIRMATION");
+  assert.equal(confirmation.actionData.hasConfirmation, true);
+
+  const [cancel, remove] = confirmation.paths;
+  assert.equal(cancel.optionLabel, "Cancel");
+  assert.equal(cancel.isSelected, false);
+  assert.deepEqual(cancel.paths, []);
+  assert.equal(remove.optionLabel, "Delete");
+  assert.equal(remove.isSelected, true);
+  assert.equal(remove.paths[0].actionTitle, "CLICK", "what follows hangs under the chosen option");
+
+  const chosen = confirmation.actionData.confirmationOptions.find((option) => option.isSelected);
+  assert.equal(chosen.id, remove.optionId, "the option and its branch share an id");
+});

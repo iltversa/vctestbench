@@ -41,7 +41,7 @@ export class Recording {
     }
   }
 
-  click({ label = "", isSave = false }) {
+  click({ label = "", isSave = false, modal = null }) {
     const text = String(label).trim();
 
     if (isSave) {
@@ -53,6 +53,17 @@ export class Recording {
     if (this.awaitingSignIn) {
       this.awaitingSignIn = false;
       if (SIGN_IN_BUTTON.test(text)) return;
+    }
+
+    // A button in a dialog is a choice the flow makes: a CONFIRMATION whose
+    // selected option is the one tapped, with the dialog's other buttons as the
+    // alternatives.
+    if (text !== "" && Array.isArray(modal) && modal.length > 0) {
+      const options = modal.map(String);
+      if (!options.includes(text)) options.unshift(text);
+
+      this.add({ action: "CONFIRMATION", text, options });
+      return;
     }
 
     this.add({ action: "CLICK", text, unlabeled: text === "" });

@@ -5,9 +5,11 @@ import type { FlowNode, TestActionDefinition } from "../TestFlowBuilder";
 
 export type RecordedStep = {
   id: number;
-  action: "CLICK" | "PASTE" | "AUTHENTICATION" | "SAVE" | "ROUTE";
-  // CLICK: the text tapped. PASTE: the text typed.
+  action: "CLICK" | "PASTE" | "AUTHENTICATION" | "SAVE" | "ROUTE" | "CONFIRMATION";
+  // CLICK: the text tapped. PASTE: the text typed. CONFIRMATION: the option chosen.
   text?: string;
+  // CONFIRMATION: the buttons the dialog offered.
+  options?: string[];
   email?: string;
   // ROUTE: the page the tablet was on, e.g. /home.
   route?: string;
@@ -43,6 +45,39 @@ export function flowFromRecording(steps: RecordedStep[], library: TestActionDefi
       email: step.action === "AUTHENTICATION" ? step.email ?? "" : null,
       password: step.action === "AUTHENTICATION" ? "" : null,
     };
+
+    if (step.action === "CONFIRMATION") {
+      const options = (step.options ?? []).map((option) => ({
+        id: crypto.randomUUID(),
+        option,
+        isSelected: option === step.text,
+      }));
+
+      actionData.hasConfirmation = true;
+      actionData.confirmationTimeout = base?.confirmationTimeout ?? 5;
+      actionData.confirmationOptions = options;
+
+      // What follows continues under the option that was chosen.
+      tail = [
+        {
+          id: crypto.randomUUID(),
+          nodeType: "action",
+          actionId: actionData.id,
+          actionTitle: actionData.title,
+          actionData,
+          paths: options.map((option) => ({
+            id: crypto.randomUUID(),
+            nodeType: "confirmation" as const,
+            optionId: option.id,
+            optionLabel: option.option,
+            isSelected: option.isSelected,
+            paths: option.isSelected ? tail : [],
+          })),
+        },
+      ];
+
+      continue;
+    }
 
     tail = [
       {

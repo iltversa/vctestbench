@@ -63,3 +63,9 @@ test("a ROUTE step is planned with the page it checks", () => {
 
   assert.deepEqual(plan(flow), ["1. ROUTE: On page /loginTS"]);
 });
+
+test("a ROUTE step that goes to a page says so", () => {
+  const flow = [node("r", "ROUTE", { route: "/loginTS", routeMode: "go" })];
+
+  assert.deepEqual(plan(flow), ["1. ROUTE: Go to /loginTS"]);
+});

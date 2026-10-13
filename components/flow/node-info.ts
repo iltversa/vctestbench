@@ -46,7 +46,10 @@ export function nodeSubtitle(node: FlowNode): string | null {
 
   if (title === "DELAY") return `Wait ${Number(data?.actionTimeout ?? 0)}s`;
   if (title === "PASTE") return data?.pasteText ? `Paste "${data.pasteText}"` : "No text set";
-  if (title === "ROUTE") return data?.route ? `On page ${data.route}` : "No route set";
+  if (title === "ROUTE") {
+    if (!data?.route) return "No route set";
+    return data.routeMode === "go" ? `Go to ${data.route}` : `On page ${data.route}`;
+  }
   if (title === "CLICK") return data?.clickOnText ? `Tap "${data.clickOnText}"` : "No text set";
   if (title === "AUTHENTICATION") return data?.email ? `Sign in as ${data.email}` : "No email set";
   if (title === "CONFIRMATION") {

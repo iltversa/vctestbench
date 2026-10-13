@@ -100,15 +100,17 @@ npm run bridge   # in a second terminal, with the tablet connected
 | DELAY | Waits the configured number of seconds, on top of the default wait |
 | CONFIRMATION | Branches on the selected option |
 | SAVE | Presses the save button |
-| ROUTE | Waits for the tablet to be on the page you set (`/home`, `/loginTS`) and fails if it is not |
+| ROUTE | The tablet has to be on the page you set (`/home`, `/loginTS`). **Check only** waits for it and fails otherwise; **Go to it** opens the page first (the app's own router when it has one, else a page load), then checks |
 
 ### Recording a flow
 
 On a new, empty flow with the tablet connected and the Sandbox app open, the
 editor offers **Start recording**. Then use the tablet yourself: each tap becomes
 a CLICK (with the text you tapped), text you enter becomes a PASTE, the sign-in
-form becomes AUTHENTICATION, the save button becomes SAVE, and each page you
-move to becomes a ROUTE step (the page you started on is the first). The steps appear
+form becomes AUTHENTICATION, the save button becomes SAVE, each page you
+move to becomes a ROUTE step (the page you started on is the first), and a
+button tapped in a dialog becomes a CONFIRMATION: the button you tapped is the
+selected option and the dialog's other buttons are the alternatives. The steps appear
 in the flow as you go; press **Stop recording**, check them, name the flow and
 save.
 

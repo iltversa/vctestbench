@@ -81,3 +81,24 @@ test("a page change right after sign-in does not stop the sign-in tap being abso
 
   assert.deepEqual(steps.map((step) => step.action), ["AUTHENTICATION", "ROUTE"]);
 });
+
+test("a button in a dialog is recorded as a CONFIRMATION with the dialog's buttons as options", () => {
+  assert.deepEqual(record([click("Delete", { modal: ["Cancel", "Delete"] })]), [
+    { action: "CONFIRMATION", text: "Delete", options: ["Cancel", "Delete"] },
+  ]);
+});
+
+test("the tapped button is an option even when the page did not list it", () => {
+  assert.deepEqual(record([click("OK", { modal: ["Cancel"] })]), [
+    { action: "CONFIRMATION", text: "OK", options: ["OK", "Cancel"] },
+  ]);
+});
+
+test("a tap outside a dialog is still a CLICK, and the sign-in tap is still absorbed", () => {
+  assert.deepEqual(record([click("ADD USER", { modal: null })]), [
+    { action: "CLICK", text: "ADD USER", unlabeled: false },
+  ]);
+
+  const steps = record([type("me@example.com"), password(), click("Sign in", { modal: ["Sign in"] })]);
+  assert.deepEqual(steps.map((step) => step.action), ["AUTHENTICATION"]);
+});

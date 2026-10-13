@@ -40,6 +40,8 @@ export type TestActionDefinition = {
   clickOnText?: string | null;
   // ROUTE: the page the tablet should be on, e.g. /home.
   route?: string | null;
+  // ROUTE: "check" fails when the tablet is elsewhere; "go" navigates there.
+  routeMode?: "check" | "go" | null;
   email?: string | null;
   password?: string | null;
   confirmationOptions: {
@@ -214,6 +216,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     title,
     clickOnText: action.clickOnText ?? "",
     route: action.route ?? "",
+    routeMode: action.routeMode ?? "check",
     pasteText: action.pasteText ?? "",
     hasConfirmation:
       action.hasConfirmation ??
@@ -326,6 +329,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
       pasteText: configuredAction.pasteText ?? null,
       clickOnText: configuredAction.clickOnText ?? null,
       route: configuredAction.route ?? null,
+      routeMode: configuredAction.routeMode ?? null,
       email: configuredAction.email ?? null,
       password: configuredAction.password ?? null,
       icon: configuredAction.icon ?? null,

@@ -15,6 +15,7 @@ export type SavedTestAction = {
   icon?: string | null;
   clickOnText?: string | null;
   route?: string | null;
+  routeMode?: "check" | "go" | null;
 };
 
 export type SavedTest = {
