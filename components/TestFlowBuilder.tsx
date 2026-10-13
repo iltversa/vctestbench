@@ -870,34 +870,9 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     name && name in ACTION_ICONS
       ? ACTION_ICONS[name as keyof typeof ACTION_ICONS]
       : faUser;
-  const BRIDGE = "http://localhost:3131";
 
-  const handleRunTest = async (test: SavedTest) => {
-
-    // console.log(test);
-    try {
-      const response = await fetch(BRIDGE + "/run-test", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title: test.title,
-          actions: test.actions ?? [],
-          flow: test.flow ?? []
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to start test");
-      }else router.push("/")
-
-    } catch (error) {
-      console.error("handleRunTest error:", error);
-    } finally {
-      console.log("happen");
-
-    }
+  const handleRunTest = (testId: string) => {
+    router.push(`/?testId=${encodeURIComponent(testId)}`);
   };
   return (
     <div className="flow-builder">
@@ -1036,8 +1011,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
           <div className="flex space-between gap-5">
           <button
             className="save-test-button"
-            // disabled={!canRun || starting}
-            onClick={() => handleRunTest(initialTest)}
+            onClick={() => handleRunTest(initialTest?.id|| '')}
             type="button"
           >
             Run test

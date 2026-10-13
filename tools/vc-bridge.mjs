@@ -1,7 +1,7 @@
 import http from "node:http";
-import {execFile, execFileSync} from "node:child_process";
-import {promisify} from "node:util";
-const exec=promisify(execFile),PORT=3131;
+import { execFile, execFileSync } from "node:child_process";
+import { promisify } from "node:util";
+const exec = promisify(execFile), PORT = 3131;
 const ADB = process.env.ADB ?? (() => {
   const candidates = [
     "/opt/homebrew/bin/adb",
@@ -10,7 +10,7 @@ const ADB = process.env.ADB ?? (() => {
   ];
   for (const candidate of candidates) {
     try {
-      execFileSync(candidate, ["version"], {stdio: "ignore"});
+      execFileSync(candidate, ["version"], { stdio: "ignore" });
       return candidate;
     } catch {
       // try the next fallback candidate
@@ -18,108 +18,108 @@ const ADB = process.env.ADB ?? (() => {
   }
   return "adb";
 })();
-let screen=null,eventId=0,previous={connected:false,sandboxForeground:false,route:""};
-const events=[];
-let state={connected:false,sandboxForeground:false,updatedAt:new Date().toISOString(),events,test:{status:"idle",name:"Workout smoke test"}};
-let test={status:"idle",name:"Workout smoke test"};
-const adb=async(...args)=>(await exec(ADB,args,{encoding:"utf8",maxBuffer:8_000_000})).stdout.trim();
-const addEvent=(label,detail,kind="info")=>{events.push({id:++eventId,at:new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"}),label,detail,kind});if(events.length>30)events.shift()};
-async function readRoute(pid){
-  if(!pid)return"";
+let screen = null, eventId = 0, previous = { connected: false, sandboxForeground: false, route: "" };
+const events = [];
+let state = { connected: false, sandboxForeground: false, updatedAt: new Date().toISOString(), events, test: { status: "idle", name: "Workout smoke test" } };
+let test = { status: "idle", name: "Workout smoke test" };
+const adb = async (...args) => (await exec(ADB, args, { encoding: "utf8", maxBuffer: 8_000_000 })).stdout.trim();
+const addEvent = (label, detail, kind = "info") => { events.push({ id: ++eventId, at: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }), label, detail, kind }); if (events.length > 30) events.shift() };
+async function readRoute(pid) {
+  if (!pid) return "";
 
-  try{
+  try {
     await adb(
       "forward",
       "--remove",
       "tcp:9222"
-    ).catch(()=>{});
+    ).catch(() => { });
 
     await adb(
       "forward",
       "tcp:9222",
-      "localabstract:webview_devtools_remote_"+pid
+      "localabstract:webview_devtools_remote_" + pid
     );
 
-    const response=await fetch(
+    const response = await fetch(
       "http://127.0.0.1:9222/json/list",
-      {cache:"no-store"}
+      { cache: "no-store" }
     );
 
-    if(!response.ok)
-      throw new Error("DevTools HTTP "+response.status);
+    if (!response.ok)
+      throw new Error("DevTools HTTP " + response.status);
 
-    const pages=await response.json();
+    const pages = await response.json();
 
     console.log(
       "[DevTools]",
-      JSON.stringify(pages,null,2)
+      JSON.stringify(pages, null, 2)
     );
 
-    const page=pages.find(
+    const page = pages.find(
       item =>
-        item.type==="page" &&
+        item.type === "page" &&
         item.webSocketDebuggerUrl
     );
 
-    if(!page)return"";
+    if (!page) return "";
 
     return new URL(page.url).pathname;
 
-  }catch(error){
+  } catch (error) {
     console.log(
       "[DevTools] Route read failed:",
-      error?.message||error
+      error?.message || error
     );
-    return"";
+    return "";
   }
 }
-async function pageTelemetry(){
- const pages=await fetch("http://127.0.0.1:9222/json").then(r=>r.json()),url=pages[0]?.webSocketDebuggerUrl;
- if(!url)throw new Error("WebView telemetry unavailable");
- return await new Promise((resolve,reject)=>{
-  const ws=new WebSocket(url),timer=setTimeout(()=>{ws.close();reject(new Error("WebView telemetry timeout"))},4000);
-  ws.onopen=()=>ws.send(JSON.stringify({id:1,method:"Runtime.evaluate",params:{returnByValue:true,expression:'(()=>{const v=document.querySelector("video"),q=v?.getVideoPlaybackQuality?.();return {text:document.body.innerText,video:v?{paused:v.paused,muted:v.muted,volume:v.volume,currentTime:v.currentTime,readyState:v.readyState,decoded:v.webkitDecodedFrameCount??q?.totalVideoFrames??0,dropped:v.webkitDroppedFrameCount??q?.droppedVideoFrames??0}:null,audioCount:document.querySelectorAll("audio").length}})()'}}));
-  ws.onmessage=event=>{const message=JSON.parse(event.data);if(message.id===1){clearTimeout(timer);ws.close();resolve(message.result.result.value)}};
-  ws.onerror=()=>{clearTimeout(timer);reject(new Error("WebView telemetry error"))};
- });
+async function pageTelemetry() {
+  const pages = await fetch("http://127.0.0.1:9222/json").then(r => r.json()), url = pages[0]?.webSocketDebuggerUrl;
+  if (!url) throw new Error("WebView telemetry unavailable");
+  return await new Promise((resolve, reject) => {
+    const ws = new WebSocket(url), timer = setTimeout(() => { ws.close(); reject(new Error("WebView telemetry timeout")) }, 4000);
+    ws.onopen = () => ws.send(JSON.stringify({ id: 1, method: "Runtime.evaluate", params: { returnByValue: true, expression: '(()=>{const v=document.querySelector("video"),q=v?.getVideoPlaybackQuality?.();return {text:document.body.innerText,video:v?{paused:v.paused,muted:v.muted,volume:v.volume,currentTime:v.currentTime,readyState:v.readyState,decoded:v.webkitDecodedFrameCount??q?.totalVideoFrames??0,dropped:v.webkitDroppedFrameCount??q?.droppedVideoFrames??0}:null,audioCount:document.querySelectorAll("audio").length}})()' } }));
+    ws.onmessage = event => { const message = JSON.parse(event.data); if (message.id === 1) { clearTimeout(timer); ws.close(); resolve(message.result.result.value) } };
+    ws.onerror = () => { clearTimeout(timer); reject(new Error("WebView telemetry error")) };
+  });
 }
-async function pageAction(expression){
- const pages=await fetch("http://127.0.0.1:9222/json").then(r=>r.json()),url=pages[0]?.webSocketDebuggerUrl;
- if(!url)throw new Error("WebView action channel unavailable");
- return await new Promise((resolve,reject)=>{
-  const ws=new WebSocket(url),timer=setTimeout(()=>{ws.close();reject(new Error("WebView action timeout"))},4000);
-  ws.onopen=()=>ws.send(JSON.stringify({id:2,method:"Runtime.evaluate",params:{returnByValue:true,expression}}));
-  ws.onmessage=event=>{const message=JSON.parse(event.data);if(message.id===2){clearTimeout(timer);ws.close();resolve(message.result.result.value)}};
-  ws.onerror=()=>{clearTimeout(timer);reject(new Error("WebView action error"))};
- });
+async function pageAction(expression) {
+  const pages = await fetch("http://127.0.0.1:9222/json").then(r => r.json()), url = pages[0]?.webSocketDebuggerUrl;
+  if (!url) throw new Error("WebView action channel unavailable");
+  return await new Promise((resolve, reject) => {
+    const ws = new WebSocket(url), timer = setTimeout(() => { ws.close(); reject(new Error("WebView action timeout")) }, 4000);
+    ws.onopen = () => ws.send(JSON.stringify({ id: 2, method: "Runtime.evaluate", params: { returnByValue: true, expression } }));
+    ws.onmessage = event => { const message = JSON.parse(event.data); if (message.id === 2) { clearTimeout(timer); ws.close(); resolve(message.result.result.value) } };
+    ws.onerror = () => { clearTimeout(timer); reject(new Error("WebView action error")) };
+  });
 }
-async function clickText(labels){
- const wanted=JSON.stringify(labels.map(value=>value.toLowerCase()));
- const expression="(()=>{const wanted="+wanted+",nodes=[...document.querySelectorAll('button,[role=button],a,input[type=button],input[type=submit],.btn')],node=nodes.find(el=>wanted.some(text=>(el.innerText||el.value||el.getAttribute('aria-label')||'').trim().toLowerCase().includes(text)));if(!node)return '';node.click();return (node.innerText||node.value||node.getAttribute('aria-label')||'').trim()})()";
- return await pageAction(expression);
+async function clickText(labels) {
+  const wanted = JSON.stringify(labels.map(value => value.toLowerCase()));
+  const expression = "(()=>{const wanted=" + wanted + ",nodes=[...document.querySelectorAll('button,[role=button],a,input[type=button],input[type=submit],.btn')],node=nodes.find(el=>wanted.some(text=>(el.innerText||el.value||el.getAttribute('aria-label')||'').trim().toLowerCase().includes(text)));if(!node)return '';node.click();return (node.innerText||node.value||node.getAttribute('aria-label')||'').trim()})()";
+  return await pageAction(expression);
 }
-const feetFrom=text=>Number(text?.match(/Current Feet\s+([0-9,]+)/i)?.[1]?.replaceAll(",","")??0);
-async function poll(){
- const next={connected:false,sandboxForeground:false,updatedAt:new Date().toISOString(),events,test};
- try{
-  const devices=await adb("devices","-l"),line=devices.split("\n").find(value=>/\sdevice\s/.test(value));if(!line)throw new Error("not connected");
-  next.connected=true;next.device=line.trim().split(/\s+/)[0];next.model=await adb("shell","getprop","ro.product.model");next.android=await adb("shell","getprop","ro.build.version.release");
-  const activities=await adb("shell","dumpsys","activity","activities");
-  // Android versions use different names for the resumed activity. Only read
-  // active markers, never historical task entries that can include closed apps.
-  const match=activities.match(/\btopResumedActivity\s*[:=][^\n]*?\s([a-zA-Z0-9._]+)\/[^\s}]+/)
-   ??activities.match(/\bmResumedActivity\s*[:=][^\n]*?\s([a-zA-Z0-9._]+)\/[^\s}]+/);
-  next.foregroundPackage=match?.[1]??"";next.sandboxForeground=next.foregroundPackage==="com.versaclimber.sandbox";
-  const pid=next.sandboxForeground?await adb("shell","pidof","com.versaclimber.sandbox"):"";next.route=await readRoute(pid);
-  const capture=await exec(ADB,["exec-out","screencap","-p"],{encoding:"buffer",maxBuffer:8_000_000});screen=capture.stdout;
- }catch{next.connected=false;next.sandboxForeground=false;next.route="";screen=null}
- if(next.connected!==previous.connected)addEvent(next.connected?"Tablet connected":"Tablet disconnected",next.connected?next.model+" authorized through USB debugging":"USB debugging connection was lost",next.connected?"success":"warning");
- if(next.connected&&next.sandboxForeground!==previous.sandboxForeground)addEvent(next.sandboxForeground?"Sandbox app became visible":"Sandbox app left foreground",next.sandboxForeground?"Android confirms Sandbox is the active app":"Foreground app: "+(next.foregroundPackage||"unknown"));
- if(next.connected&&next.route&&next.route!==previous.route)addEvent(next.route==="/home"?"Home screen is visible":"Screen changed to "+next.route,"WebView route confirmed: "+next.route,"success");
- previous={connected:next.connected,sandboxForeground:next.sandboxForeground,route:next.route??""};state=next;
+const feetFrom = text => Number(text?.match(/Current Feet\s+([0-9,]+)/i)?.[1]?.replaceAll(",", "") ?? 0);
+async function poll() {
+  const next = { connected: false, sandboxForeground: false, updatedAt: new Date().toISOString(), events, test };
+  try {
+    const devices = await adb("devices", "-l"), line = devices.split("\n").find(value => /\sdevice\s/.test(value)); if (!line) throw new Error("not connected");
+    next.connected = true; next.device = line.trim().split(/\s+/)[0]; next.model = await adb("shell", "getprop", "ro.product.model"); next.android = await adb("shell", "getprop", "ro.build.version.release");
+    const activities = await adb("shell", "dumpsys", "activity", "activities");
+    // Android versions use different names for the resumed activity. Only read
+    // active markers, never historical task entries that can include closed apps.
+    const match = activities.match(/\btopResumedActivity\s*[:=][^\n]*?\s([a-zA-Z0-9._]+)\/[^\s}]+/)
+      ?? activities.match(/\bmResumedActivity\s*[:=][^\n]*?\s([a-zA-Z0-9._]+)\/[^\s}]+/);
+    next.foregroundPackage = match?.[1] ?? ""; next.sandboxForeground = next.foregroundPackage === "com.versaclimber.sandbox";
+    const pid = next.sandboxForeground ? await adb("shell", "pidof", "com.versaclimber.sandbox") : ""; next.route = await readRoute(pid);
+    const capture = await exec(ADB, ["exec-out", "screencap", "-p"], { encoding: "buffer", maxBuffer: 8_000_000 }); screen = capture.stdout;
+  } catch { next.connected = false; next.sandboxForeground = false; next.route = ""; screen = null }
+  if (next.connected !== previous.connected) addEvent(next.connected ? "Tablet connected" : "Tablet disconnected", next.connected ? next.model + " authorized through USB debugging" : "USB debugging connection was lost", next.connected ? "success" : "warning");
+  if (next.connected && next.sandboxForeground !== previous.sandboxForeground) addEvent(next.sandboxForeground ? "Sandbox app became visible" : "Sandbox app left foreground", next.sandboxForeground ? "Android confirms Sandbox is the active app" : "Foreground app: " + (next.foregroundPackage || "unknown"));
+  if (next.connected && next.route && next.route !== previous.route) addEvent(next.route === "/home" ? "Home screen is visible" : "Screen changed to " + next.route, "WebView route confirmed: " + next.route, "success");
+  previous = { connected: next.connected, sandboxForeground: next.sandboxForeground, route: next.route ?? "" }; state = next;
 }
-const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-async function waitForRoute(route,timeout=9000){const started=Date.now();while(Date.now()-started<timeout){if(state.connected&&state.route===route)return true;await sleep(350)}return false}
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+async function waitForRoute(route, timeout = 9000) { const started = Date.now(); while (Date.now() - started < timeout) { if (state.connected && state.route === route) return true; await sleep(350) } return false }
 async function runWorkoutTest() {
   if (test.status === "running") return;
 
@@ -941,11 +941,11 @@ async function debugWebViewScreen() {
     };
   });
 }
-async function launchSand(){
-  if(!state.connected)
+async function launchSand() {
+  if (!state.connected)
     throw new Error("Lenovo tablet is not connected");
 
-  if(!state.sandboxForeground){
+  if (!state.sandboxForeground) {
     await adb(
       "shell",
       "monkey",
@@ -956,28 +956,28 @@ async function launchSand(){
       "1"
     );
 
-    const started=Date.now();
+    const started = Date.now();
 
-    while(Date.now()-started<10000){
-      if(state.sandboxForeground)break;
+    while (Date.now() - started < 10000) {
+      if (state.sandboxForeground) break;
       await sleep(350);
     }
   }
 
-  if(!state.sandboxForeground)
+  if (!state.sandboxForeground)
     throw new Error("Sandbox could not be brought to foreground");
 
-  const routeStarted=Date.now();
+  const routeStarted = Date.now();
 
-  while(Date.now()-routeStarted<10000){
-    if(state.route==="/home")break;
+  while (Date.now() - routeStarted < 10000) {
+    if (state.route === "/home") break;
     await sleep(350);
   }
 
-  if(state.route!=="/home")
+  if (state.route !== "/home")
     throw new Error(
-      "Sandbox opened but Home was not detected. Current route: "+
-      (state.route||"unknown")
+      "Sandbox opened but Home was not detected. Current route: " +
+      (state.route || "unknown")
     );
 
   addEvent(
@@ -1427,7 +1427,7 @@ async function findMonumentsButton() {
       );
     };
   });
-  
+
 }
 async function clickRandomMonument() {
   return await pageAction(`(() => {
@@ -1586,10 +1586,12 @@ async function clickSaveButton() {
         new Error("WebView SAVE click error")
       );
     };
-    
+
   });
 }
-async function clickTextAround(targetText) {
+
+
+async function clickTextAround(targetText, timeoutMs = 5000) {
   const pages = await fetch("http://127.0.0.1:9222/json")
     .then(r => r.json());
 
@@ -1601,360 +1603,229 @@ async function clickTextAround(targetText) {
 
   return await new Promise((resolve, reject) => {
     const ws = new WebSocket(url);
+    let finished = false;
+    let nextId = 1;
+    let pollTimer = null;
+    let deadlineTimer = null;
 
-    const timer = setTimeout(() => {
-      ws.close();
-      reject(
-        new Error(`Timeout looking for "${targetText}"`)
-      );
-    }, 5000);
+    function cleanup() {
+      clearTimeout(pollTimer);
+      clearTimeout(deadlineTimer);
+      if (ws.readyState === WebSocket.OPEN) ws.close();
+    }
 
-    ws.onopen = () => {
+    function fail(message) {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      reject(new Error(message));
+    }
+
+    function sendEvaluate() {
+      if (finished || ws.readyState !== WebSocket.OPEN) return;
+
+      const id = nextId++;
 
       ws.send(JSON.stringify({
-        id: 1,
+        id,
         method: "Runtime.evaluate",
         params: {
           returnByValue: true,
-          expression: `
-            (() => {
+          expression: `(() => {
+            const target = ${JSON.stringify(targetText)}
+              .replace(/[\\u200B-\\u200D\\uFEFF]/g, "")
+              .replace(/\\u00A0/g, " ")
+              .replace(/\\s+/g, " ")
+              .trim()
+              .toLowerCase();
 
-              const target = ${JSON.stringify(targetText)}
+            function norm(value) {
+              return String(value || "")
+                .replace(/[\\u200B-\\u200D\\uFEFF]/g, "")
+                .replace(/\\u00A0/g, " ")
+                .replace(/\\s+/g, " ")
                 .trim()
                 .toLowerCase();
+            }
 
-              function isClickable(el) {
-                if (!el) return false;
+            function visible(el) {
+              if (!el || !el.isConnected) return false;
+              const s = getComputedStyle(el);
+              const r = el.getBoundingClientRect();
+              return s.display !== "none" &&
+                s.visibility !== "hidden" &&
+                Number(s.opacity) !== 0 &&
+                r.width > 0 && r.height > 0;
+            }
 
-                const tag = el.tagName?.toLowerCase();
+            function clickable(el) {
+              if (!el) return false;
 
-                if (
-                  tag === "button" ||
-                  tag === "a" ||
-                  tag === "input"
-                ) {
-                  return true;
-                }
+              const tag = el.tagName?.toLowerCase();
 
-                if (
-                  el.classList?.contains("monument-item")
-                ) {
-                  return true;
-                }
-
-                if (typeof el.onclick === "function") {
-                  return true;
-                }
-
-                if (
-                  el.getAttribute("role") === "button"
-                ) {
-                  return true;
-                }
-
-                if (
-                  el.hasAttribute("data-button") ||
-                  el.hasAttribute("data-action")
-                ) {
-                  return true;
-                }
-
-                const style = window.getComputedStyle(el);
-
-                if (style.cursor === "pointer") {
-                  return true;
-                }
-
-                return false;
-              }
-
-              // -----------------------------------------
-              // FIND TEXT
-              // -----------------------------------------
-
-              let textElement = null;
-
-              for (
-                const el of document.querySelectorAll("*")
+              if (
+                ["button", "a", "input", "select", "textarea"].includes(tag) ||
+                el.getAttribute("role") === "button" ||
+                el.hasAttribute("onclick") ||
+                el.hasAttribute("data-action") ||
+                el.hasAttribute("data-button") ||
+                el.classList?.contains("monument-item")
               ) {
-
-                const raw =
-                  el.innerText ||
-                  el.textContent ||
-                  "";
-
-                const text =
-                  raw.trim().toLowerCase();
-
-                if (!text) continue;
-
-                if (
-                  text === target ||
-                  text.startsWith(target)
-                ) {
-
-                  let hasSmallerMatch = false;
-
-                  for (
-                    const child of el.querySelectorAll("*")
-                  ) {
-
-                    const childRaw =
-                      child.innerText ||
-                      child.textContent ||
-                      "";
-
-                    const childText =
-                      childRaw.trim().toLowerCase();
-
-                    if (
-                      childText === target ||
-                      childText.startsWith(target)
-                    ) {
-                      hasSmallerMatch = true;
-                      break;
-                    }
-                  }
-
-                  if (!hasSmallerMatch) {
-                    textElement = el;
-                    break;
-                  }
-                }
+                return true;
               }
 
-              // -----------------------------------------
-              // NOT FOUND
-              // -----------------------------------------
+              return getComputedStyle(el).cursor === "pointer";
+            }
 
-              if (!textElement) {
-                return {
-                  success: false,
-                  reason:
-                    'Text "' +
-                    target +
-                    '" was not found'
-                };
-              }
+            // Search exact matches first, including text in newly opened modals.
+            const elements = Array.from(document.querySelectorAll("body *"))
+              .filter(visible);
 
-              // -----------------------------------------
-              // FIND CLICKABLE PARENT
-              // -----------------------------------------
+            const exact = elements.filter(el => norm(el.innerText || el.textContent) === target);
 
-              let current = textElement;
-              let clickedElement = null;
+            const partial = elements.filter(el => norm(el.innerText || el.textContent).includes(target));
 
-              const parentChain = [];
+            function smallest(a, b) {
+              const lengthDiff =
+                norm(a.innerText || a.textContent).length -
+                norm(b.innerText || b.textContent).length;
 
-              while (
-                current &&
-                current !== document.documentElement
-              ) {
+              if (lengthDiff !== 0) return lengthDiff;
 
-                parentChain.push({
-                  tag: current.tagName,
-                  id: current.id || "",
-                  className:
-                    typeof current.className === "string"
-                      ? current.className
-                      : "",
-                  text:
-                    (
-                      current.innerText ||
-                      current.textContent ||
-                      ""
-                    ).trim()
-                });
+              return a.querySelectorAll("*").length -
+                b.querySelectorAll("*").length;
+            }
 
-                if (isClickable(current)) {
-                  clickedElement = current;
-                  break;
-                }
+            const matches = (exact.length ? exact : partial).sort(smallest);
+            const textElement = matches[0] || null;
 
-                current = current.parentElement;
-              }
-
-              if (!clickedElement) {
-                return {
-                  success: false,
-
-                  reason:
-                    'Found text "' +
-                    target +
-                    '" but no clickable parent was found',
-
-                  text:
-                    (
-                      textElement.innerText ||
-                      textElement.textContent ||
-                      ""
-                    ).trim(),
-
-                  textTag:
-                    textElement.tagName,
-
-                  parentChain
-                };
-              }
-
-              // -----------------------------------------
-              // SCROLL
-              // -----------------------------------------
-
-              try {
-                clickedElement.scrollIntoView({
-                  block: "center",
-                  inline: "center"
-                });
-              } catch (_) {}
-
-              // -----------------------------------------
-              // ELEMENT BEFORE CLICK
-              // -----------------------------------------
-
-              const beforeRect =
-                clickedElement.getBoundingClientRect();
-
-              const before = {
-                tag: clickedElement.tagName,
-                id: clickedElement.id || "",
-                className:
-                  typeof clickedElement.className === "string"
-                    ? clickedElement.className
-                    : "",
-
-                text:
-                  (
-                    clickedElement.innerText ||
-                    clickedElement.textContent ||
-                    ""
-                  ).trim(),
-
-                rect: {
-                  x: beforeRect.x,
-                  y: beforeRect.y,
-                  width: beforeRect.width,
-                  height: beforeRect.height
-                }
-              };
-
-              // -----------------------------------------
-              // ACTUAL CLICK
-              // -----------------------------------------
-
-              clickedElement.click();
-
-              // -----------------------------------------
-              // RETURN RESULT
-              // -----------------------------------------
-
+            if (!textElement) {
               return {
-                success: true,
-
+                found: false,
                 target,
-
-                before,
-
-                clickedTag:
-                  clickedElement.tagName,
-
-                clickedId:
-                  clickedElement.id || "",
-
-                clickedClass:
-                  typeof clickedElement.className === "string"
-                    ? clickedElement.className
-                    : "",
-
-                clickedText:
-                  (
-                    clickedElement.innerText ||
-                    clickedElement.textContent ||
-                    ""
-                  ).trim(),
-
-                parentChain
+                url: location.href,
+                bodyTextContainsTarget: norm(document.body?.innerText).includes(target)
               };
+            }
 
-            })()
-          `
+            let current = textElement;
+            let clickedElement = null;
+            const chain = [];
+
+            while (current && current !== document.documentElement) {
+              chain.push({
+                tag: current.tagName,
+                text: (current.innerText || current.textContent || "").trim().slice(0, 150),
+                className: typeof current.className === "string" ? current.className : "",
+                role: current.getAttribute("role"),
+                cursor: getComputedStyle(current).cursor,
+                clickable: clickable(current)
+              });
+
+              if (clickable(current)) {
+                clickedElement = current;
+                break;
+              }
+
+              current = current.parentElement;
+            }
+
+            if (!clickedElement) {
+              return {
+                found: true,
+                clicked: false,
+                reason: "Text found, but no clickable ancestor",
+                matchedText: (textElement.innerText || textElement.textContent || "").trim(),
+                chain
+              };
+            }
+
+            clickedElement.scrollIntoView({
+              block: "center",
+              inline: "center"
+            });
+
+            const before = {
+              tag: clickedElement.tagName,
+              text: (clickedElement.innerText || clickedElement.textContent || "").trim(),
+              className: typeof clickedElement.className === "string" ? clickedElement.className : ""
+            };
+
+            clickedElement.click();
+
+            return {
+              found: true,
+              clicked: true,
+              matchType: exact.length ? "exact" : "partial",
+              before,
+              chain
+            };
+          })()`
         }
       }));
+
+      // The response handler below uses the matching command ID.
+      pendingId = id;
+    }
+
+    let pendingId = null;
+
+    ws.onopen = () => {
+      // deadlineTimer = setTimeout(() => {
+      //   fail(\`Timed out after \${timeoutMs}ms waiting for "\${targetText}" to appear\`);
+      // }, timeoutMs);
+
+      sendEvaluate();
     };
 
     ws.onmessage = event => {
-  const message = JSON.parse(event.data);
+      let message;
 
-  console.log("\n========== RAW DEVTOOLS RESPONSE ==========");
-  console.log(JSON.stringify(message, null, 2));
-  console.log("===========================================\n");
+      try {
+        message = JSON.parse(event.data);
+      } catch {
+        return;
+      }
 
-  if (message.id !== 1) {
-    return;
-  }
+      if (message.id !== pendingId) return;
 
-  clearTimeout(timer);
+      const result = message.result?.result?.value;
 
-  if (message.error) {
-    ws.close();
+      if (message.error || message.result?.exceptionDetails) {
+        fail(
+          message.error?.message ||
+          message.result?.exceptionDetails?.text ||
+          "Runtime.evaluate failed"
+        );
+        return;
+      }
 
-    reject(
-      new Error(
-        message.error.message ||
-        "Runtime.evaluate failed"
-      )
-    );
+      if (result?.found && result?.clicked) {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        resolve(result);
+        return;
+      }
 
-    return;
-  }
+      if (result?.found && !result?.clicked) {
+        fail(JSON.stringify(result));
+        return;
+      }
 
-  const runtimeResult =
-    message.result?.result;
+      // Target is not present yet; try again after a short interval.
+      pollTimer = setTimeout(sendEvaluate, 150);
+    };
 
-  // console.log("\n========== RUNTIME RESULT ==========");
-  // console.log(
-  //   JSON.stringify(runtimeResult, null, 2)
-  // );
-  // console.log("====================================\n");
-
-  const result = runtimeResult?.value;
-
-  // console.log("\n================================");
-  // console.log("CLICK RESULT:", targetText);
-  // console.log("================================");
-  // console.log(
-  //   JSON.stringify(result, null, 2)
-  // );
-  // console.log(
-  //   "Parent chain:",
-  //   JSON.stringify(result?.parentChain, null, 2)
-  // );
-  // console.log("================================\n");
-
-  ws.close();
-
-  if (result?.success) {
-    resolve(true);
-  } else {
-    reject(
-      new Error(
-        result?.reason ||
-        `Unable to click "${targetText}"`
-      )
-    );
-  }
-};
-
-    ws.onerror = () => {
-      clearTimeout(timer);
-      ws.close();
-
-      reject(
-        new Error("WebView click error")
-      );
+    ws.onerror = () => fail("WebView DevTools WebSocket error");
+    ws.onclose = () => {
+      if (!finished) {
+        fail("WebView DevTools WebSocket closed unexpectedly");
+      }
     };
   });
 }
+
 async function inspectMonumentList() {
   return await pageAction(`(() => {
     const lists = [...document.querySelectorAll("ul")];
@@ -2034,22 +1905,21 @@ async function runMonumentTest() {
     addEvent(
       "Monuments open failed",
       openResult?.reason ||
-        "Could not open the Monuments modal",
+      "Could not open the Monuments modal",
       "error"
     );
 
     throw new Error(
       openResult?.reason ||
-        "Could not open the Monuments modal"
+      "Could not open the Monuments modal"
     );
   }
 
   addEvent(
     "Monuments opened",
-    `Clicked ${
-      openResult.text ||
-      openResult.id ||
-      openResult.tag
+    `Clicked ${openResult.text ||
+    openResult.id ||
+    openResult.tag
     }`,
     "success"
   );
@@ -2108,22 +1978,21 @@ async function runMonumentTest() {
     addEvent(
       "Monument selection failed",
       monument?.reason ||
-        "Unknown error",
+      "Unknown error",
       "error"
     );
 
     throw new Error(
       monument?.reason ||
-        "Monument selection failed"
+      "Monument selection failed"
     );
   }
 
   addEvent(
     "Random monument selected",
-    `Clicked ${
-      monument.text ||
-      monument.id ||
-      monument.tag
+    `Clicked ${monument.text ||
+    monument.id ||
+    monument.tag
     }`,
     "success"
   );
@@ -2175,7 +2044,7 @@ async function runMonumentTest() {
   if (!startResult?.success) {
     throw new Error(
       startResult?.reason ||
-        "START CLIMBING could not be clicked"
+      "START CLIMBING could not be clicked"
     );
   }
 
@@ -2229,8 +2098,8 @@ async function runMonumentTest() {
     addEvent(
       "Climb is running",
       "Monument workout verified at " +
-        feet +
-        " ft",
+      feet +
+      " ft",
       "success"
     );
 
@@ -2292,7 +2161,7 @@ async function runMonumentTest() {
   if (!stopResult?.success) {
     throw new Error(
       stopResult?.reason ||
-        "STOP could not be clicked"
+      "STOP could not be clicked"
     );
   }
 
@@ -2354,13 +2223,13 @@ async function runMonumentTest() {
     addEvent(
       "Save failed",
       saveResult?.reason ||
-        "SAVE could not be clicked",
+      "SAVE could not be clicked",
       "error"
     );
 
     throw new Error(
       saveResult?.reason ||
-        "SAVE could not be clicked"
+      "SAVE could not be clicked"
     );
   }
 
@@ -2409,71 +2278,68 @@ async function runMonumentTest() {
     "success"
   );
 }
-async function runVideoClassTest(){
- if(test.status==="running")return;
- if(!state.connected||!state.sandboxForeground||state.route!=="/home")throw new Error("Sandbox must be connected and on Home");
- events.splice(0,events.length);
- test={status:"running",name:"Video class test",startedAt:new Date().toISOString(),step:"Opening All Classes"};addEvent("Video class test started","Tablet, Sandbox, and Home screen verified","info");
- await adb("shell","input","tap","600","725");
- if(!await waitForRoute("/home-classes"))throw new Error("All Classes did not open");
- addEvent("Tapped All Classes","Class category screen confirmed","success");test={...test,step:"Selecting 15 Mins category"};
- await adb("shell","input","tap","110","1180");await sleep(1500);
- let telemetry=await pageTelemetry();
- if(!telemetry.text.includes("15 MINS"))throw new Error("15 Mins category was not selected");
- addEvent("Tapped 15 Mins category","Filtered class cards are visible","success");test={...test,step:"Opening first class"};
- await adb("shell","input","tap","200","250");
- const started=Date.now();while(Date.now()-started<15000&&!state.route?.startsWith("/live-stream-ts/"))await sleep(350);
- if(!state.route?.startsWith("/live-stream-ts/"))throw new Error("Video training view did not open");
- addEvent("Tapped first class card","Video training route confirmed","success");test={...test,step:"Waiting for video playback"};
- let first=null,last=null;
- const loadStarted=Date.now();
- while(Date.now()-loadStarted<30000){try{telemetry=await pageTelemetry();if(telemetry.video&&!telemetry.video.paused&&telemetry.video.readyState>=3){first=telemetry;break}}catch{}await sleep(1000)}
- if(!first)throw new Error("Training video did not begin playback");
- await sleep(4000);last=await pageTelemetry();
- if(last.video.currentTime<=first.video.currentTime+2||last.video.decoded<=first.video.decoded)throw new Error("Video frames are not advancing smoothly");
- const dropped=last.video.dropped??0,decoded=last.video.decoded??1;
- addEvent("Video playback is healthy","Playback advanced "+Math.round(last.video.currentTime-first.video.currentTime)+"s · "+dropped+" dropped of "+decoded+" decoded frames","success");
- const mediaVolume=await adb("shell","cmd","media_session","volume","--stream","3","--get");
- if(last.video.muted||last.video.volume===0||/volume is 0/i.test(mediaVolume))throw new Error("Media audio is muted");
- addEvent("Audio output is active","Video is unmuted and Android media volume is above zero","success");
- addEvent("Music channel is available","Music controls are visible; subjective clarity requires a listening check","info");
- test={...test,step:"Monitoring vitals until 45 ft"};
- let initialFeet=feetFrom(last.text),latestFeet=initialFeet,previousFeet=initialFeet,updates=0;
- if(/Unable\s+to connect to sensor/i.test(last.text))throw new Error("VersaClimber sensor is not connected; vitals cannot update");
- const metricStart=Date.now();
- while(Date.now()-metricStart<180000&&latestFeet<45){await sleep(2000);telemetry=await pageTelemetry();if(/Unable\s+to connect to sensor/i.test(telemetry.text))throw new Error("VersaClimber sensor is not connected; vitals cannot update");if(!state.route?.startsWith("/live-stream-ts/"))throw new Error("Video class was closed before reaching 45 ft");latestFeet=feetFrom(telemetry.text);if(latestFeet>previousFeet){updates++;previousFeet=latestFeet}test={...test,step:"Vitals updating · "+latestFeet+" ft"};state.test=test}
- if(latestFeet<45)throw new Error("Workout did not reach 45 ft within 3 minutes");
- if(updates<2)throw new Error("Feet metric did not update consistently");
- const hasCalories=/\bcal\b/i.test(telemetry.text),hasWatts=/\bwatts\b/i.test(telemetry.text),heartRateConnected=!/\bHR\s+Connect\b/i.test(telemetry.text);
- if(!hasCalories||!hasWatts)throw new Error("Expected calorie or watt metrics are missing");
- addEvent("Vitals reached 45 ft","Feet progressed from "+initialFeet+" to "+latestFeet+"; calories and watts remained visible","success");
- if(heartRateConnected)addEvent("Heart rate is updating","Connected HR value is visible","success");else addEvent("Heart rate not available","No HR sensor is connected; marked not applicable","warning");
- test={...test,step:"Stopping class before 50 ft"};
- await clickText(["stop"]);
- if(!await waitForRoute("/home-classes",20000))throw new Error("Class did not end after Stop");
- addEvent("Stopped before 50 ft","Class ended without a Save workout dialog, as expected","success");
- await sleep(700);
- const rateClicked=await clickText(["rate this class"]);
- if(!rateClicked)throw new Error("Rate this Class control was not found");
- addEvent("Clicked Rate this Class","Feedback view opened","success");await sleep(800);
- const ratingExpression="(()=>{const radios=[...document.querySelectorAll('input[type=radio]')],stars=[...document.querySelectorAll('[data-rating],.star,.rating-star')],target=radios.at(-1)||stars.at(-1);if(target){target.click();return true}const buttons=[...document.querySelectorAll('button,[role=button]')],choice=buttons.find(el=>/great|excellent|love|5/i.test(el.innerText||el.getAttribute('aria-label')||''));if(choice){choice.click();return true}return false})()";
- const ratingSelected=await pageAction(ratingExpression);
- if(!ratingSelected)throw new Error("Feedback rating control was not recognized");
- const submitted=await clickText(["submit","save feedback","done"]);
- if(!submitted)throw new Error("Feedback submit control was not found");
- addEvent("Submitted class feedback","Highest available rating selected and submitted","success");await sleep(700);
- for(let attempts=0;attempts<3&&state.route!=="/home";attempts++){await adb("shell","input","keyevent","KEYCODE_BACK");await sleep(700)}
- if(!await waitForRoute("/home",5000))throw new Error("Home did not return after feedback");
- addEvent("Returned Home","Video class, save, and feedback flow finished cleanly","success");
- test={status:"passed",name:"Video class test",finishedAt:new Date().toISOString(),step:"Complete"};state.test=test;
+async function runVideoClassTest() {
+  if (test.status === "running") return;
+  if (!state.connected || !state.sandboxForeground || state.route !== "/home") throw new Error("Sandbox must be connected and on Home");
+  events.splice(0, events.length);
+  test = { status: "running", name: "Video class test", startedAt: new Date().toISOString(), step: "Opening All Classes" }; addEvent("Video class test started", "Tablet, Sandbox, and Home screen verified", "info");
+  await adb("shell", "input", "tap", "600", "725");
+  if (!await waitForRoute("/home-classes")) throw new Error("All Classes did not open");
+  addEvent("Tapped All Classes", "Class category screen confirmed", "success"); test = { ...test, step: "Selecting 15 Mins category" };
+  await adb("shell", "input", "tap", "110", "1180"); await sleep(1500);
+  let telemetry = await pageTelemetry();
+  if (!telemetry.text.includes("15 MINS")) throw new Error("15 Mins category was not selected");
+  addEvent("Tapped 15 Mins category", "Filtered class cards are visible", "success"); test = { ...test, step: "Opening first class" };
+  await adb("shell", "input", "tap", "200", "250");
+  const started = Date.now(); while (Date.now() - started < 15000 && !state.route?.startsWith("/live-stream-ts/")) await sleep(350);
+  if (!state.route?.startsWith("/live-stream-ts/")) throw new Error("Video training view did not open");
+  addEvent("Tapped first class card", "Video training route confirmed", "success"); test = { ...test, step: "Waiting for video playback" };
+  let first = null, last = null;
+  const loadStarted = Date.now();
+  while (Date.now() - loadStarted < 30000) { try { telemetry = await pageTelemetry(); if (telemetry.video && !telemetry.video.paused && telemetry.video.readyState >= 3) { first = telemetry; break } } catch { } await sleep(1000) }
+  if (!first) throw new Error("Training video did not begin playback");
+  await sleep(4000); last = await pageTelemetry();
+  if (last.video.currentTime <= first.video.currentTime + 2 || last.video.decoded <= first.video.decoded) throw new Error("Video frames are not advancing smoothly");
+  const dropped = last.video.dropped ?? 0, decoded = last.video.decoded ?? 1;
+  addEvent("Video playback is healthy", "Playback advanced " + Math.round(last.video.currentTime - first.video.currentTime) + "s · " + dropped + " dropped of " + decoded + " decoded frames", "success");
+  const mediaVolume = await adb("shell", "cmd", "media_session", "volume", "--stream", "3", "--get");
+  if (last.video.muted || last.video.volume === 0 || /volume is 0/i.test(mediaVolume)) throw new Error("Media audio is muted");
+  addEvent("Audio output is active", "Video is unmuted and Android media volume is above zero", "success");
+  addEvent("Music channel is available", "Music controls are visible; subjective clarity requires a listening check", "info");
+  test = { ...test, step: "Monitoring vitals until 45 ft" };
+  let initialFeet = feetFrom(last.text), latestFeet = initialFeet, previousFeet = initialFeet, updates = 0;
+  if (/Unable\s+to connect to sensor/i.test(last.text)) throw new Error("VersaClimber sensor is not connected; vitals cannot update");
+  const metricStart = Date.now();
+  while (Date.now() - metricStart < 180000 && latestFeet < 45) { await sleep(2000); telemetry = await pageTelemetry(); if (/Unable\s+to connect to sensor/i.test(telemetry.text)) throw new Error("VersaClimber sensor is not connected; vitals cannot update"); if (!state.route?.startsWith("/live-stream-ts/")) throw new Error("Video class was closed before reaching 45 ft"); latestFeet = feetFrom(telemetry.text); if (latestFeet > previousFeet) { updates++; previousFeet = latestFeet } test = { ...test, step: "Vitals updating · " + latestFeet + " ft" }; state.test = test }
+  if (latestFeet < 45) throw new Error("Workout did not reach 45 ft within 3 minutes");
+  if (updates < 2) throw new Error("Feet metric did not update consistently");
+  const hasCalories = /\bcal\b/i.test(telemetry.text), hasWatts = /\bwatts\b/i.test(telemetry.text), heartRateConnected = !/\bHR\s+Connect\b/i.test(telemetry.text);
+  if (!hasCalories || !hasWatts) throw new Error("Expected calorie or watt metrics are missing");
+  addEvent("Vitals reached 45 ft", "Feet progressed from " + initialFeet + " to " + latestFeet + "; calories and watts remained visible", "success");
+  if (heartRateConnected) addEvent("Heart rate is updating", "Connected HR value is visible", "success"); else addEvent("Heart rate not available", "No HR sensor is connected; marked not applicable", "warning");
+  test = { ...test, step: "Stopping class before 50 ft" };
+  await clickText(["stop"]);
+  if (!await waitForRoute("/home-classes", 20000)) throw new Error("Class did not end after Stop");
+  addEvent("Stopped before 50 ft", "Class ended without a Save workout dialog, as expected", "success");
+  await sleep(700);
+  const rateClicked = await clickText(["rate this class"]);
+  if (!rateClicked) throw new Error("Rate this Class control was not found");
+  addEvent("Clicked Rate this Class", "Feedback view opened", "success"); await sleep(800);
+  const ratingExpression = "(()=>{const radios=[...document.querySelectorAll('input[type=radio]')],stars=[...document.querySelectorAll('[data-rating],.star,.rating-star')],target=radios.at(-1)||stars.at(-1);if(target){target.click();return true}const buttons=[...document.querySelectorAll('button,[role=button]')],choice=buttons.find(el=>/great|excellent|love|5/i.test(el.innerText||el.getAttribute('aria-label')||''));if(choice){choice.click();return true}return false})()";
+  const ratingSelected = await pageAction(ratingExpression);
+  if (!ratingSelected) throw new Error("Feedback rating control was not recognized");
+  const submitted = await clickText(["submit", "save feedback", "done"]);
+  if (!submitted) throw new Error("Feedback submit control was not found");
+  addEvent("Submitted class feedback", "Highest available rating selected and submitted", "success"); await sleep(700);
+  for (let attempts = 0; attempts < 3 && state.route !== "/home"; attempts++) { await adb("shell", "input", "keyevent", "KEYCODE_BACK"); await sleep(700) }
+  if (!await waitForRoute("/home", 5000)) throw new Error("Home did not return after feedback");
+  addEvent("Returned Home", "Video class, save, and feedback flow finished cleanly", "success");
+  test = { status: "passed", name: "Video class test", finishedAt: new Date().toISOString(), step: "Complete" }; state.test = test;
 }
 
 async function runTest(testData) {
-  console.log("================================");
-  console.log("RUN TEST:", testData?.title);
+  console.log("RUN TEST:", testData);
   console.log("FLOW:", testData?.flow);
-  console.log("ACTIONS:", testData?.actions);
-  console.log("================================");
 
   if (!Array.isArray(testData?.flow)) {
     throw new Error(
@@ -2499,27 +2365,7 @@ async function runTest(testData) {
   );
 
   try {
-    // Action definitions are only used for lookup.
-    const actionMap = new Map(
-      (testData.actions || []).map((action) => [
-        action.id,
-        action,
-      ])
-    );
-
-    console.log(
-      "ACTION MAP:",
-      [...actionMap.values()].map((action) => ({
-        id: action.id,
-        title: action.title,
-      }))
-    );
-
-    // Flow controls the actual execution order.
-    await executeFlowNodes(
-      testData.flow,
-      actionMap
-    );
+    await executeFlowNodes(testData.flow);
 
     test = {
       status: "passed",
@@ -2536,7 +2382,6 @@ async function runTest(testData) {
       "",
       "success"
     );
-
   } catch (error) {
     const message =
       error instanceof Error
@@ -2563,149 +2408,103 @@ async function runTest(testData) {
     throw error;
   }
 }
-async function executeFlowNodes(nodes, actionMap) {
+
+async function executeFlowNodes(nodes) {
   if (!Array.isArray(nodes) || nodes.length === 0) {
     return;
   }
 
   for (const node of nodes) {
-    // ------------------------------------------------
-    // Empty node
-    // ------------------------------------------------
+    const action = node.actionData;
 
-    if (!node.actionId && !node.optionId) {
-      await executeFlowNodes(
-        node.paths,
-        actionMap
-      );
-
-      continue;
-    }
-
-
-    if (!node.actionId && node.optionId) {
-      console.log(
-        "OPTION selected:",
-        node.isSelected
-      );
-
-      await executeFlowNodes(
-        node.paths,
-        actionMap
-      );
-
-      continue;
-    }
-
-    // ------------------------------------------------
-    // Action node
-    // ------------------------------------------------
-
-    const action = actionMap.get(node.actionId);
-  console.log("================================");
-
-    console.log("EXECUTING ACTION:", {
-  id: action?.id,
-  title: JSON.stringify(action?.title),
-});
-  console.log("================================");
+    // -----------------------------------------------
+    // Branch / container node without action data
+    // -----------------------------------------------
 
     if (!action) {
-      throw new Error(
-        `Action not found for actionId: ${node.actionId}`
-      );
+      // Confirmation option nodes are executed only
+      // by the selected confirmation branch.
+      if (node.optionId) {
+        continue;
+      }
+
+      await executeFlowNodes(node.paths);
+      continue;
     }
 
-    const title = String(
-      action.title || ""
-    ).trim();
+    const title = String(action.title || "")
+      .trim()
+      .toUpperCase();
 
-    const normalizedTitle = title.toUpperCase();
-
-    console.log(
-      "--------------------------------"
-    );
-    console.log("EXECUTING:", title);
-    console.log("ACTION ID:", action.id);
+    console.log("================================");
+    console.log("EXECUTING ACTION:", title);
     console.log("NODE ID:", node.id);
-    console.log(
-      "CHILD PATHS:",
-      node.paths?.length || 0
-    );
-    console.log(
-      "--------------------------------"
-    );
-
-    // ------------------------------------------------
-    // Update test state
-    // ------------------------------------------------
+    console.log("ACTION DATA:", action);
+    console.log("================================");
 
     test.step = title;
     state.test = test;
 
-    addEvent(
-      `Attempting action: ${title}`,
-      "",
-      "info"
-    );
+    addEvent(`Attempting action: ${title}`, "", "info");
 
-    // ------------------------------------------------
-    // Execute the actual device action
-    // ------------------------------------------------
+    // -----------------------------------------------
+    // CLICK
+    // -----------------------------------------------
 
-    await executeDeviceAction(action);
+    if (title === "CLICK") {
+      const text = String(action.clickOnText || "").trim();
 
-    addEvent(
-      `Finished action: ${title}`,
-      "",
-      "success"
-    );
+      if (!text) {
+        throw new Error("CLICK action has no clickOnText.");
+      }
 
-    // ------------------------------------------------
+      await clickTextAround(text);
+
+      addEvent(`Clicked text: ${text}`, "", "success");
+    }
+
+    // -----------------------------------------------
+    // DELAY
+    // -----------------------------------------------
+
+    else if (title === "DELAY") {
+      const timeout = Number(action.actionTimeout) || 0;
+
+      if (timeout > 0) {
+        addEvent(`Waiting ${timeout} ms`, "", "info");
+
+        await new Promise((resolve) =>
+          setTimeout(resolve, timeout)
+        );
+      }
+
+      addEvent(`Finished delay: ${timeout} ms`, "", "success");
+    }
+
+    // -----------------------------------------------
     // CONFIRMATION
-    // ------------------------------------------------
+    // -----------------------------------------------
 
-    if (normalizedTitle === "CONFIRMATION") {
-      addEvent(
-        `testtt action: ${JSON.stringify(
-          action,
-          null,
-          2
-        )}`,
-        "",
-        "success"
-      );
-      addEvent(
-  `Confirmation options: ${JSON.stringify(
-    action.confirmationOptions,
-    null,
-    2
-  )}`,
-  "",
-  "success"
-);
-      await executeConfirmationNode(
-        node,
-        action,
-        actionMap
-      );
-
+    else if (title === "CONFIRMATION") {
+      await executeConfirmationNode(node, action);
       continue;
     }
 
-    // ------------------------------------------------
-    // Normal action
-    //
-    // executeDeviceAction already handles its
-    // actionTimeout.
-    // ------------------------------------------------
+    // -----------------------------------------------
+    // Other device actions
+    // -----------------------------------------------
 
-    if (Array.isArray(node.paths)) {
-      await executeFlowNodes(
-        node.paths,
-        actionMap
-      );
+    else {
+      await executeDeviceAction(action);
     }
+
+    addEvent(`Finished action: ${title}`, "", "success");
+
+    // -----------------------------------------------
+    // Continue in flow order
+    // -----------------------------------------------
+
+    await executeFlowNodes(node.paths);
   }
 }
 
@@ -2789,7 +2588,7 @@ async function executeDeviceAction(action) {
 
     return;
   }
-//esha
+
   await clickTextAround(title);
 
   addEvent(
@@ -2811,77 +2610,46 @@ async function executeDeviceAction(action) {
     await sleep(seconds * 1000);
   }
 }
-async function executeConfirmationNode(
-  node,
-  action,
-  actionMap
-) {
+async function executeConfirmationNode(node, action) {
   const options = Array.isArray(action.confirmationOptions)
     ? action.confirmationOptions
     : [];
-
-  console.log(
-    "CONFIRMATION OPTIONS:",
-    options
-  );
-
-  // ---------------------------------------------
-  // Find the option whose boolean is true
-  // ---------------------------------------------
 
   const selectedOption = options.find(
     (option) => option.isSelected === true
   );
 
-  // ---------------------------------------------
-  // No option selected
-  // ---------------------------------------------
-
   if (!selectedOption) {
-    console.log(
-      "No confirmation option is true."
+    throw new Error(
+      "No confirmation option is selected."
     );
-
-    addEvent(
-      "No confirmation option selected — clicking Connect",
-      "",
-      "info"
-    );
-
-    await clickTextAround("Connect");
-
-    return;
   }
 
   const optionName = String(
     selectedOption.option || ""
   ).trim();
 
-  console.log(
-    "SELECTED CONFIRMATION:",
-    optionName
+  if (!optionName) {
+    throw new Error(
+      "The selected confirmation option has no label."
+    );
+  }
+
+  const optionNode = (node.paths || []).find(
+    (child) => child.optionId === selectedOption.id
   );
+
+  if (!optionNode) {
+    throw new Error(
+      `No flow path found for confirmation option "${optionName}".`
+    );
+  }
 
   addEvent(
     `Selected confirmation: ${optionName}`,
     "",
     "info"
   );
-
-  // Find the matching branch in the flow
-
-  const optionNode = (node.paths || []).find(
-    (child) =>
-      child.optionId === selectedOption.id
-  );
-
-  if (!optionNode) {
-    throw new Error(
-      `No flow path found for confirmation option "${optionName}"`
-    );
-  }
-
-  // Click the actual option on the device
 
   await clickTextAround(optionName);
 
@@ -2891,90 +2659,81 @@ async function executeConfirmationNode(
     "success"
   );
 
-  // ---------------------------------------------
-  // Continue through that option's branch
-  // ---------------------------------------------
-
-  await executeFlowNodes(
-    optionNode.paths || [],
-    actionMap
-  );
+  // Execute only the selected option's branch.
+  await executeFlowNodes(optionNode.paths || []);
 }
 
-
-
-
-const server=http.createServer((req,res)=>{
+const server = http.createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-//  res.setHeader("Access-Control-Allow-Origin","*");res.setHeader("Access-Control-Allow-Methods","GET,POST,OPTIONS");res.setHeader("Cache-Control","no-store");
- if(req.method==="OPTIONS"){res.writeHead(204);return res.end()}
- if(req.url?.startsWith("/screen")){if(!screen){res.writeHead(404);return res.end()}res.writeHead(200,{"Content-Type":"image/png"});return res.end(screen)}
- if(req.url==="/state"){res.writeHead(200,{"Content-Type":"application/json"});return res.end(JSON.stringify({...state,test}))}
- if(req.url==="/run-workout"&&req.method==="POST"){res.writeHead(202,{"Content-Type":"application/json"});res.end(JSON.stringify({accepted:true}));runWorkoutTest().catch(error=>{addEvent("Workout test failed",error.message,"warning");test={status:"failed",name:"Workout smoke test",error:error.message,finishedAt:new Date().toISOString()};state.test=test});return}
- if(req.url==="/launch-sand"&&req.method==="POST"){res.writeHead(202,{"Content-Type":"application/json"});res.end(JSON.stringify({accepted:true}));launchSand().catch(error=>addEvent("Sandbox launch failed",error.message,"warning"));return}
- if(req.url==="/run-monument"&&req.method==="POST"){res.writeHead(202,{"Content-Type":"application/json"});res.end(JSON.stringify({accepted:true}));runMonumentTest().catch(error=>{addEvent("Monument test f",error.message,"warning");test={status:"failed",name:"Monument smoke test",error:error.message,finishedAt:new Date().toISOString()};state.test=test;try{if(state.route?.startsWith("/record-new"))adb("shell","input","tap","660","1275")}catch{}});return}
- if(req.url==="/tap-stop"&&req.method==="POST"){res.writeHead(200,{"Content-Type":"application/json"});clickText(["stop"]).then(value=>res.end(JSON.stringify({clicked:value||false}))).catch(error=>{res.writeHead(500);res.end(JSON.stringify({error:error.message}))});return}
- if(req.url==="/run-video-class"&&req.method==="POST"){res.writeHead(202,{"Content-Type":"application/json"});res.end(JSON.stringify({accepted:true}));runVideoClassTest().catch(async error=>{addEvent("Video class test failed",error.message,"warning");test={status:"failed",name:"Video class test",error:error.message,finishedAt:new Date().toISOString()};state.test=test;try{if(state.route?.startsWith("/live-stream-ts/"))await adb("shell","input","tap","660","690")}catch{}});return}
- if (req.url === "/run-test" && req.method === "POST") {
-  let body = "";
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  //  res.setHeader("Access-Control-Allow-Origin","*");res.setHeader("Access-Control-Allow-Methods","GET,POST,OPTIONS");res.setHeader("Cache-Control","no-store");
+  if (req.method === "OPTIONS") { res.writeHead(204); return res.end() }
+  if (req.url?.startsWith("/screen")) { if (!screen) { res.writeHead(404); return res.end() } res.writeHead(200, { "Content-Type": "image/png" }); return res.end(screen) }
+  if (req.url === "/state") { res.writeHead(200, { "Content-Type": "application/json" }); return res.end(JSON.stringify({ ...state, test })) }
+  if (req.url === "/run-workout" && req.method === "POST") { res.writeHead(202, { "Content-Type": "application/json" }); res.end(JSON.stringify({ accepted: true })); runWorkoutTest().catch(error => { addEvent("Workout test failed", error.message, "warning"); test = { status: "failed", name: "Workout smoke test", error: error.message, finishedAt: new Date().toISOString() }; state.test = test }); return }
+  if (req.url === "/launch-sand" && req.method === "POST") { res.writeHead(202, { "Content-Type": "application/json" }); res.end(JSON.stringify({ accepted: true })); launchSand().catch(error => addEvent("Sandbox launch failed", error.message, "warning")); return }
+  if (req.url === "/run-monument" && req.method === "POST") { res.writeHead(202, { "Content-Type": "application/json" }); res.end(JSON.stringify({ accepted: true })); runMonumentTest().catch(error => { addEvent("Monument test f", error.message, "warning"); test = { status: "failed", name: "Monument smoke test", error: error.message, finishedAt: new Date().toISOString() }; state.test = test; try { if (state.route?.startsWith("/record-new")) adb("shell", "input", "tap", "660", "1275") } catch { } }); return }
+  if (req.url === "/tap-stop" && req.method === "POST") { res.writeHead(200, { "Content-Type": "application/json" }); clickText(["stop"]).then(value => res.end(JSON.stringify({ clicked: value || false }))).catch(error => { res.writeHead(500); res.end(JSON.stringify({ error: error.message })) }); return }
+  if (req.url === "/run-video-class" && req.method === "POST") { res.writeHead(202, { "Content-Type": "application/json" }); res.end(JSON.stringify({ accepted: true })); runVideoClassTest().catch(async error => { addEvent("Video class test failed", error.message, "warning"); test = { status: "failed", name: "Video class test", error: error.message, finishedAt: new Date().toISOString() }; state.test = test; try { if (state.route?.startsWith("/live-stream-ts/")) await adb("shell", "input", "tap", "660", "690") } catch { } }); return }
+  if (req.url === "/run-test" && req.method === "POST") {
+    let body = "";
 
-  req.on("data", chunk => {
-    body += chunk;
-  });
+    req.on("data", chunk => {
+      body += chunk;
+    });
 
-  req.on("end", () => {
-    try {
-      const testData = JSON.parse(body);
+    req.on("end", () => {
+      try {
+        const testData = JSON.parse(body);
 
-      res.writeHead(202, {
-        "Content-Type": "application/json",
-      });
+        res.writeHead(202, {
+          "Content-Type": "application/json",
+        });
 
-      res.end(
-        JSON.stringify({
-          accepted: true,
-        })
-      );
-
-      runTest(testData).catch(error => {
-        const message =
-          error instanceof Error
-            ? error.message
-            : String(error);
-
-        addEvent(
-          `${testData.title} failed`,
-          message,
-          "warning"
+        res.end(
+          JSON.stringify({
+            accepted: true,
+          })
         );
 
-        test = {
-          status: "failed",
-          name: testData.title,
-          error: message,
-          finishedAt: new Date().toISOString(),
-        };
+        runTest(testData).catch(error => {
+          const message =
+            error instanceof Error
+              ? error.message
+              : String(error);
 
-        state.test = test;
-      });
-    } catch (error) {
-      res.writeHead(400, {
-        "Content-Type": "application/json",
-      });
+          addEvent(
+            `${testData.title} failed`,
+            message,
+            "warning"
+          );
 
-      res.end(
-        JSON.stringify({
-          accepted: false,
-          error: "Invalid test data",
-        })
-      );
-    }
-  });
+          test = {
+            status: "failed",
+            name: testData.title,
+            error: message,
+            finishedAt: new Date().toISOString(),
+          };
 
-  return;
-}
- res.writeHead(404);res.end();
+          state.test = test;
+        });
+      } catch (error) {
+        res.writeHead(400, {
+          "Content-Type": "application/json",
+        });
+
+        res.end(
+          JSON.stringify({
+            accepted: false,
+            error: "Invalid test data",
+          })
+        );
+      }
+    });
+
+    return;
+  }
+  res.writeHead(404); res.end();
 });
-server.listen(PORT,"127.0.0.1",()=>console.log("VC TestBench bridge listening on http://localhost:"+PORT));poll();setInterval(poll,1500);
+server.listen(PORT, "127.0.0.1", () => console.log("VC TestBench bridge listening on http://localhost:" + PORT)); poll(); setInterval(poll, 1500);

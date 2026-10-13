@@ -1,7 +1,7 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { getTestsAction } from "@/actions/get-tests";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { getTestActionById, getTestsAction } from "@/actions/get-tests";
 import { deleteTestAction } from "@/actions/delete-test";
 import CreateTestModal from "@/components/CreateTestModal";
 import { FlowNode } from "@/components/TestFlowBuilder";
@@ -10,42 +10,45 @@ type TabletState = { connected: boolean; device?: string; model?: string; androi
 
 const BRIDGE = "http://localhost:3131";
 export type ConfirmationOption = {
-  id: string;
-  testActionId: string;
-  option: string;
-  isSelected: boolean;
+    id: string;
+    testActionId: string;
+    option: string;
+    isSelected: boolean;
 };
 
 export type SavedTestAction = {
-  id: string;
-  title: string;
-  hasConfirmation: boolean;
-  confirmationTimeout?: number | null;
-  actionTimeout: number;
-  confirmationOptions: { option: string; isSelected: boolean }[];
-  pasteText?: string | null;
-  email?: string | null;
-  password?: string | null;
-  icon?: string | null;
-  clickOnText?: string | null;
+    id: string;
+    title: string;
+    hasConfirmation: boolean;
+    confirmationTimeout?: number | null;
+    actionTimeout: number;
+    confirmationOptions: { option: string; isSelected: boolean }[];
+    pasteText?: string | null;
+    email?: string | null;
+    password?: string | null;
+    icon?: string | null;
+    clickOnText?: string | null;
 };
 
 export type SavedTest = {
-  id: string;
-  title: string;
-  flow?: FlowNode[];
-  actions?: SavedTestAction[];
+    id: string;
+    title: string;
+    description: string;
+    flow?: FlowNode[];
+    createdAt: Date; updatedAt: Date;
+    //   actions?: SavedTestAction[];
+
 };
 
 export default function Home() {
     const router = useRouter();
     const [state, setState] = useState<TabletState | null>(null),
-    [bridgeOnline, setBridgeOnline] = useState(false),
-    [lastError, setLastError] = useState(""),
-    [imageTick, setImageTick] = useState(0),
-    [starting, setStarting] = useState(false),
-    [launching, setLaunching] = useState(false),
-    [createModalOpen, setCreateModalOpen] = useState(false);
+        [bridgeOnline, setBridgeOnline] = useState(false),
+        [lastError, setLastError] = useState(""),
+        [imageTick, setImageTick] = useState(0),
+        [starting, setStarting] = useState(false),
+        [launching, setLaunching] = useState(false),
+        [createModalOpen, setCreateModalOpen] = useState(false);
     const refresh = useCallback(async () => {
         try {
             const response = await fetch(BRIDGE + "/state", { cache: "no-store" });
@@ -60,6 +63,49 @@ export default function Home() {
             setLastError("Local tablet monitor is not running");
         }
     }, []);
+
+    const searchParams = useSearchParams();
+    const hasTriggered = useRef(false);
+    const testId = searchParams.get("testId");
+
+
+    useEffect(() => {
+        if (!testId || hasTriggered.current) return;
+
+        const findButton = () => {
+            const button = document.querySelector<HTMLButtonElement>(
+                ".save-test-button"
+            );
+
+            if (!button) return;
+
+            console.log("Button found:", button);
+            console.log("Button disabled:", button.disabled);
+
+            // if (button.disabled) return;
+
+            hasTriggered.current = true;
+            observer.disconnect();
+            button.click();
+
+            // Optional: remove the URL parameter after triggering.
+            router.replace("/");
+        };
+
+        const observer = new MutationObserver(findButton);
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ["disabled"],
+        });
+
+        findButton();
+
+        return () => observer.disconnect();
+    }, [testId, router]);
+
     useEffect(() => {
         refresh();
         const timer = window.setInterval(refresh, 1500);
@@ -83,22 +129,38 @@ export default function Home() {
     };
 
     const [savedTests, setSavedTests] = useState<SavedTest[]>([]);
+
     const handleRunTest = async (test: SavedTest) => {
+
         if (!canRun || starting) return;
 
         setStarting(true);
         setLastError("");
-        console.log(test);
+
         try {
+            let testToRun = test;
+
+            // If the URL contains a test ID, load the saved test.
+            if (!test || testId) {
+
+                const result = await getTestActionById(testId || "");
+                if (!result.success) {
+                    throw new Error(result.error);
+                }
+                console.log("result", result.data)
+
+                testToRun = result?.data?.data as SavedTest;
+            }
+
             const response = await fetch(BRIDGE + "/run-test", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                    title: test.title,
-                    actions: test.actions ?? [],
-                    flow: test.flow ?? []
+                    title: testToRun.title,
+                    // actions: testToRun.actions ?? [],
+                    flow: testToRun.flow ?? [],
                 }),
             });
 
@@ -109,7 +171,9 @@ export default function Home() {
             await refresh();
         } catch (error) {
             console.error("handleRunTest error:", error);
-            setLastError(`Could not start ${test.title}`);
+            setLastError(
+                `Could not start ${test.title}`
+            );
         } finally {
             setStarting(false);
         }
@@ -304,7 +368,7 @@ export default function Home() {
                                                     </button>
 
                                                     <button
-                                                        className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                                                        className="save-test-button shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
                                                         disabled={!canRun || starting}
                                                         onClick={() => handleRunTest(test)}
                                                         type="button"
