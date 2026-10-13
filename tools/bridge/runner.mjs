@@ -54,17 +54,32 @@ const NOT_THERE_YET =
 // Steps that moved the tablet to another page: they get an "after" picture.
 const navigatedSteps = new WeakSet();
 
-const NAVIGATE_SCRIPT = (path) => `((path) => {
+// Opens a page inside the running app. A page load is never used: it restarts
+// the app (Cordova and all), which breaks the flow being tested. The Sandbox
+// uses FlowRouter; other routers are tried by the way they usually work. When
+// none is found nothing is done and the check that follows reports it.
+export const NAVIGATE_SCRIPT = (path) => `((path) => {
   try {
-    const router = window.next && window.next.router;
-    if (router && typeof router.push === "function") {
-      router.push(path);
-      return "router";
+    if (window.FlowRouter && typeof window.FlowRouter.go === "function") {
+      window.FlowRouter.go(path);
+      return "FlowRouter";
+    }
+
+    const next = window.next && window.next.router;
+    if (next && typeof next.push === "function") {
+      next.push(path);
+      return "next";
+    }
+
+    // Routers that follow the address bar: change it and tell them.
+    if (window.history && typeof window.history.pushState === "function") {
+      window.history.pushState({ path }, "", path);
+      window.dispatchEvent(new PopStateEvent("popstate", { state: window.history.state }));
+      return "history";
     }
   } catch {}
 
-  location.assign(path);
-  return "assign";
+  return "none";
 })(${JSON.stringify(path)})`;
 
 // "home", "/home/" and "/home?x=1" all mean /home.
@@ -525,10 +540,10 @@ async function executeDeviceAction(action, step) {
         addEvent(`Going to ${expected}`, `The tablet was on ${current || "an unknown page"}`);
         navigatedSteps.add(step);
 
-        // The page's own router when it has one (the app keeps its state);
-        // otherwise a normal page load. A load can close the connection that
-        // asked for it, which is not a failure: the check below decides.
-        await evaluate(NAVIGATE_SCRIPT(expected)).catch(() => {});
+        // Through the app's own router, so nothing restarts. If it cannot be
+        // done, the check below says where the tablet still is.
+        const how = await evaluate(NAVIGATE_SCRIPT(expected)).catch(() => "none");
+        debug("route navigation:", how);
       }
     }
 

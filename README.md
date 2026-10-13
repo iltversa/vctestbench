@@ -100,7 +100,7 @@ npm run bridge   # in a second terminal, with the tablet connected
 | DELAY | Waits the configured number of seconds, on top of the default wait |
 | CONFIRMATION | Branches on the selected option |
 | SAVE | Presses the save button |
-| ROUTE | The tablet has to be on the page you set (`/home`, `/loginTS`). **Check only** waits for it and fails otherwise; **Go to it** opens the page first (the app's own router when it has one, else a page load), then checks |
+| ROUTE | The tablet has to be on the page you set (`/home`, `/loginTS`). **Check only** waits for it and fails otherwise; **Go to it** opens the page through the app's own router (FlowRouter in the Sandbox), never a page load, then checks |
 
 ### Recording a flow
 
