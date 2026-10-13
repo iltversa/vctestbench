@@ -36,10 +36,11 @@ browser (web app :3000) ──► bridge (:3131) ──► adb + WebView DevTool
 # Features
 
 ## Plan
-- Build a test flow from steps: **CLICK, PASTE, AUTHENTICATION, DELAY, CONFIRMATION, SAVE, ROUTE**.
+- Build a test flow from steps: **CLICK, PASTE, AUTHENTICATION, DELAY, CONFIRMATION, SAVE, ROUTE, IF**.
 - Add by button or drag and drop; insert, move and delete steps.
 - Branch on a CONFIRMATION option.
 - **Record from the tablet**: do the steps on the device and they become the flow, with the pages you visit as ROUTE (go to) steps and dialog buttons as CONFIRMATION.
+- **IF** step: branch on the signed-in user (role, subscription, profile), text on screen, the page, or a script; each branch has its own steps.
 - **ROUTE** step: the tablet must be on a page you set, e.g. `/home` or `/loginTS`; check it, or go to it.
 - Each action type has its own icon.
 

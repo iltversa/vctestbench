@@ -69,3 +69,20 @@ test("a ROUTE step that goes to a page says so", () => {
 
   assert.deepEqual(plan(flow), ["1. ROUTE: Go to /loginTS"]);
 });
+
+test("an IF step is planned alone: its branch is only known on the tablet", () => {
+  const branch = (id, title) => ({
+    id,
+    optionId: id,
+    paths: [node(`${id}-step`, title, {}, [slot(`${id}-end`)])],
+  });
+
+  const flow = [
+    node("i", "IF", { condition: { kind: "user", field: "subscription.status", operator: "equals", value: "true" } }, [
+      branch("if:then", "CLICK"),
+      branch("if:else", "SAVE"),
+    ]),
+  ];
+
+  assert.deepEqual(plan(flow), ['1. IF: If user subscription.status is true']);
+});

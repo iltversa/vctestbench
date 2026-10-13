@@ -9,6 +9,7 @@ import { screenshot, screenshotBase64 } from "./adb.mjs";
 import { ACTION_TIMEOUT_SECONDS, AFTER_SHOT_DELAY_SECONDS, MAX_RUNS, STEP_DELAY_SECONDS, debug } from "./config.mjs";
 import { toStepImage } from "./image.mjs";
 import { addEvent, sleep, store } from "./state.mjs";
+import { IF_ELSE, IF_THEN, describeCondition, evaluateCondition } from "./condition.mjs";
 import { clickSaveButton, clickTextAround, evaluate } from "./webview.mjs";
 
 // ---------------------------------------------------------------------
@@ -135,6 +136,7 @@ function describeStep(title, data = {}) {
   if (name === "CLICK") return data.clickOnText ? `Tap "${data.clickOnText}"` : `Tap "${title}"`;
   if (name === "AUTHENTICATION") return data.email ? `Sign in as ${data.email}` : "Sign in";
   if (name === "SAVE") return "Press save";
+  if (name === "IF") return `If ${describeCondition(data.condition)}`;
   if (name === "ROUTE") {
     if (!data.route) return "Check the page";
     return data.routeMode === "go" ? `Go to ${data.route}` : `On page ${data.route}`;
@@ -147,6 +149,7 @@ function describeStep(title, data = {}) {
 }
 
 const isConfirmation = (title) => String(title).trim().toUpperCase() === "CONFIRMATION";
+const isIf = (title) => String(title).trim().toUpperCase() === "IF";
 
 // The steps a run is expected to execute, in order, so a report can show the
 // ones that were never reached after a failure.
@@ -180,6 +183,9 @@ export function planFlow(nodes, actionMap, out = []) {
       const chosen = (data.confirmationOptions || []).find((option) => option.isSelected === true);
       const branch = (node.paths || []).find((child) => child.optionId === chosen?.id);
       planFlow(branch?.paths, actionMap, out);
+    } else if (isIf(title)) {
+      // Which branch runs is only known on the tablet: its steps are added to
+      // the report as they happen.
     } else {
       planFlow(node.paths, actionMap, out);
     }
@@ -266,7 +272,8 @@ async function finishStep(run, step, status, error = null) {
   // "after" picture. Stop still cuts it short. This time is not part of
   // the step's duration, which was recorded above.
   // A page check does nothing to the screen, so it needs no wait.
-  const checkOnly = String(step.action).trim().toUpperCase() === "ROUTE" && !navigatedSteps.has(step);
+  const kind = String(step.action).trim().toUpperCase();
+  const checkOnly = (kind === "ROUTE" && !navigatedSteps.has(step)) || kind === "IF";
 
   if (status === "passed" && !checkOnly && AFTER_SHOT_DELAY_SECONDS > 0 && store.connection.connected) {
     try {
@@ -450,6 +457,21 @@ async function executeFlowNodes(run, nodes, actionMap) {
       await captureStepImage(run, step, "before");
 
       addEvent(`Attempting action: ${title}`, step.detail);
+
+      // IF: ask the tablet, then run only the branch the answer picks.
+      if (name === "IF") {
+        const outcome = await evaluateCondition(action.condition, { evaluate, normalizeRoute });
+        const label = describeCondition(action.condition);
+
+        step.detail = `If ${label}: ${outcome ? "yes" : "no"}`;
+        addEvent(`If ${label}`, outcome ? "Yes: running the first branch" : "No: running the otherwise branch", "success");
+
+        await finishStep(run, step, "passed");
+
+        const branch = (node.paths || []).find((child) => child.optionId === (outcome ? IF_THEN : IF_ELSE));
+        await executeFlowNodes(run, branch?.paths ?? [], actionMap);
+        continue;
+      }
 
       await executeDeviceAction(action, step);
 

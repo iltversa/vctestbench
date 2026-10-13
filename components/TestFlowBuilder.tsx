@@ -9,7 +9,8 @@ import { countSteps, type SavedTest } from "@/components/types";
 import getActionsAction from "@/actions/get-actions";
 import { createFullTestAction, updateFullTestAction } from "@/actions/create-full-test";
 import { deleteTestActionDefinition } from "@/actions/delete-test-action";
-import { TestAction } from "@/components/ActionDialog";
+import { TestAction, type IfCondition } from "@/components/ActionDialog";
+export type { IfCondition };
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPen, faEllipsisVertical, faTrash, faPlus } from "@fortawesome/free-solid-svg-icons";
 import {
@@ -42,6 +43,8 @@ export type TestActionDefinition = {
   route?: string | null;
   // ROUTE: "check" fails when the tablet is elsewhere; "go" navigates there.
   routeMode?: "check" | "go" | null;
+  // IF: what to look at on the tablet.
+  condition?: IfCondition | null;
   email?: string | null;
   password?: string | null;
   confirmationOptions: {
@@ -217,6 +220,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     clickOnText: action.clickOnText ?? "",
     route: action.route ?? "",
     routeMode: action.routeMode ?? "check",
+    condition: action.condition ?? null,
     pasteText: action.pasteText ?? "",
     hasConfirmation:
       action.hasConfirmation ??
@@ -330,6 +334,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
       clickOnText: configuredAction.clickOnText ?? null,
       route: configuredAction.route ?? null,
       routeMode: configuredAction.routeMode ?? null,
+      condition: configuredAction.condition ?? null,
       email: configuredAction.email ?? null,
       password: configuredAction.password ?? null,
       icon: configuredAction.icon ?? null,

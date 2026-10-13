@@ -48,6 +48,7 @@ function toTestAction(source: ActionSource): TestAction {
     clickOnText: source.clickOnText ?? null,
     route: source.route ?? null,
     routeMode: source.routeMode ?? null,
+    condition: source.condition ?? null,
   };
 }
 

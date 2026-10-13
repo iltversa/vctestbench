@@ -280,3 +280,41 @@ test("a recorded dialog choice is a CONFIRMATION whose chosen option continues t
   const chosen = confirmation.actionData.confirmationOptions.find((option) => option.isSelected);
   assert.equal(chosen.id, remove.optionId, "the option and its branch share an id");
 });
+
+// --- IF -----------------------------------------------------------------
+import { IF_ELSE, IF_THEN } from "../components/flow/tree.ts";
+
+test("an IF has two branches, each with a place to add steps", () => {
+  const children = buildChildrenForAction({ id: "if", title: "IF", confirmationOptions: [] }, []);
+
+  assert.deepEqual(children.map((child) => child.optionId), [IF_THEN, IF_ELSE]);
+  assert.deepEqual(children.map((child) => child.optionLabel), ["If yes", "Otherwise"]);
+  assert.ok(children.every((child) => child.paths.length === 1 && isEmptySlot(child.paths[0])));
+});
+
+test("editing an IF keeps what each branch holds", () => {
+  const kept = { id: "kept", nodeType: "action", actionId: "a", paths: [] };
+  const existing = [{ id: "x", optionId: IF_THEN, nodeType: "confirmation", paths: [kept] }];
+  const children = buildChildrenForAction({ id: "if", title: "IF", confirmationOptions: [] }, existing);
+
+  assert.equal(children[0].id, "x");
+  assert.deepEqual(children[0].paths, [kept]);
+});
+
+test("a saved IF loads with its branches labelled", () => {
+  const stored = [
+    {
+      id: "n",
+      actionId: "if",
+      actionData: { id: "if", title: "IF", condition: { kind: "text", text: "Upgrade" } },
+      paths: [
+        { id: "t", optionId: IF_THEN, paths: [] },
+        { id: "e", optionId: IF_ELSE, paths: [] },
+      ],
+    },
+  ];
+
+  const [node] = hydrateFlow(stored, []);
+  assert.deepEqual(node.paths.map((path) => path.optionLabel), ["If yes", "Otherwise"]);
+  assert.ok(node.paths.every((path) => path.nodeType === "confirmation"));
+});

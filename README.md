@@ -100,7 +100,26 @@ npm run bridge   # in a second terminal, with the tablet connected
 | DELAY | Waits the configured number of seconds, on top of the default wait |
 | CONFIRMATION | Branches on the selected option |
 | SAVE | Presses the save button |
+| IF | Runs one of two branches, **If yes** or **Otherwise**, depending on a condition read from the tablet: the signed-in user (`subscription.status`, `profile.country`, ...), text on the screen, the page, or a JavaScript expression. Use it for roles, subscriptions or incomplete profiles |
 | ROUTE | The tablet has to be on the page you set (`/home`, `/loginTS`). **Check only** waits for it and fails otherwise; **Go to it** opens the page through the app's own router (FlowRouter in the Sandbox), never a page load, then checks |
+
+### IF: branching on the user, the screen or the page
+
+Add an **IF** step, choose what to check, and build each branch under **If yes**
+and **Otherwise**. Only the branch the answer picks runs, and the report says
+which one and why (`If user subscription.status is true: yes`).
+
+| Check | Example |
+|---|---|
+| The signed-in user | `subscription.status` is `true`; `subscription.tier` is `2`; `profile.country` is empty or missing |
+| Text on the screen | "Upgrade to premium" is shown / is not shown |
+| The page | the page is `/home` / is not `/loginTS` |
+| JavaScript | `Meteor.user().subscription.tier >= 2` (one expression, run in the tablet's page) |
+
+User fields are read from the signed-in user (`Meteor.user()`) by dotted path;
+text is compared ignoring case. If the tablet cannot answer (nobody signed in,
+the script throws) the step fails and says why. Apply migration `0014` to add the
+IF action to an existing database. IF steps are not recorded: add them by hand.
 
 ### Recording a flow
 

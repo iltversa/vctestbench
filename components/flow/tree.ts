@@ -6,6 +6,14 @@
 
 import type { FlowNode, TestActionDefinition } from "../TestFlowBuilder";
 
+// The two branches of an IF step. Their ids are fixed (the bridge uses the same
+// ones), so a saved flow can always tell them apart and label them.
+export const IF_THEN = "if:then";
+export const IF_ELSE = "if:else";
+
+export const ifBranchLabel = (optionId?: string | null): string | undefined =>
+  optionId === IF_THEN ? "If yes" : optionId === IF_ELSE ? "Otherwise" : undefined;
+
 /*  CREATE NODE */
 
 export const createNode = (): FlowNode => ({
@@ -132,7 +140,8 @@ export const hydrateFlow = (
                 id: path.id ?? crypto.randomUUID(),
                 nodeType: "confirmation" as const,
                 optionId: path.optionId ?? undefined,
-                optionLabel: path.optionLabel ?? option?.option ?? "Option",
+                optionLabel:
+                  path.optionLabel ?? ifBranchLabel(path.optionId) ?? option?.option ?? "Option",
                 isSelected: path.isSelected ?? Boolean(option?.isSelected),
                 paths: path.paths?.length ? hydrateFlow(path.paths, actionList) : [],
               };
@@ -288,6 +297,24 @@ export const buildChildrenForAction = (
             ? existingOption.paths
             : [{ id: crypto.randomUUID(), nodeType: "action" as const, paths: [] }]
           : [],
+      };
+    });
+  }
+
+  // IF: two branches, each with its own place to add steps.
+  if (action.title?.trim().toUpperCase() === "IF") {
+    return [IF_THEN, IF_ELSE].map((branchId) => {
+      const existing = existingPaths.find((path) => path.optionId === branchId);
+
+      return {
+        id: existing?.id ?? crypto.randomUUID(),
+        optionId: branchId,
+        optionLabel: ifBranchLabel(branchId),
+        isSelected: null,
+        nodeType: "confirmation" as const,
+        paths: existing?.paths?.length
+          ? existing.paths
+          : [{ id: crypto.randomUUID(), nodeType: "action" as const, paths: [] }],
       };
     });
   }

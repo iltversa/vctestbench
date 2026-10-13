@@ -1,6 +1,6 @@
 // Shapes shared between the pages, the editor and the dialogs.
 
-import type { FlowNode } from "@/components/TestFlowBuilder";
+import type { FlowNode, IfCondition } from "@/components/TestFlowBuilder";
 
 export type SavedTestAction = {
   id: string;
@@ -16,6 +16,7 @@ export type SavedTestAction = {
   clickOnText?: string | null;
   route?: string | null;
   routeMode?: "check" | "go" | null;
+  condition?: IfCondition | null;
 };
 
 export type SavedTest = {
