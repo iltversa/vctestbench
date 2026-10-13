@@ -1,0 +1,9 @@
+{
+  "name": "vctestbench-dev-db",
+  "private": true,
+  "type": "module",
+  "description": "A local PostgreSQL for development, with its data kept in ./data",
+  "dependencies": {
+    "embedded-postgres": "18.4.0-beta.17"
+  }
+}

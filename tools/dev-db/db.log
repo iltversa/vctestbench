@@ -1,0 +1,12 @@
+Creating the database for the first time…
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '00000',
+  message: 'constraint "run_step_images_run_step_phase_unique" of relation "run_step_images" does not exist, skipping',
+  file: 'tablecmds.c',
+  line: '14064',
+  routine: 'ATExecDropConstraint'
+}
+Applied 12 migrations.
+Database ready on localhost:54329 (vctestbench). Data: tools/dev-db/data. Ctrl+C stops it.

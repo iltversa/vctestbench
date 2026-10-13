@@ -41,3 +41,8 @@ next-env.d.ts
 /outputs/
 /work/
 *.tsbuildinfo
+
+# local development database (tools/dev-db)
+/tools/dev-db/node_modules
+/tools/dev-db/data
+/tools/dev-db/package-lock.json

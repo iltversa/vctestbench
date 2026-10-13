@@ -59,6 +59,17 @@ destructive**, and the loop above skips it (run it by hand with
 "test class" model). Skip it if you want to keep that data; nothing depends on
 it either way.
 
+### No PostgreSQL installed?
+
+```bash
+npm run db      # a local database on the port in DATABASE_URL; leave it running
+```
+
+It creates the database and applies the migrations (not the optional `0009`) the
+first time, and keeps its data in `tools/dev-db/data`, so it survives a reboot.
+Start it again after a restart. For a database that holds anything you care
+about, use a real PostgreSQL and back it up.
+
 ## Run
 
 ```bash
