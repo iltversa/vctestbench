@@ -1,6 +1,5 @@
 import { pgTable, uuid, text, timestamp, jsonb } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
-import { FlowNode } from "@/components/TestFlowBuilder";
+import type { FlowNode } from "@/components/TestFlowBuilder";
 
 export const tests = pgTable("tests", {
   id: uuid("id").defaultRandom().primaryKey(),

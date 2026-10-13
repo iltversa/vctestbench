@@ -1,7 +1,6 @@
 import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { confirmationOptions } from "@/db/schema/confirmation-options";
 import { testActions } from "@/db/schema/test-actions";
 
 export type UpdateTestActionInput = {

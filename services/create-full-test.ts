@@ -1,10 +1,11 @@
 import { db } from "@/db";
 import { tests } from "@/db/schema/tests";
-import { testActions } from "@/db/schema/test-actions";
-import { confirmationOptions } from "@/db/schema/confirmation-options";
 import { FlowNode } from "@/components/TestFlowBuilder";
 import { eq } from "drizzle-orm";
 import { UpdateFullTestInput } from "@/actions/create-full-test";
+import { encryptFlowSecrets } from "@/services/secrets.mjs";
+import { recordActivity } from "@/services/activity";
+import { countSteps } from "@/components/types";
 
 export type CreateFullTestInput = {
   title: string;
@@ -19,7 +20,8 @@ export async function createFullTestService(input: CreateFullTestInput) {
       .values({
         title: input.title,
         description: input.description,
-        flow: input.flow ?? [],
+        // Passwords inside action data are stored encrypted.
+        flow: encryptFlowSecrets(input.flow ?? []),
       })
       .returning();
 
@@ -28,25 +30,52 @@ export async function createFullTestService(input: CreateFullTestInput) {
     }
 
     return test;
+  }).then(async (test) => {
+    await recordActivity({ kind: "test.created", testId: test.id, title: test.title });
+    return test;
   });
 }
 export async function updateFullTestService(input: UpdateFullTestInput) {
-  
-  return await db.transaction(async (tx) => {
+  const [before] = await db.select().from(tests).where(eq(tests.id, input.id));
+
+  const updated = await db.transaction(async (tx) => {
     const [updatedTest] = await tx
       .update(tests)
       .set({
         title: input.title,
         description: input.description,
-        flow: input.flow ?? [],
+        // Passwords inside action data are stored encrypted.
+        flow: encryptFlowSecrets(input.flow ?? []),
+        updatedAt: new Date(),
       })
       .where(eq(tests.id, input.id))
       .returning();
 
     if (!updatedTest) {
       throw new Error("Test not found");
-    }    
+    }
 
     return updatedTest;
   });
+
+  // Say what changed, so the activity view is informative rather than a list
+  // of "updated".
+  const changes: string[] = [];
+  if (before && before.title !== updated.title) changes.push(`Renamed from “${before.title}”`);
+
+  const stepsBefore = before ? countSteps(before.flow) : 0;
+  const stepsAfter = countSteps(updated.flow);
+  if (stepsBefore !== stepsAfter) changes.push(`Steps ${stepsBefore} → ${stepsAfter}`);
+  else if (before && JSON.stringify(before.flow) !== JSON.stringify(updated.flow)) changes.push("Steps changed");
+
+  if (before && before.description !== updated.description) changes.push("Description changed");
+
+  await recordActivity({
+    kind: "test.updated",
+    testId: updated.id,
+    title: updated.title,
+    detail: changes.length ? changes.join(" · ") : "Saved",
+  });
+
+  return updated;
 }

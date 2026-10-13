@@ -1,14 +1,13 @@
+import { desc } from "drizzle-orm";
 import { db } from "@/db";
-
 import { tests } from "@/db/schema/tests";
-import { testActions } from "@/db/schema/test-actions";
-import { confirmationOptions } from "@/db/schema/confirmation-options";
 
-import { eq, asc } from "drizzle-orm";
-
-
-
+// Newest first. Each row carries its whole flow, which holds the configuration
+// of every step, so nothing else needs to be joined.
 export async function getTests() {
+<<<<<<< HEAD
+  return await db.select().from(tests).orderBy(desc(tests.createdAt));
+=======
   const testRows = await db.select().from(tests);
 
   
@@ -43,4 +42,5 @@ export async function getTestById(testId: string) {
       error: "Failed to load test",
     };
   }
+>>>>>>> main
 }

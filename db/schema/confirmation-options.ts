@@ -2,10 +2,10 @@ import {
   pgTable,
   uuid,
   text,
+  boolean,
 } from "drizzle-orm/pg-core";
 
 import { testActions } from "./test-actions";
-import { boolean } from "drizzle-orm/gel-core";
 
 export const confirmationOptions = pgTable("confirmation_options", {
 

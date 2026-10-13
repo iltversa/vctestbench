@@ -1,9 +1,15 @@
 "use server";
 
+<<<<<<< HEAD
+import { getTests } from "@/services/get-tests";
+import { requireUserIfEnabled } from "@/services/require-user";
+=======
 import { getTests, getTestById } from "@/services/get-tests";
+>>>>>>> main
 
 export async function getTestsAction() {
   try {
+    await requireUserIfEnabled();
     const tests = await getTests();
 
     return {

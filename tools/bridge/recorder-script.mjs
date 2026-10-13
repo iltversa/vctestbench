@@ -1,0 +1,131 @@
+// The script injected into the Sandbox page while recording. It only watches:
+// real (trusted) taps and edits are queued, and the bridge drains the queue.
+// Password values never leave the page: only the fact that one was typed.
+//
+// Written as a string so it can be sent through DevTools as-is. Installing it
+// twice is harmless, which is how a page reload is survived: the bridge
+// installs it again on its next poll.
+
+export const RECORDER_SCRIPT = `(() => {
+  if (window.__vcRec) return window.__vcRec.drain();
+
+  const queue = [];
+  const clean = (value) => String(value ?? "").replace(/\\s+/g, " ").trim();
+  const CLICKABLE =
+    'button,a,[role=button],[role=tab],[role=menuitem],[role=option],[role=link],' +
+    'input[type=submit],input[type=button],summary,label,li,[onclick]';
+  const FIELDS =
+    'input:not([type=submit]):not([type=button]):not([type=checkbox]):not([type=radio]),textarea,select';
+
+  const labelOf = (element) => {
+    for (let el = element, depth = 0; el && depth < 4; el = el.parentElement, depth += 1) {
+      const text =
+        clean(el.getAttribute && el.getAttribute("aria-label")) ||
+        clean((el.innerText || "").split("\\n").find((line) => clean(line))) ||
+        clean(el.value) ||
+        clean(el.title) ||
+        clean(el.querySelector && el.querySelector("img[alt]")?.alt);
+
+      if (text) return text.slice(0, 60);
+    }
+
+    return "";
+  };
+
+  // A dialog or popup: by its role, or by what it is called. The page itself
+  // (body often carries "modal-open") never counts.
+  const MODAL =
+    '[role=dialog],[role=alertdialog],[aria-modal=true],dialog,' +
+    '[class*=modal i],[class*=dialog i],[class*=popup i],[class*=sheet i],[class*=overlay i]';
+  const BUTTONS = 'button,[role=button],input[type=submit],input[type=button],a[href]';
+
+  const visible = (el) => Boolean(el.offsetWidth || el.offsetHeight);
+
+  // The buttons offered by the dialog around the target, or null when it is not
+  // in one (or the "dialog" is really most of the page).
+  const modalOptions = (target) => {
+    const modal = target.closest(MODAL);
+    if (!modal || modal === document.body || modal === document.documentElement) return null;
+
+    const labels = [];
+
+    for (const button of modal.querySelectorAll(BUTTONS)) {
+      if (!visible(button)) continue;
+
+      const label = labelOf(button);
+      if (label && !labels.includes(label)) labels.push(label);
+    }
+
+    return labels.length > 0 && labels.length <= 6 ? labels : null;
+  };
+
+  const onClick = (event) => {
+    if (!event.isTrusted) return;
+
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    // Focusing a field is not a step; what is typed in it is.
+    if (target.closest(FIELDS)) return;
+
+    const element = target.closest(CLICKABLE) || target;
+
+    queue.push({
+      kind: "click",
+      label: labelOf(element),
+      isSave: Boolean(target.closest("#data-save")),
+      modal: modalOptions(target),
+    });
+  };
+
+  const onChange = (event) => {
+    if (!event.isTrusted) return;
+
+    const el = event.target;
+    if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return;
+    if (["checkbox", "radio", "submit", "button", "file"].includes(el.type)) return;
+
+    const password = el.type === "password";
+
+    queue.push({
+      kind: "input",
+      password,
+      value: password ? "" : el.value,
+      field: clean(el.getAttribute("aria-label") || el.placeholder || el.name || el.id || el.type),
+    });
+  };
+
+  // The page the tablet is on. The app changes pages without reloading, so it
+  // is looked at whenever the queue is read: the first reading is where the
+  // recording began, and every change after that is a step.
+  let route = null;
+
+  const watchRoute = () => {
+    const path = location.pathname;
+
+    if (path !== route) {
+      route = path;
+      queue.push({ kind: "route", path });
+    }
+  };
+
+  watchRoute();
+
+  document.addEventListener("click", onClick, true);
+  document.addEventListener("change", onChange, true);
+
+  window.__vcRec = {
+    drain: () => {
+      watchRoute();
+      return queue.splice(0);
+    },
+    stop: () => {
+      document.removeEventListener("click", onClick, true);
+      document.removeEventListener("change", onChange, true);
+      delete window.__vcRec;
+    },
+  };
+
+  return [];
+})()`;
+
+export const STOP_RECORDER_SCRIPT = `(() => { window.__vcRec && window.__vcRec.stop(); return true; })()`;

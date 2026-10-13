@@ -1,1023 +1,867 @@
 /* =========================================================
-   MAIN LAYOUT
-========================================================= */
+   Test editor
+   Layout: setup sidebar | flow canvas + run dock.
+   Below 1024px everything stacks and the page scrolls.
+   ========================================================= */
 
 .flow-builder {
-  display: flex;
-  width: 100%;
-  height: 100vh;
-  overflow: hidden;
-  background: #f8fafc;
-}
-
-
-/* =========================================================
-   LEFT SIDEBAR
-========================================================= */
-
-.flow-sidebar {
-  width: 240px;
-  flex-shrink: 0;
-  padding: 24px;
-  background: white;
-  border-right: 1px solid #e5e7eb;
-}
-
-.sidebar-header h2 {
-  margin: 0 0 6px;
-  font-size: 20px;
-}
-
-.sidebar-header p {
-  margin: 0 0 20px;
-  color: #64748b;
-  font-size: 13px;
-}
-
-.action-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.action-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-
-  padding: 12px 14px;
-
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-
-  background: white;
-
-  cursor: grab;
-
-  font-size: 13px;
-  font-weight: 600;
-
-  transition: 0.15s;
-}
-
-.action-item:hover {
-  border-color: #94a3b8;
-  background: #f8fafc;
-}
-
-.action-item.dragging {
-  opacity: 0.5;
-}
-
-.drag-icon {
-  color: #94a3b8;
-  font-size: 16px;
-}
-
-
-/* =========================================================
-   CANVAS
-========================================================= */
-
-.flow-canvas {
-  flex: 1;
-  overflow: auto;
-}
-
-.canvas-header {
-  padding: 28px 32px;
-
-  background: white;
-
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.canvas-header h1 {
-  margin: 0 0 5px;
-  font-size: 24px;
-}
-
-.canvas-header p {
-  margin: 0;
-  color: #64748b;
-  font-size: 14px;
-}
-
-
-/* =========================================================
-   FLOW AREA
-========================================================= */
-
-.flow-area {
-  min-width: 900px;
-  min-height: calc(100vh - 100px);
-
-  padding: 50px;
-}
-
-.flow-root {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 40px;
-}
-
-
-/* =========================================================
-   NODE TREE
-========================================================= */
-
-.flow-node-tree {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-
-/* =========================================================
-   NODE
-========================================================= */
-
-.flow-node {
-  position: relative;
-
-  width: 280px;
-  min-height: 100px;
-
-  border-radius: 12px;
-
-  background: white;
-
-  border: 2px dashed #cbd5e1;
-
-  box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.flow-node.filled {
-  border-style: solid;
-  border-color: #94a3b8;
-}
-
-.flow-node.empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-
-/* =========================================================
-   EMPTY NODE
-========================================================= */
-
-.empty-node {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-
-  gap: 8px;
-
-  min-height: 100px;
-
-  color: #94a3b8;
-
-  font-size: 12px;
-}
-
-.empty-plus {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  width: 28px;
-  height: 28px;
-
-  border-radius: 50%;
-
-  background: #f1f5f9;
-
-  font-size: 20px;
-}
-
-
-/* =========================================================
-   FILLED NODE
-========================================================= */
-
-.filled-node {
-  display: flex;
-  align-items: center;
-
-  min-height: 100px;
-
-  padding: 16px;
-}
-
-.node-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  width: 34px;
-  height: 34px;
-
-  flex-shrink: 0;
-
-  border-radius: 8px;
-
-  background: #f1f5f9;
-
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.node-content {
-  display: flex;
-  flex-direction: column;
-
-  gap: 5px;
-
-  margin-left: 12px;
-
-  min-width: 0;
-}
-
-.node-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-
-  color: #94a3b8;
-}
-
-.node-content strong {
-  font-size: 14px;
-}
-
-
-/* =========================================================
-   CUSTOM ACTION
-========================================================= */
-
-.custom-action-input {
-  width: 140px;
-
-  padding: 6px 8px;
-
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-
-  outline: none;
-}
-
-.custom-action-input:focus {
-  border-color: #64748b;
-}
-
-
-/* =========================================================
-   THREE DOT MENU
-========================================================= */
-
-.node-menu-wrapper {
-  position: relative;
-
-  margin-left: auto;
-}
-
-.node-menu-button {
-  width: 30px;
-  height: 30px;
-
-  border: none;
-  background: transparent;
-
-  border-radius: 6px;
-
-  cursor: pointer;
-
-  font-size: 20px;
-}
-
-.node-menu-button:hover {
-  background: #f1f5f9;
-}
-
-.node-menu {
-  position: absolute;
-
-  top: 35px;
-  right: 0;
-
-  z-index: 100;
-
-  width: 140px;
-
-  padding: 5px;
-
-  background: white;
-
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-
-  box-shadow:
-    0 8px 20px rgba(0, 0, 0, 0.12);
-}
-
-.node-menu button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-
-  width: 100%;
-
-  padding: 9px 10px;
-
-  border: none;
-  border-radius: 6px;
-
-  background: transparent;
-
-  cursor: pointer;
-
-  text-align: left;
-
-  font-size: 13px;
-}
-
-.node-menu button:hover {
-  background: #f1f5f9;
-}
-
-.node-menu button.danger {
-  color: #dc2626;
-}
-
-
-/* =========================================================
-   MULTIPLE PATHS
-========================================================= */
-
-.node-paths {
-  display: flex;
-
-  justify-content: center;
-  align-items: flex-start;
-
-  gap: 50px;
-
-  margin-top: 0;
-
-  padding-top: 40px;
-
-  position: relative;
-}
-
-
-/*
-   Horizontal branch line above all paths
-*/
-
-.node-paths::before {
-  content: "";
-
-  position: absolute;
-
-  top: 20px;
-
-  left: 50%;
-
-  width: calc(100% - 150px);
-
-  height: 2px;
-
-  transform: translateX(-50%);
-
-  background: #cbd5e1;
-}
-
-
-/* =========================================================
-   INDIVIDUAL PATH
-========================================================= */
-
-.path-column {
-  position: relative;
-
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-
-/* =========================================================
-   PATH CONNECTOR
-========================================================= */
-
-.path-connector {
-  position: relative;
-
-  width: 100px;
-  height: 40px;
-
-  display: flex;
-  justify-content: center;
-}
-
-
-/*
-   Vertical connector
-*/
-
-.connector-vertical {
-  position: absolute;
-
-  top: 0;
-  left: 50%;
-
-  width: 2px;
-  height: 30px;
-
-  transform: translateX(-50%);
-
-  background: #cbd5e1;
-}
-
-
-/*
-   Arrow
-*/
-
-.connector-arrow {
-  position: absolute;
-
-  top: 23px;
-
-  font-size: 14px;
-
-  color: #64748b;
-
-  background: #f8fafc;
-
-  padding: 0 4px;
-}
-
-
-/*
-   PATH LABEL
-*/
-
-.path-label {
-  position: absolute;
-
-  top: 4px;
-
-  left: 50%;
-
-  transform:
-    translateX(-50%)
-    translateY(-50%);
-
-  padding: 3px 7px;
-
-  border-radius: 10px;
-
-  background: #f8fafc;
-
-  color: #94a3b8;
-
-  font-size: 9px;
-  font-weight: 700;
-
-  white-space: nowrap;
-}
-
-
-/* =========================================================
-   DROP AREA
-========================================================= */
-
-.end-drop-area {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  width: 280px;
-  min-height: 70px;
-
-  margin: 50px auto;
-
-  border: 2px dashed #cbd5e1;
-  border-radius: 10px;
-
-  color: #94a3b8;
-
-  font-size: 12px;
-}
-
-.end-drop-area:hover {
-  background: white;
-  border-color: #94a3b8;
-}
- .test-configuration { padding: 20px; background: white; border-bottom: 1px solid #e5e7eb; } /* ========================================================= HEADER ========================================================= */ .configuration-header { margin-bottom: 22px; } .configuration-header h2 { margin: 0 0 5px; font-size: 18px; } .configuration-header p { margin: 0; color: #64748b; font-size: 12px; line-height: 1.5; } /* ========================================================= SECTION ========================================================= */ .configuration-section { margin-bottom: 22px; } .configuration-section:last-child { margin-bottom: 0; } /* ========================================================= LABEL ========================================================= */ .configuration-label { display: block; margin-bottom: 8px; color: #334155; font-size: 12px; font-weight: 700; } /* ========================================================= TITLE INPUT ========================================================= */ .test-title-input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 7px; outline: none; font-size: 13px; color: #0f172a; } .test-title-input::placeholder { color: #94a3b8; } .test-title-input:focus { border-color: #64748b; } /* ========================================================= CLASS OPTIONS ========================================================= */ .class-options { display: flex; flex-direction: column; gap: 9px; } .class-option { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 13px; color: #334155; } .class-option input { width: 15px; height: 15px; margin: 0; cursor: pointer; } /* ========================================================= ACTION HEADER ========================================================= */ .actions-header { display: flex; align-items: center; justify-content: space-between; } .action-count { display: flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 20px; background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 700; } /* ========================================================= PREDEFINED ACTIONS ========================================================= */ .predefined-actions { display: flex; flex-direction: column; gap: 7px; margin-bottom: 10px; } .predefined-action { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid #e2e8f0; border-radius: 7px; background: #f8fafc; } .action-number { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; flex-shrink: 0; border-radius: 6px; background: white; color: #64748b; font-size: 11px; font-weight: 700; } .action-info { display: flex; flex-direction: column; gap: 2px; } .action-type { color: #94a3b8; font-size: 8px; font-weight: 700; letter-spacing: 0.08em; } .action-info strong { color: #1e293b; font-size: 12px; } /* ========================================================= ADD ACTION BUTTON ========================================================= */ .add-action-button { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; padding: 10px; border: 1px dashed #94a3b8; border-radius: 7px; background: white; color: #475569; cursor: pointer; font-size: 12px; font-weight: 600; transition: 0.15s; } .add-action-button:hover { background: #f8fafc; border-color: #64748b; color: #1e293b; } .add-action-button span { font-size: 16px; line-height: 1; } /* ========================================================= MODAL OVERLAY ========================================================= */ .action-modal-overlay { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; background: rgba(15, 23, 42, 0.35); } /* ========================================================= MODAL ========================================================= */ .action-modal { width: min(500px, 100%); max-height: 90vh; display: flex; flex-direction: column; background: white; border-radius: 12px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2); overflow: hidden; } /* ========================================================= MODAL HEADER ========================================================= */ .action-modal-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 20px; border-bottom: 1px solid #e5e7eb; } .action-modal-header h3 { margin: 0 0 4px; font-size: 17px; } .action-modal-header p { margin: 0; color: #64748b; font-size: 12px; } .modal-close-button { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: none; border-radius: 6px; background: transparent; color: #64748b; cursor: pointer; font-size: 22px; } .modal-close-button:hover { background: #f1f5f9; color: #0f172a; } /* ========================================================= MODAL BODY ========================================================= */ .action-modal-body { padding: 30px; overflow-y: auto; } .modal-placeholder { display: flex; align-items: center; justify-content: center; min-height: 180px; border: 2px dashed #cbd5e1; border-radius: 8px; color: #94a3b8; font-size: 13px; } /* ========================================================= MODAL FOOTER ========================================================= */ .action-modal-footer { display: flex; justify-content: flex-end; padding: 15px 20px; border-top: 1px solid #e5e7eb; } .modal-cancel-button { padding: 8px 15px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; color: #475569; cursor: pointer; font-size: 12px; font-weight: 600; } .modal-cancel-button:hover { background: #f8fafc; }
-/* =========================================================
-   LAYOUT
-========================================================= */
-
-.flow-builder {
-  display: flex;
-  height: 100vh;
-  width: 100%;
-  background: #f9fafb;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    Helvetica, Arial, sans-serif;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  height: calc(100dvh - 64px);
+  min-height: 520px;
+  background: #f4f6fa;
   color: #101828;
 }
 
-/* =========================================================
-   SIDEBAR
-========================================================= */
+/* ---------- Sidebar ---------- */
 
 .flow-sidebar {
-  width: 300px;
-  flex-shrink: 0;
-  background: #ffffff;
-  border-right: 1px solid #eaecf0;
-  padding: 20px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
+  padding: 16px;
+  background: #fff;
+  border-right: 1px solid #e2e8f0;
 }
 
-.sidebar-header h2 {
-  font-size: 15px;
-  font-weight: 600;
-  margin: 0 0 4px;
-  color: #101828;
-}
-
-.sidebar-header p {
-  font-size: 12px;
-  color: #667085;
-  margin: 0;
-}
-
-/* -------- Test configuration -------- */
-
-.test-configuration {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.configuration-header h2 {
-  font-size: 15px;
-  font-weight: 600;
-  margin: 0 0 4px;
-  color: #101828;
-}
-
-.configuration-header p {
-  font-size: 12px;
-  color: #667085;
-  margin: 0;
-}
-
-.configuration-section {
+.side-section {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.configuration-label {
-  font-size: 12px;
+.side-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.side-label {
+  margin-top: 8px;
+  font-size: 14px;
   font-weight: 500;
-  color: #344054;
+  color: #1e293b;
 }
 
-.test-title-input,
-.configuration-section select {
+.side-input {
   width: 100%;
-  padding: 8px 10px;
-  border: 1px solid #d0d5dd;
+  padding: 10px 12px;
+  min-height: 44px;
+  border: 1px solid #cbd5e1;
   border-radius: 8px;
-  font-size: 13px;
-  background: #ffffff;
-  color: #101828;
-  outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+  color: #0f172a;
+  resize: vertical;
 }
 
-.test-title-input:focus,
-.configuration-section select:focus {
-  border-color: #667085;
-  box-shadow: 0 0 0 3px rgba(102, 112, 133, 0.12);
+.side-input:focus {
+  outline: 2px solid #0f172a;
+  outline-offset: 1px;
 }
 
-/* -------- Action list -------- */
+.side-hint {
+  margin: 0;
+  font-size: 14px;
+  color: #475569;
+}
 
 .action-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
 .action-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
-  border: 1px solid #eaecf0;
-  border-radius: 8px;
-  background: #ffffff;
-  font-size: 13px;
-  color: #344054;
+  min-height: 48px;
+  padding: 0 6px 0 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
   cursor: grab;
-  user-select: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease,
-    background 0.15s ease;
 }
 
 .action-item:hover {
-  border-color: #d0d5dd;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
-  background: #fcfcfd;
+  border-color: #94a3b8;
 }
 
 .action-item.dragging {
-  opacity: 0.5;
-  cursor: grabbing;
+  opacity: 0.45;
 }
 
 .drag-icon {
-  color: #98a2b3;
-  font-size: 12px;
+  color: #64748b;
+  font-size: 14px;
   letter-spacing: -2px;
 }
 
-/* =========================================================
-   CANVAS
-========================================================= */
+.action-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.action-add {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.action-add:hover {
+  background: #334155;
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+/* Edit and delete are occasional: show them on hover or focus where there is a
+   pointer, and always on touch screens. */
+@media (hover: hover) {
+  .action-item .icon-button {
+    display: none;
+  }
+
+  .action-item:hover .icon-button,
+  .action-item:focus-within .icon-button {
+    display: grid;
+  }
+}
+
+.icon-button.danger:hover {
+  background: #fef2f2;
+  color: #b42318;
+}
+
+/* ---------- Canvas ---------- */
 
 .flow-canvas {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: auto;
-  background: #f9fafb;
-  background-image: radial-gradient(#eaecf0 1px, transparent 1px);
-  background-size: 20px 20px;
+  min-width: 0;
+  min-height: 0;
 }
 
 .canvas-header {
-  padding: 24px 32px 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
 }
 
-.canvas-header h1 {
-  font-size: 18px;
+.canvas-fields {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: min(100%, 18rem);
+}
+
+.canvas-crumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 14px;
+  color: #475569;
+}
+
+.canvas-crumb a {
+  font-weight: 500;
+  color: #0f172a;
+  text-decoration: underline;
+}
+
+.canvas-count {
+  color: #475569;
+}
+
+/* Title and description are edited in place: they read as text until used. */
+.title-input,
+.description-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 10px;
+  margin-left: -10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  color: #0f172a;
+}
+
+.title-input {
+  font-size: 20px;
   font-weight: 600;
-  margin: 0 0 4px;
-  color: #101828;
 }
 
-.canvas-header p {
-  font-size: 13px;
-  color: #667085;
+.description-input {
+  min-height: 36px;
+  font-size: 14px;
+  color: #334155;
+}
+
+.title-input:hover,
+.description-input:hover {
+  border-color: #e2e8f0;
+}
+
+.title-input:focus,
+.description-input:focus {
+  border-color: #0f172a;
+  background: #fff;
+  outline: none;
+}
+
+.unsaved {
+  font-weight: 600;
+  color: #92400e;
+}
+
+.canvas-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.canvas-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.canvas-reason {
   margin: 0;
+  max-width: 24rem;
+  font-size: 14px;
+  color: #334155;
+  text-align: right;
+}
+
+.btn {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid #94a3b8;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn:hover:not(:disabled) {
+  background: #f8fafc;
+}
+
+.btn.primary {
+  border-color: #0f172a;
+  background: #0f172a;
+  color: #fff;
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: #334155;
+}
+
+.btn:disabled {
+  border-color: #cbd5e1;
+  background: #e2e8f0;
+  color: #475569;
+  cursor: not-allowed;
+}
+
+.flow-message {
+  margin: 0;
+  padding: 10px 20px;
+  border-bottom: 1px solid;
+  font-size: 14px;
+}
+
+.flow-message.error {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #7f1d1d;
+}
+
+.flow-message.success {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #064e3b;
 }
 
 .flow-area {
   flex: 1;
-  padding: 32px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 32px;
-  min-height: min-content;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px 24px 56px;
+  background-color: #f4f6fa;
+  background-image: radial-gradient(#d0d5dd 1px, transparent 1px);
+  background-size: 22px 22px;
 }
 
 .flow-root {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 48px;
+  /* room for the first step's insert gap */
+  padding-top: 40px;
+  min-width: max-content;
 }
 
-/* =========================================================
-   TREE NODE
-========================================================= */
+/* ---------- Tree ---------- */
 
 .tree-node {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  position: relative;
 }
 
-/* =========================================================
-   NODE CARD
-========================================================= */
+.children-row {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  /* the gap is set inline to stay in step with the connector geometry */
+}
+
+.child-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* the width is set inline */
+}
+
+.connector-svg {
+  display: block;
+  align-self: center;
+}
+
+/* ---------- Cards ---------- */
 
 .node-card {
-  min-width: 180px;
-  max-width: 220px;
-  background: #ffffff;
-  border: 1px solid #d0d5dd;
-  border-radius: 10px;
-  padding: 10px 14px;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease,
-    background 0.15s ease;
   position: relative;
   z-index: 2;
+  box-sizing: border-box;
+  width: 240px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
 }
 
-.node-card.action {
-  cursor: default;
+.node-card[draggable="true"] {
+  cursor: grab;
 }
 
-.node-card.action:hover {
-  border-color: #98a2b3;
-  box-shadow: 0 2px 6px rgba(16, 24, 40, 0.08);
+.node-card[draggable="true"]:active {
+  cursor: grabbing;
 }
 
-/* Empty action node — waiting for a drop */
-.node-card.empty {
-  border-style: dashed;
-  border-color: #d0d5dd;
-  background: #fcfcfd;
-  cursor: pointer;
+.node-card:hover {
+  border-color: #94a3b8;
 }
 
-.node-card.empty .node-card-title {
-  color: #667085;
-  font-weight: 400;
-}
-
-.node-card.empty:hover {
-  border-color: #667085;
-  background: #f9fafb;
-}
-
-/* Confirmation nodes are terminal choices */
 .node-card.confirmation {
-  background: #f9fafb;
+  width: 200px;
+  background: #f8fafc;
   border-style: dashed;
-  border-color: #d0d5dd;
-  cursor: default;
-  min-width: 150px;
 }
 
-.node-card.confirmation:hover {
-  border-color: #98a2b3;
+.node-card.empty {
+  background: #fff;
+  border-style: dashed;
+  border-color: #94a3b8;
+}
+
+.node-card.being-moved {
+  opacity: 0.45;
+}
+
+.node-card.replace-target {
+  border-color: #b42318;
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.14);
 }
 
 .node-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.node-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 14px;
+}
+
+.node-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 1px;
+}
+
+.node-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #0f172a;
+}
+
+.node-subtitle {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 17px;
+  color: #475569;
+  word-break: break-word;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.node-run-state {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.run-text-running { color: #1d4ed8; }
+.run-text-passed { color: #047857; }
+.run-text-failed { color: #b42318; }
+.run-text-stopped { color: #92400e; }
+
+.node-action-button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #475569;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.node-action-button:hover,
+.node-action-button:focus-visible {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.node-card-menu {
+  position: relative;
+  flex: none;
+}
+
+.menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 30;
+  min-width: 150px;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+}
+
+.menu-dropdown button {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #0f172a;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-dropdown button:hover {
+  background: #f1f5f9;
+}
+
+.option-badge {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: #ecfdf3;
+  color: #05603a;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.replace-badge {
+  position: absolute;
+  top: -10px;
+  right: 10px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: #b42318;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Empty slot with its quick-add menu */
+
+.slot {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
 
-.node-card-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: #101828;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.slot-label {
+  font-size: 14px;
+  color: #475569;
 }
 
-/* =========================================================
-   NODE MENU
-========================================================= */
-
-.node-card-menu {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.menu-trigger {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #667085;
-  font-size: 16px;
-  line-height: 1;
-  padding: 2px 4px;
-  border-radius: 4px;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.menu-trigger:hover {
-  background: #f2f4f7;
-  color: #101828;
-}
-
-.menu-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  background: #ffffff;
-  border: 1px solid #eaecf0;
+.slot-add {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #94a3b8;
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.12);
-  padding: 4px;
-  z-index: 20;
-  min-width: 130px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
-.menu-dropdown button {
+.slot-add:hover {
+  background: #f1f5f9;
+}
+
+.quick-add {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+}
+
+.quick-add button {
   display: block;
   width: 100%;
-  text-align: left;
-  background: none;
-  border: none;
-  padding: 6px 10px;
-  font-size: 13px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
   border-radius: 6px;
+  background: transparent;
+  color: #0f172a;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
   cursor: pointer;
-  color: #344054;
-  transition: background 0.15s ease;
 }
 
-.menu-dropdown button:hover {
-  background: #f9fafb;
+.quick-add button:hover {
+  background: #f1f5f9;
 }
 
-/* =========================================================
-   CONNECTORS
-========================================================= */
-
-/* Vertical stem from parent card down to the horizontal bus */
-.connector-stem {
-  width: 2px;
-  height: 24px;
-  background: #d0d5dd;
+.quick-add-empty {
+  padding: 8px 12px;
+  font-size: 14px;
+  color: #475569;
 }
 
-/* Wrapper centers the horizontal bus */
-.connector-bus-wrapper {
+/* Run states on the cards */
+
+.node-card.run-running {
+  border-color: #1d4ed8;
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.16);
+}
+
+.node-card.run-passed {
+  border-color: #059669;
+}
+
+.node-card.run-failed {
+  border-color: #b42318;
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.14);
+}
+
+.node-card.run-stopped {
+  border-color: #d97706;
+}
+
+.node-card.run-pending {
+  opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .node-card.run-running {
+    animation: node-pulse 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes node-pulse {
+  50% {
+    box-shadow: 0 0 0 6px rgba(29, 78, 216, 0.08);
+  }
+}
+
+/* ---------- Drag affordances ---------- */
+
+/* The gap above a step that an action can be dropped into. It only exists
+   while something is being dragged and sits over the connector stub, so the
+   layout does not shift. */
+.insert-gap {
+  position: absolute;
+  top: -36px;
+  left: 50%;
+  z-index: 4;
   display: flex;
-  justify-content: center;
-  width: 100%;
-}
-
-/* Horizontal bus spanning all children */
-.connector-bus {
-  height: 2px;
-  background: #d0d5dd;
-  width: calc(100% - 40px);
-  max-width: 100%;
-}
-
-/* Row holding all children */
-.children-row {
-  display: flex;
-  gap: 24px;
-  justify-content: center;
-  align-items: flex-start;
-}
-
-/* Column for each child */
-.child-column {
-  display: flex;
-  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  width: 180px;
+  height: 28px;
+  transform: translateX(-50%);
+  border: 1.5px dashed #84a9ff;
+  border-radius: 14px;
+  background: #eff4ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
 }
 
-/* Vertical stub from bus down into each child card */
-.connector-stub {
-  width: 2px;
-  height: 24px;
-  background: #d0d5dd;
+.insert-gap.over {
+  border-style: solid;
+  border-color: #1d4ed8;
+  background: #dbe7ff;
+  transform: translateX(-50%) scale(1.04);
 }
 
-/* =========================================================
-   DRAG-AFFORDANCE (body class toggled on dragstart)
-========================================================= */
+.insert-gap span {
+  pointer-events: none;
+}
 
 body.is-dragging .node-card.empty {
-  border-color: #667085;
-  background: #f9fafb;
+  border-color: #1d4ed8;
+  background: #eff4ff;
 }
 
-body.is-dragging .node-card.action:not(.empty) {
-  border-color: #98a2b3;
+body.is-dragging .node-card.empty .slot-label {
+  color: #1d4ed8;
+  font-weight: 600;
 }
 
-body.is-dragging .node-card.empty .node-card-title::before {
-  content: "＋ ";
-  color: #667085;
+/* ---------- Small screens ---------- */
+
+@media (max-width: 1023px) {
+  .flow-builder {
+    display: block;
+    height: auto;
+  }
+
+  .flow-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid #e2e8f0;
+    overflow: visible;
+  }
+
+  .flow-area {
+    min-height: 420px;
+    padding: 16px 12px 48px;
+  }
+
+  .canvas-actions {
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .canvas-buttons .btn {
+    flex: 1;
+  }
+
+  .canvas-reason {
+    text-align: left;
+  }
+
 }
 
-/* =========================================================
-   END DROP AREA
-========================================================= */
+/* ---------- Read-only chart (run view) ---------- */
 
-.end-drop-area {
-  padding: 16px 24px;
-  border: 1px dashed #d0d5dd;
+.flow-chart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: max-content;
+  padding: 8px 0 32px;
+}
+
+.flow-chart .node-card {
+  cursor: default;
+}
+
+/* ---------- Recording ---------- */
+
+.record-card,
+.record-banner,
+.record-done {
+  position: relative;
+  z-index: 1;
+  max-width: 560px;
+  margin: 0 auto 16px;
+  padding: 16px 18px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  color: #0f172a;
+}
+
+.record-card {
+  margin-top: 32px;
+  text-align: center;
+}
+
+.record-card h2 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.record-card p {
+  margin: 0 0 14px;
+  font-size: 14px;
+  color: #334155;
+}
+
+.record-card .record-reason {
+  margin: 10px 0 0;
+  color: #92400e;
+}
+
+.record-card .record-or {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: #475569;
+}
+
+.record-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-color: #fca5a5;
+  background: #fef2f2;
+  position: sticky;
+  top: 0;
+}
+
+.record-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 14px;
+  color: #7f1d1d;
+}
+
+.record-dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
   border-radius: 999px;
-  font-size: 12px;
-  color: #667085;
-  background: #ffffff;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  background: #dc2626;
+  animation: record-pulse 1.2s ease-in-out infinite;
 }
 
-.end-drop-area:hover {
-  border-color: #98a2b3;
-  background: #fcfcfd;
+@keyframes record-pulse {
+  50% {
+    opacity: 0.35;
+  }
 }
-/* =========================================================
-   CONNECTORS — Mailchimp-style rounded elbows
-========================================================= */
 
-/* Wrapper that holds the whole connector + children row */
-.connector {
-  position: relative;
+@media (prefers-reduced-motion: reduce) {
+  .record-dot {
+    animation: none;
+  }
+}
+
+.record-done {
   display: flex;
   flex-direction: column;
-  align-items: center;
-}
-
-/* Vertical stem from the parent card down to the elbow line */
-.connector-stem {
-  width: 2px;
-  height: 24px;
-  background: #d0d5dd;
-}
-
-/* The horizontal run + curved ends.
-   Width is 100% of the children row so ends line up with
-   the first and last child centers. */
-.connector-elbow {
-  position: relative;
-  height: 24px;
-  border-top: 2px solid #d0d5dd;
-  border-left: 2px solid #d0d5dd;
-  border-right: 2px solid #d0d5dd;
-  border-top-left-radius: 10px;
-  border-top-right-radius: 10px;
-  border-bottom: none;
-  background: transparent;
-  /* pull the sides in by half the gap so the rounded corners
-     land on the child centers, not the row edges */
-  margin: 0 24px;
-  align-self: stretch;
-}
-
-/* Children row */
-.children-row {
-  display: flex;
-  gap: 48px;                 /* wider gap so the elbows read clearly */
-  justify-content: center;
   align-items: flex-start;
+  gap: 6px;
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  font-size: 14px;
+  color: #064e3b;
 }
 
-.child-column {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+.record-done ul {
+  margin: 0;
+  padding-left: 18px;
 }
 
-/* Straight stub from the elbow line down into each child card.
-   For the first and last child we hide the top of the stub so
-   the curve blends smoothly. */
-.connector-stub {
-  width: 2px;
-  height: 24px;
-  background: #d0d5dd;
-}
-
-/* Hide the stub for children whose center aligns with an elbow
-   corner — the border-radius already draws that segment. */
-.child-column:first-child .connector-stub,
-.child-column:last-child .connector-stub {
-  background: transparent;
-}
-/* =========================================================
-   CONNECTORS — SVG bezier (Mailchimp-style)
-========================================================= */
-
-.connector-svg {
-  display: block;
-  /* SVG sits directly above the children row, centered on parent */
-  align-self: center;
-}
-
-.children-row {
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  /* gap is set inline to stay in sync with SVG geometry */
-}
-
-.child-column {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  /* width is set inline */
+/* While recording, the flow is shown but not edited. */
+.is-recording .flow-root,
+.is-recording .action-list {
+  pointer-events: none;
 }
