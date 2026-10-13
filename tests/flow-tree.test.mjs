@@ -253,6 +253,7 @@ test("a recorded page becomes a ROUTE step with its route", () => {
 
   assert.equal(flow[0].actionTitle, "ROUTE");
   assert.equal(flow[0].actionData.route, "/home");
+  assert.equal(flow[0].actionData.routeMode, "go", "recorded pages are gone to, not only checked");
 });
 
 test("a recorded dialog choice is a CONFIRMATION whose chosen option continues the flow", () => {

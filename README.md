@@ -108,7 +108,8 @@ On a new, empty flow with the tablet connected and the Sandbox app open, the
 editor offers **Start recording**. Then use the tablet yourself: each tap becomes
 a CLICK (with the text you tapped), text you enter becomes a PASTE, the sign-in
 form becomes AUTHENTICATION, the save button becomes SAVE, each page you
-move to becomes a ROUTE step (the page you started on is the first), and a
+move to becomes a ROUTE step set to **Go to it** (the page you started on is
+the first), and a
 button tapped in a dialog becomes a CONFIRMATION: the button you tapped is the
 selected option and the dialog's other buttons are the alternatives. The steps appear
 in the flow as you go; press **Stop recording**, check them, name the flow and

@@ -42,6 +42,8 @@ export function flowFromRecording(steps: RecordedStep[], library: TestActionDefi
       clickOnText: step.action === "CLICK" ? step.text ?? "" : null,
       pasteText: step.action === "PASTE" ? step.text ?? "" : null,
       route: step.action === "ROUTE" ? step.route ?? "" : null,
+      // A recorded page is gone to on replay, not just checked.
+      routeMode: step.action === "ROUTE" ? "go" : null,
       email: step.action === "AUTHENTICATION" ? step.email ?? "" : null,
       password: step.action === "AUTHENTICATION" ? "" : null,
     };
