@@ -47,3 +47,6 @@ next-env.d.ts
 /tools/dev-db/data
 /tools/dev-db/package-lock.json
 /tools/dev-db/db.log
+
+# local Claude Code settings (per developer)
+/.claude/
