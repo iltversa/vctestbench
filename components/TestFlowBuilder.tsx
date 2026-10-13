@@ -669,6 +669,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
   const addAction = (action: TestActionDefinition, slotId?: string) => {
     if (recorder.active) return;
 
+<<<<<<< HEAD
     const target = slotId ?? findAppendSlot(nodes)?.id;
 
     if (!target) {
@@ -680,6 +681,15 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     setPendingInsert(null);
     setPendingNodeId(target);
     setEditingAction(prepareActionForEditor(action));
+=======
+  const getFaIcon = (name?: string | null) =>
+    name && name in ACTION_ICONS
+      ? ACTION_ICONS[name as keyof typeof ACTION_ICONS]
+      : faUser;
+
+  const handleRunTest = (testId: string) => {
+    router.push(`/?testId=${encodeURIComponent(testId)}`);
+>>>>>>> main
   };
 
   // Save what is on screen first when it changed, then run that exact version.
@@ -862,7 +872,38 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
                 {runLabel}
               </button>
             </div>
+<<<<<<< HEAD
             {bridge.blockedReason && <p className="canvas-reason">{bridge.blockedReason}</p>}
+=======
+
+
+          </div>
+          <div className="flex space-between gap-5">
+          <button
+            className="save-test-button"
+            onClick={() => handleRunTest(initialTest?.id|| '')}
+            type="button"
+          >
+            Run test
+          </button>
+          {/* SAVE TEST */}
+          <button
+            onClick={handleSaveTest}
+            disabled={
+              saving ||
+              !testTitle.trim()
+            }
+            type="button"
+            className="save-test-button"
+            title={
+              !testTitle.trim()
+                ? "Enter a test title"
+                : ""
+            }
+          >
+            {saving ? "Saving..." : "Save Test"}
+          </button>
+>>>>>>> main
           </div>
         </div>
 
