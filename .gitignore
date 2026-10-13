@@ -46,3 +46,4 @@ next-env.d.ts
 /tools/dev-db/node_modules
 /tools/dev-db/data
 /tools/dev-db/package-lock.json
+/tools/dev-db/db.log
