@@ -1,14 +1,8 @@
 "use client";
-<<<<<<< HEAD
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-=======
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { getTestActionById, getTestsAction } from "@/actions/get-tests";
->>>>>>> main
 import { deleteTestAction } from "@/actions/delete-test";
 import { getTestsAction } from "@/actions/get-tests";
 import { getActivityAction, getRunTrendsAction } from "@/actions/run-reports";
@@ -22,7 +16,6 @@ import { countSteps, flowActionTitles, type SavedTest } from "@/components/types
 import type { ActivityItem } from "@/services/activity";
 import type { TestTrend } from "@/services/run-reports";
 
-<<<<<<< HEAD
 const card = "rounded-xl border border-slate-200 bg-white";
 
 // "Created 12 Oct 2026 · Last tested Today, 14:05 · 67% passed (8 of 12)"
@@ -78,117 +71,6 @@ function Insight({ test, trend }: { test: SavedTest; trend?: TestTrend }) {
 export default function Home() {
   const bridge = useBridge();
   const router = useRouter();
-=======
-const BRIDGE = "http://localhost:3131";
-export type ConfirmationOption = {
-    id: string;
-    testActionId: string;
-    option: string;
-    isSelected: boolean;
-};
-
-export type SavedTestAction = {
-    id: string;
-    title: string;
-    hasConfirmation: boolean;
-    confirmationTimeout?: number | null;
-    actionTimeout: number;
-    confirmationOptions: { option: string; isSelected: boolean }[];
-    pasteText?: string | null;
-    email?: string | null;
-    password?: string | null;
-    icon?: string | null;
-    clickOnText?: string | null;
-};
-
-export type SavedTest = {
-    id: string;
-    title: string;
-    description: string;
-    flow?: FlowNode[];
-    createdAt: Date; updatedAt: Date;
-    //   actions?: SavedTestAction[];
-
-};
-
-export default function Home() {
-    const router = useRouter();
-    const [state, setState] = useState<TabletState | null>(null),
-        [bridgeOnline, setBridgeOnline] = useState(false),
-        [lastError, setLastError] = useState(""),
-        [imageTick, setImageTick] = useState(0),
-        [starting, setStarting] = useState(false),
-        [launching, setLaunching] = useState(false),
-        [createModalOpen, setCreateModalOpen] = useState(false);
-    const refresh = useCallback(async () => {
-        try {
-            const response = await fetch(BRIDGE + "/state", { cache: "no-store" });
-            if (!response.ok) throw new Error();
-            const next = (await response.json()) as TabletState;
-            setState(next);
-            setBridgeOnline(true);
-            setLastError("");
-            if (next.connected) setImageTick(Date.now());
-        } catch {
-            setBridgeOnline(false);
-            setLastError("Local tablet monitor is not running");
-        }
-    }, []);
-
-    const searchParams = useSearchParams();
-    const hasTriggered = useRef(false);
-    const testId = searchParams.get("testId");
-
-
-    useEffect(() => {
-        if (!testId || hasTriggered.current) return;
-
-        const findButton = () => {
-            const button = document.querySelector<HTMLButtonElement>(
-                ".save-test-button"
-            );
-
-            if (!button) return;
-
-            console.log("Button found:", button);
-            console.log("Button disabled:", button.disabled);
-
-            // if (button.disabled) return;
-
-            hasTriggered.current = true;
-            observer.disconnect();
-            button.click();
-
-            // Optional: remove the URL parameter after triggering.
-            router.replace("/");
-        };
-
-        const observer = new MutationObserver(findButton);
-
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            attributeFilter: ["disabled"],
-        });
-
-        findButton();
-
-        return () => observer.disconnect();
-    }, [testId, router]);
-
-    useEffect(() => {
-        refresh();
-        const timer = window.setInterval(refresh, 1500);
-        return () => window.clearInterval(timer);
-    }, [refresh]);
-    const connected = bridgeOnline && Boolean(state?.connected), events = state?.events ?? [];
-    const canRun = connected && state?.sandboxForeground && state.route === "/home" && state.test?.status !== "running";
-    // const runWorkout = async () => { setStarting(true); try { const response = await fetch(BRIDGE + "/run-workout", { method: "POST" }); if (!response.ok) throw new Error(); await refresh() } catch { setLastError("Could not start the workout test") } finally { setStarting(false) } };
-    // const runVideoClass = async () => { setStarting(true); try { const response = await fetch(BRIDGE + "/run-video-class", { method: "POST" }); if (!response.ok) throw new Error(); await refresh() } catch { setLastError("Could not start the video class test") } finally { setStarting(false) } };
-    // const runMonument = async () => { setStarting(true); try { const response = await fetch(BRIDGE + "/run-monument", { method: "POST" }); if (!response.ok) throw new Error(); await refresh() } catch { setLastError("Could not start the Monument test") } finally { setStarting(false) } };
-    const launchSand = async () => { setLaunching(true); setLastError(""); try { const response = await fetch(BRIDGE + "/launch-sand", { method: "POST" }); if (!response.ok) throw new Error(); window.setTimeout(refresh, 1200) } catch { setLastError("Could not launch Sandbox") } finally { window.setTimeout(() => setLaunching(false), 1200) } };
->>>>>>> main
 
   const [creating, setCreating] = useState(false);
   const [tests, setTests] = useState<SavedTest[]>([]);
@@ -206,75 +88,10 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false;
 
-<<<<<<< HEAD
     const load = async () => {
       try {
         const result = await getTestsAction();
         if (cancelled) return;
-=======
-    const handleEditTest = (testId: string) => {
-        router.push(`/test/${testId}`);
-    };
-
-    const [savedTests, setSavedTests] = useState<SavedTest[]>([]);
-
-    const handleRunTest = async (test: SavedTest) => {
-
-        if (!canRun || starting) return;
-
-        setStarting(true);
-        setLastError("");
-
-        try {
-            let testToRun = test;
-
-            // If the URL contains a test ID, load the saved test.
-            if (!test || testId) {
-
-                const result = await getTestActionById(testId || "");
-                if (!result.success) {
-                    throw new Error(result.error);
-                }
-                console.log("result", result.data)
-
-                testToRun = result?.data?.data as SavedTest;
-            }
-
-            const response = await fetch(BRIDGE + "/run-test", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    title: testToRun.title,
-                    // actions: testToRun.actions ?? [],
-                    flow: testToRun.flow ?? [],
-                }),
-            });
-
-            if (!response.ok) {
-                throw new Error("Failed to start test");
-            }
-
-            await refresh();
-        } catch (error) {
-            console.error("handleRunTest error:", error);
-            setLastError(
-                `Could not start ${test.title}`
-            );
-        } finally {
-            setStarting(false);
-        }
-    };
-
-    const handleDeleteTest = async (testId: string) => {
-        if (!testId) return;
-
-        const confirmed = window.confirm("Delete this saved test?");
-        if (!confirmed) return;
-
-        const result = await deleteTestAction({ id: testId });
->>>>>>> main
 
         if (!result.success) {
           setLoadError("The database did not respond.");
@@ -370,7 +187,6 @@ export default function Home() {
   const live = bridge.running ? bridge.run : null;
   const liveDone = live ? live.steps.filter((step) => step.status === "passed").length : 0;
 
-<<<<<<< HEAD
   return (
     <main className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:h-[calc(100dvh-64px)]">
       <div className="grid gap-6 lg:h-full lg:grid-cols-[minmax(0,1fr)_380px]">
@@ -384,114 +200,6 @@ export default function Home() {
                   {tests.length} {tests.length === 1 ? "flow" : "flows"}
                 </p>
               )}
-=======
-                            <div className="h-[calc(100%-56px)] overflow-y-auto">
-                                {savedTests.length === 0 ? (
-                                    <div className="px-5 py-8 text-center text-xs text-slate-500">
-                                        No tests yet. Create one to get started.
-                                    </div>
-                                ) : (
-                                    <ul className="divide-y divide-slate-200">
-                                        {savedTests.map((test) => (
-                                            <li key={test.id} className="flex items-center justify-between gap-3 px-5 py-3">
-                                                <span className="min-w-0 truncate text-sm text-slate-700">{test.title}</span>
-
-                                                <div className="flex items-center gap-2">
-                                                    <button
-                                                        className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
-                                                        onClick={() => handleEditTest(test.id)}
-                                                        type="button"
-                                                    >
-                                                        Edit
-                                                    </button>
-
-                                                    <button
-                                                        className="save-test-button shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
-                                                        disabled={!canRun || starting}
-                                                        onClick={() => handleRunTest(test)}
-                                                        type="button"
-                                                    >
-                                                        {activeTest === test.title ? "Running…" : "Run"}
-                                                    </button>
-
-                                                    <button
-                                                        className="shrink-0 rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-100"
-                                                        onClick={() => handleDeleteTest(test.id)}
-                                                        type="button"
-                                                        aria-label={`Delete ${test.title}`}
-                                                        title="Delete test"
-                                                    >
-                                                        Delete
-                                                    </button>
-                                                </div>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                            </div>
-                        </section>
-
-                        <section className="flex-shrink-0 grid grid-cols-3 divide-x divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                            <div className="min-w-0 px-3 py-4 text-center">
-                                <span className="block text-[9px] font-semibold tracking-wider text-slate-500">
-                                    USB STATUS
-                                </span>
-
-                                <strong
-                                    className={[
-                                        "mt-1 block truncate text-xs",
-                                        connected ? "text-emerald-600" : "text-red-600",
-                                    ].join(" ")}
-                                >
-                                    {connected ? "Online" : "Offline"}
-                                </strong>
-                            </div>
-
-                            <div className="min-w-0 px-3 py-4 text-center">
-                                <span className="block text-[9px] font-semibold tracking-wider text-slate-500">
-                                    APP STATE
-                                </span>
-
-                                <strong className="mt-1 block truncate text-xs text-slate-700">
-                                    {state?.sandboxForeground ? "Visible" : "—"}
-                                </strong>
-                            </div>
-
-                            <div className="min-w-0 px-3 py-4 text-center">
-                                <span className="block text-[9px] font-semibold tracking-wider text-slate-500">
-                                    ROUTE
-                                </span>
-
-                                <strong className="mt-1 block truncate text-xs text-slate-700">
-                                    {state?.route ?? "—"}
-                                </strong>
-                            </div>
-                        </section>
-                    </div>
-
-                    <section className="min-h-0 h-full">
-                        <div className="h-full min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                            {connected ? (
-                                <img
-                                    src={BRIDGE + "/screen?t=" + imageTick}
-                                    alt="Current Lenovo tablet screen"
-                                    className="h-full w-full object-cover bg-[#111]"
-                                />
-                            ) : (
-                                <div className="flex h-full flex-col items-center justify-center gap-3 bg-slate-100 text-center text-slate-600">
-                                    <span className="grid h-12 w-12 place-items-center rounded-full border border-slate-300 bg-white text-xs font-black text-slate-500">
-                                        USB
-                                    </span>
-                                    <strong className="text-lg text-slate-800">Tablet disconnected</strong>
-                                    <small className="text-sm text-slate-500">
-                                        Reconnect and authorize USB debugging
-                                    </small>
-                                </div>
-                            )}
-                        </div>
-                    </section>
-                </div>
->>>>>>> main
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
