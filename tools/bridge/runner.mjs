@@ -659,6 +659,11 @@ async function executeDeviceAction(action, step) {
   // CLICK: the text to tap is stored in clickOnText; fall back to the action's
   // title for actions that are named after the button itself.
   const target = String(action.clickOnText || "").trim() || title;
-  await untilFound(step, () => clickTextAround(target));
-  addEvent(`Tapped "${target}"`, "", "success");
+  const tapped = await untilFound(step, () => clickTextAround(target));
+
+  addEvent(
+    `Tapped "${target}"`,
+    tapped?.viaLabel ? "Nothing around the text looked clickable, so the text itself was tapped" : "",
+    "success"
+  );
 }

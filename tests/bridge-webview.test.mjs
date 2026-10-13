@@ -25,7 +25,7 @@ const { clickTextAround, clickSaveButton } = await import("../tools/bridge/webvi
 
 test("a tap that lands resolves", async () => {
   reply = { success: true };
-  assert.equal(await clickTextAround("ADD USER"), true);
+  assert.deepEqual(await clickTextAround("ADD USER"), { success: true });
 });
 
 test("text that is not on screen rejects with the page's reason", async () => {
@@ -36,4 +36,9 @@ test("text that is not on screen rejects with the page's reason", async () => {
 test("a missing save button is reported by the page, not thrown here", async () => {
   reply = { success: false, reason: "data-save not currently in DOM" };
   assert.deepEqual(await clickSaveButton(), reply);
+});
+
+test("tapping the label itself is reported, not treated as a failure", async () => {
+  reply = { success: true, viaLabel: true };
+  assert.equal((await clickTextAround("ADD USER")).viaLabel, true);
 });

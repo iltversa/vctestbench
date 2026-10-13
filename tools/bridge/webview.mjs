@@ -245,6 +245,21 @@ export async function clickTextAround(targetText) {
                   return true;
                 }
 
+                // Other signs that something answers to a tap.
+                if (
+                  tag === "summary" ||
+                  tag === "label" ||
+                  el.hasAttribute("onclick") ||
+                  typeof el.onmousedown === "function" ||
+                  typeof el.onpointerdown === "function" ||
+                  typeof el.ontouchstart === "function" ||
+                  ["tab", "menuitem", "option", "link", "switch", "checkbox"].includes(
+                    el.getAttribute("role")
+                  )
+                ) {
+                  return true;
+                }
+
                 const style = window.getComputedStyle(el);
 
                 if (style.cursor === "pointer") {
@@ -360,27 +375,15 @@ export async function clickTextAround(targetText) {
                 current = current.parentElement;
               }
 
-              if (!clickedElement) {
-                return {
-                  success: false,
+              // Nothing around the text looks clickable: that is not proof
+              // it is not. A handler is often on a plain wrapper (attached by
+              // the framework, no pointer cursor, no role), and a tap on the
+              // label reaches it by bubbling. So tap the label itself, the
+              // way a finger would, rather than fail.
+              const viaLabel = !clickedElement;
 
-                  reason:
-                    'Found text "' +
-                    target +
-                    '" but no clickable parent was found',
-
-                  text:
-                    (
-                      textElement.innerText ||
-                      textElement.textContent ||
-                      ""
-                    ).trim(),
-
-                  textTag:
-                    textElement.tagName,
-
-                  parentChain
-                };
+              if (viaLabel) {
+                clickedElement = textElement;
               }
 
               // -----------------------------------------
@@ -428,6 +431,28 @@ export async function clickTextAround(targetText) {
               // ACTUAL CLICK
               // -----------------------------------------
 
+              if (viaLabel) {
+                // The events of a real tap, in order, all bubbling.
+                for (const type of [
+                  "pointerdown",
+                  "mousedown",
+                  "pointerup",
+                  "mouseup",
+                ]) {
+                  const EventType = type.startsWith("pointer")
+                    ? PointerEvent
+                    : MouseEvent;
+
+                  clickedElement.dispatchEvent(
+                    new EventType(type, {
+                      bubbles: true,
+                      cancelable: true,
+                      view: window,
+                    })
+                  );
+                }
+              }
+
               clickedElement.click();
 
               // -----------------------------------------
@@ -436,6 +461,8 @@ export async function clickTextAround(targetText) {
 
               return {
                 success: true,
+
+                viaLabel,
 
                 target,
 
@@ -497,7 +524,9 @@ export async function clickTextAround(targetText) {
   ws.close();
 
   if (result?.success) {
-    resolve(true);
+    // { success, viaLabel, ... }: whether the label itself was tapped because
+    // nothing around it looked clickable.
+    resolve(result);
   } else {
     reject(
       new Error(

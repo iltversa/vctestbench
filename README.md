@@ -94,7 +94,7 @@ npm run bridge   # in a second terminal, with the tablet connected
 
 | Action | What it does on the tablet |
 |---|---|
-| CLICK | Taps the element whose text matches "Click on text" |
+| CLICK | Taps the element whose text matches "Click on text": the nearest clickable element around it, or the text itself when nothing around it looks clickable (a tap on the label reaches a handler on a plain wrapper) |
 | PASTE | Fills the first text field with the given text |
 | AUTHENTICATION | Fills the visible email and password fields and presses the sign-in button |
 | DELAY | Waits the configured number of seconds, on top of the default wait |
