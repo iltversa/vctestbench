@@ -38,6 +38,8 @@ export type TestActionDefinition = {
   pasteText?: string | null;
   icon?: string | null;
   clickOnText?: string | null;
+  // ROUTE: the page the tablet should be on, e.g. /home.
+  route?: string | null;
   email?: string | null;
   password?: string | null;
   confirmationOptions: {
@@ -211,6 +213,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
     ...action,
     title,
     clickOnText: action.clickOnText ?? "",
+    route: action.route ?? "",
     pasteText: action.pasteText ?? "",
     hasConfirmation:
       action.hasConfirmation ??
@@ -322,6 +325,7 @@ export default function TestFlowBuilder({ editingTest: initialTest }: { editingT
       actionTimeout: configuredAction.actionTimeout,
       pasteText: configuredAction.pasteText ?? null,
       clickOnText: configuredAction.clickOnText ?? null,
+      route: configuredAction.route ?? null,
       email: configuredAction.email ?? null,
       password: configuredAction.password ?? null,
       icon: configuredAction.icon ?? null,

@@ -8,6 +8,7 @@ import {
   faHandPointer,
   faHourglassHalf,
   faKey,
+  faLocationDot,
   faPaste,
   faStop,
   faTimes,
@@ -26,6 +27,7 @@ const BY_TITLE: Record<string, IconDefinition> = {
   DELAY: faHourglassHalf,
   CONFIRMATION: faCodeBranch,
   SAVE: faFloppyDisk,
+  ROUTE: faLocationDot,
 };
 
 // The built-in actions have their own icon; any other action keeps the one
@@ -44,6 +46,7 @@ export function nodeSubtitle(node: FlowNode): string | null {
 
   if (title === "DELAY") return `Wait ${Number(data?.actionTimeout ?? 0)}s`;
   if (title === "PASTE") return data?.pasteText ? `Paste "${data.pasteText}"` : "No text set";
+  if (title === "ROUTE") return data?.route ? `On page ${data.route}` : "No route set";
   if (title === "CLICK") return data?.clickOnText ? `Tap "${data.clickOnText}"` : "No text set";
   if (title === "AUTHENTICATION") return data?.email ? `Sign in as ${data.email}` : "No email set";
   if (title === "CONFIRMATION") {

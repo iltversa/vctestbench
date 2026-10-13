@@ -48,7 +48,17 @@ async function pause(ms) {
 // straight away and again every half second, so a modal that is still opening
 // costs only as long as it takes; after ACTION_TIMEOUT_SECONDS the step fails
 // with what was missing. Anything that is not "not there yet" fails at once.
-const NOT_THERE_YET = /was not found|not currently in DOM|No (text|password|email) field|Timeout|WebView|DevTools|No sign-in button/;
+const NOT_THERE_YET =
+  /was not found|not currently in DOM|No (text|password|email) field|Timeout|WebView|DevTools|No sign-in button|Expected the tablet to be on/;
+
+// "home", "/home/" and "/home?x=1" all mean /home.
+export function normalizeRoute(value) {
+  const path = String(value ?? "").trim().split(/[?#]/)[0];
+  if (!path) return "";
+
+  const withSlash = path.startsWith("/") ? path : `/${path}`;
+  return withSlash.length > 1 ? withSlash.replace(/\/+$/, "") : withSlash;
+}
 
 export async function untilFound(step, attempt) {
   const started = Date.now();
@@ -94,6 +104,7 @@ function describeStep(title, data = {}) {
   if (name === "CLICK") return data.clickOnText ? `Tap "${data.clickOnText}"` : `Tap "${title}"`;
   if (name === "AUTHENTICATION") return data.email ? `Sign in as ${data.email}` : "Sign in";
   if (name === "SAVE") return "Press save";
+  if (name === "ROUTE") return data.route ? `On page ${data.route}` : "Check the page";
   if (name === "CONFIRMATION") {
     const chosen = (data.confirmationOptions || []).find((option) => option.isSelected === true);
     return chosen ? `Choose "${chosen.option}"` : "Confirm";
@@ -220,7 +231,10 @@ async function finishStep(run, step, status, error = null) {
   // Let the screen settle (a modal opening, a route changing) before the
   // "after" picture. Stop still cuts it short. This time is not part of
   // the step's duration, which was recorded above.
-  if (status === "passed" && AFTER_SHOT_DELAY_SECONDS > 0 && store.connection.connected) {
+  // A page check does nothing to the screen, so it needs no wait.
+  const checkOnly = String(step.action).trim().toUpperCase() === "ROUTE";
+
+  if (status === "passed" && !checkOnly && AFTER_SHOT_DELAY_SECONDS > 0 && store.connection.connected) {
     try {
       await pause(Math.max(0, AFTER_SHOT_DELAY_SECONDS * 1000 - (Date.now() - endedAt)));
     } catch {
@@ -387,7 +401,7 @@ async function executeFlowNodes(run, nodes, actionMap) {
     try {
       // Default settle time before every step. DELAY is exempt: it is the
       // explicit way to wait longer.
-      if (name !== "DELAY" && STEP_DELAY_SECONDS > 0) {
+      if (name !== "DELAY" && name !== "ROUTE" && STEP_DELAY_SECONDS > 0) {
         step.phase = "waiting";
         addEvent(`Waiting ${STEP_DELAY_SECONDS}s before ${title}`);
 
@@ -477,6 +491,24 @@ async function executeDeviceAction(action, step) {
 
   // The option itself is tapped by executeConfirmationNode.
   if (name === "CONFIRMATION") return;
+
+  // The tablet has to be on this page; it is given time to get there.
+  if (name === "ROUTE") {
+    const expected = normalizeRoute(action.route);
+
+    if (!expected) throw new Error("ROUTE needs a page route, for example /home.");
+
+    await untilFound(step, async () => {
+      const current = normalizeRoute(await evaluate("location.pathname"));
+
+      if (current.toLowerCase() !== expected.toLowerCase()) {
+        throw new Error(`Expected the tablet to be on ${expected} but it is on ${current || "an unknown page"}`);
+      }
+    });
+
+    addEvent(`On page ${expected}`, "", "success");
+    return;
+  }
 
   if (name === "PASTE") {
     const text = String(action.pasteText || "").trim();

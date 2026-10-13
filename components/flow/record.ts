@@ -5,10 +5,12 @@ import type { FlowNode, TestActionDefinition } from "../TestFlowBuilder";
 
 export type RecordedStep = {
   id: number;
-  action: "CLICK" | "PASTE" | "AUTHENTICATION" | "SAVE";
+  action: "CLICK" | "PASTE" | "AUTHENTICATION" | "SAVE" | "ROUTE";
   // CLICK: the text tapped. PASTE: the text typed.
   text?: string;
   email?: string;
+  // ROUTE: the page the tablet was on, e.g. /home.
+  route?: string;
   // A password was typed. Its value is never recorded.
   hasPassword?: boolean;
   // A tap on something with no readable text.
@@ -37,6 +39,7 @@ export function flowFromRecording(steps: RecordedStep[], library: TestActionDefi
       confirmationOptions: [],
       clickOnText: step.action === "CLICK" ? step.text ?? "" : null,
       pasteText: step.action === "PASTE" ? step.text ?? "" : null,
+      route: step.action === "ROUTE" ? step.route ?? "" : null,
       email: step.action === "AUTHENTICATION" ? step.email ?? "" : null,
       password: step.action === "AUTHENTICATION" ? "" : null,
     };

@@ -22,7 +22,17 @@ export type TestAction = {
     type?: string | null;
     icon?: string | null;
     clickOnText?: string | null;
+    route?: string | null;
 };
+
+// "home", "/home/" and "/home?x=1" all mean /home.
+export function normalizeRoute(value: string): string {
+    const path = value.trim().split(/[?#]/)[0];
+    if (!path) return "";
+
+    const withSlash = path.startsWith("/") ? path : `/${path}`;
+    return withSlash.length > 1 ? withSlash.replace(/\/+$/, "") : withSlash;
+}
 
 const DEFAULT_CONFIRMATION_OPTIONS: ConfirmationChoice[] = [
     { option: "YES", isSelected: true },
@@ -47,6 +57,7 @@ export default function ActionDialog({
     const [actionTimeout, setActionTimeout] = useState(test?.actionTimeout?.toString() ?? "5");
     const [email, setEmail] = useState(test?.email ?? "");
     const [clickOnText, setClickOnText] = useState(test?.clickOnText ?? "");
+    const [route, setRoute] = useState(test?.route ?? "");
     const [password, setPassword] = useState(test?.password ?? "");
     const [icon, setIcon] = useState(test?.icon ?? "");
     const [pasteText, setPasteText] = useState(test?.pasteText ?? "");
@@ -118,6 +129,12 @@ export default function ActionDialog({
             alert("Please enter the text to paste.");
             return;
         }
+        const isRouteAction = title.trim().toUpperCase() === "ROUTE";
+        const routePath = normalizeRoute(route);
+        if (isRouteAction && !routePath) {
+            alert("Enter the page route, for example /home.");
+            return;
+        }
         const payload: TestAction = {
             ...(test?.id ? { id: test.id } : {}),
             title: title.trim(),
@@ -140,6 +157,7 @@ export default function ActionDialog({
             password: password || null,
             icon: icon || null,
             clickOnText: clickOnText || null,
+            route: isRouteAction ? routePath : null,
             ...(isPasteAction ? { pasteText: pasteText.trim() } : {}),
         };
         try {
@@ -261,6 +279,26 @@ export default function ActionDialog({
                                     placeholder="Start"
                                     className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
                                 />
+                            </div>
+                        )}
+                        {/* Route */}
+                        {isEditingAction && title.trim().toUpperCase() === "ROUTE" && (
+                            <div>
+                                <label htmlFor="route-path" className="mb-1.5 block text-sm font-medium text-gray-700">
+                                    Page route
+                                </label>
+                                <input
+                                    id="route-path"
+                                    type="text"
+                                    value={route}
+                                    onChange={(event) => setRoute(event.target.value)}
+                                    placeholder="/home"
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-black focus:ring-1 focus:ring-black"
+                                />
+                                <p className="mt-1.5 text-xs text-gray-600">
+                                    The page the tablet should be on, such as /home or /loginTS. The step waits for it,
+                                    and fails if the tablet is on another page.
+                                </p>
                             </div>
                         )}
                         {/* Delay */}

@@ -44,7 +44,8 @@ DATABASE_URL=postgres://user:password@localhost:5432/vctestbench
 VC_SECRET_KEY=<output of: openssl rand -base64 32>
 ```
 
-Apply the SQL files in `db/migrations/` in order:
+Apply the SQL files in `db/migrations/` in order (`0013` adds the ROUTE action to
+an existing database):
 
 ```bash
 for f in db/migrations/*.sql; do
@@ -99,13 +100,15 @@ npm run bridge   # in a second terminal, with the tablet connected
 | DELAY | Waits the configured number of seconds, on top of the default wait |
 | CONFIRMATION | Branches on the selected option |
 | SAVE | Presses the save button |
+| ROUTE | Waits for the tablet to be on the page you set (`/home`, `/loginTS`) and fails if it is not |
 
 ### Recording a flow
 
 On a new, empty flow with the tablet connected and the Sandbox app open, the
 editor offers **Start recording**. Then use the tablet yourself: each tap becomes
 a CLICK (with the text you tapped), text you enter becomes a PASTE, the sign-in
-form becomes AUTHENTICATION, and the save button becomes SAVE. The steps appear
+form becomes AUTHENTICATION, the save button becomes SAVE, and each page you
+move to becomes a ROUTE step (the page you started on is the first). The steps appear
 in the flow as you go; press **Stop recording**, check them, name the flow and
 save.
 

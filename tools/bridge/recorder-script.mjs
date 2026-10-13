@@ -66,11 +66,30 @@ export const RECORDER_SCRIPT = `(() => {
     });
   };
 
+  // The page the tablet is on. The app changes pages without reloading, so it
+  // is looked at whenever the queue is read: the first reading is where the
+  // recording began, and every change after that is a step.
+  let route = null;
+
+  const watchRoute = () => {
+    const path = location.pathname;
+
+    if (path !== route) {
+      route = path;
+      queue.push({ kind: "route", path });
+    }
+  };
+
+  watchRoute();
+
   document.addEventListener("click", onClick, true);
   document.addEventListener("change", onChange, true);
 
   window.__vcRec = {
-    drain: () => queue.splice(0),
+    drain: () => {
+      watchRoute();
+      return queue.splice(0);
+    },
     stop: () => {
       document.removeEventListener("click", onClick, true);
       document.removeEventListener("change", onChange, true);

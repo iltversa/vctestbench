@@ -53,3 +53,32 @@ test("the first try is immediate and nothing is recorded when it works", async (
   assert.equal(await untilFound(step, async () => "ok"), "ok");
   assert.equal(step.waitedMs, 0);
 });
+
+test("a page that is not the expected one yet is looked for, then reported", async () => {
+  const step = { waitedMs: 0 };
+  let tries = 0;
+
+  await untilFound(step, async () => {
+    tries += 1;
+    if (tries < 2) throw new Error("Expected the tablet to be on /loginTS but it is on /home");
+  });
+
+  assert.equal(tries, 2);
+
+  await assert.rejects(
+    untilFound(step, async () => {
+      throw new Error("Expected the tablet to be on /loginTS but it is on /home");
+    }),
+    /Expected the tablet to be on \/loginTS but it is on \/home \(looked for 1s\)/
+  );
+});
+
+test("routes are compared without a trailing slash or query", async () => {
+  const { normalizeRoute } = await import("../tools/bridge/runner.mjs");
+
+  assert.equal(normalizeRoute("home"), "/home");
+  assert.equal(normalizeRoute("/home/"), "/home");
+  assert.equal(normalizeRoute("/home?tab=1#top"), "/home");
+  assert.equal(normalizeRoute("/"), "/");
+  assert.equal(normalizeRoute(""), "");
+});

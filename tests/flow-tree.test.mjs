@@ -247,3 +247,10 @@ test("sign-in is recorded without a password and flagged for the person", () => 
   assert.equal(flow[0].actionData.password, "");
   assert.equal(recordingTodos(steps).length, 2);
 });
+
+test("a recorded page becomes a ROUTE step with its route", () => {
+  const flow = flowFromRecording([{ id: 1, action: "ROUTE", route: "/home" }], []);
+
+  assert.equal(flow[0].actionTitle, "ROUTE");
+  assert.equal(flow[0].actionData.route, "/home");
+});

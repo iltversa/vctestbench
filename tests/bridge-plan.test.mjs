@@ -57,3 +57,9 @@ test("an action in the lookup map wins over the copy stored in the node", () => 
 
   assert.equal(planFlow(flow, actions)[0].detail, 'Tap "new"');
 });
+
+test("a ROUTE step is planned with the page it checks", () => {
+  const flow = [node("r", "ROUTE", { route: "/loginTS" })];
+
+  assert.deepEqual(plan(flow), ["1. ROUTE: On page /loginTS"]);
+});

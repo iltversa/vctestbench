@@ -46,6 +46,7 @@ function toTestAction(source: ActionSource): TestAction {
     icon: source.icon ?? null,
     type: source.type ?? null,
     clickOnText: source.clickOnText ?? null,
+    route: source.route ?? null,
   };
 }
 

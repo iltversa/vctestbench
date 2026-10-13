@@ -37,6 +37,7 @@ export class Recording {
     for (const event of Array.isArray(events) ? events : []) {
       if (event?.kind === "click") this.click(event);
       else if (event?.kind === "input") this.input(event);
+      else if (event?.kind === "route") this.route(event);
     }
   }
 
@@ -55,6 +56,17 @@ export class Recording {
     }
 
     this.add({ action: "CLICK", text, unlabeled: text === "" });
+  }
+
+  route({ path = "" }) {
+    const route = String(path).trim();
+    if (!route) return;
+
+    // Only a change of page is a step.
+    const previous = [...this.steps].reverse().find((step) => step.action === "ROUTE");
+    if (previous?.route === route) return;
+
+    this.add({ action: "ROUTE", route });
   }
 
   input({ password = false, value = "", field = "" }) {

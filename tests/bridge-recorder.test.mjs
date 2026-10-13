@@ -61,3 +61,23 @@ test("a tap with no readable text is kept and flagged", () => {
 test("junk is ignored", () => {
   assert.deepEqual(record([null, { kind: "scroll" }, "x"]), []);
 });
+
+const route = (path) => ({ kind: "route", path });
+
+test("the page the recording starts on, and each change of page, become ROUTE steps", () => {
+  assert.deepEqual(record([route("/home"), click("ADD USER"), route("/loginTS")]), [
+    { action: "ROUTE", route: "/home" },
+    { action: "CLICK", text: "ADD USER", unlabeled: false },
+    { action: "ROUTE", route: "/loginTS" },
+  ]);
+});
+
+test("the same page twice in a row is one ROUTE step", () => {
+  assert.deepEqual(record([route("/home"), route("/home"), route("")]), [{ action: "ROUTE", route: "/home" }]);
+});
+
+test("a page change right after sign-in does not stop the sign-in tap being absorbed", () => {
+  const steps = record([type("me@example.com"), password(), click("Sign in"), route("/home")]);
+
+  assert.deepEqual(steps.map((step) => step.action), ["AUTHENTICATION", "ROUTE"]);
+});
