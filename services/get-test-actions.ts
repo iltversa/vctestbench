@@ -6,19 +6,7 @@ import { testActions } from "@/db/schema/test-actions";
 export type TestActionDefinition = {
   id: string;
   title: string;
-  hasConfirmation: boolean;
-  confirmationTimeout: number | null;
-  actionTimeout: number;
-  pasteText?: string | null;
   icon?: string | null;
-  clickOnText?: string | null;
-  email?: string | null;
-  password?: string | null;
-  confirmationOptions: {
-    id: string;
-    option: string;
-    isSelected: boolean | null;
-  }[];
 };
 
 export async function getActionsService(): Promise<TestActionDefinition[]> {
@@ -26,17 +14,7 @@ export async function getActionsService(): Promise<TestActionDefinition[]> {
     .select({
       actionId: testActions.id,
       title: testActions.title,
-      hasConfirmation: testActions.hasConfirmation,
-      confirmationTimeout: testActions.confirmationTimeout,
-      actionTimeout: testActions.actionTimeout,
-      email: testActions.email,
-      password: testActions.password,
-      pasteText: testActions.pasteText,
       icon: testActions.icon,
-      clickOnText: testActions.clickOnText,
-      confirmationOptionId: confirmationOptions.id,
-      confirmationOption: confirmationOptions.option,
-      confirmationIsSelected: confirmationOptions.isSelected,
     })
     .from(testActions)
     .leftJoin(
@@ -55,26 +33,11 @@ export async function getActionsService(): Promise<TestActionDefinition[]> {
       action = {
         id: actionId,
         title: String(row.title),
-        hasConfirmation: Boolean(row.hasConfirmation),
-        confirmationTimeout: row.confirmationTimeout ?? null,
-        actionTimeout: Number(row.actionTimeout ?? 0),
-        pasteText: row.pasteText ?? null,
         icon: row.icon ?? null,
-        clickOnText: row.clickOnText ?? null,
-        email: row.email ?? null,
-        password: row.password ?? null,
-        confirmationOptions: [],
       };
       actionsMap.set(actionId, action);
     }
 
-    if (row.confirmationOptionId && row.confirmationOption) {
-      action.confirmationOptions.push({
-        id: String(row.confirmationOptionId),
-        option: String(row.confirmationOption),
-        isSelected: Boolean(row.confirmationIsSelected),
-      });
-    }
   }
 
   return Array.from(actionsMap.values());
